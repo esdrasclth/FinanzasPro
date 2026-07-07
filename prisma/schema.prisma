@@ -1,0 +1,231 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model users {
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String    @unique
+  password_hash String
+  nombre        String?
+  created_at    DateTime  @default(now())
+  profile       profiles?
+}
+
+model profiles {
+  id                     String   @id @db.Uuid
+  nombre                 String
+  moneda_default         String   @default("HNL")
+  onboarding_completado  Boolean  @default(false)
+  created_at             DateTime @default(now())
+  user                   users    @relation(fields: [id], references: [id], onDelete: Cascade)
+}
+
+model wallets {
+  id              String   @id @default(uuid()) @db.Uuid
+  user_id         String   @db.Uuid
+  nombre          String
+  tipo            String
+  saldo_inicial   Float    @default(0)
+  color           String?
+  moneda          String   @default("HNL")
+  activo          Boolean  @default(true)
+  credito_limite  Float?
+  fecha_corte     Int?
+  fecha_pago      Int?
+  created_at      DateTime @default(now())
+
+  transactions          transactions[] @relation("wallet")
+  transacciones_destino transactions[] @relation("wallet_destino")
+  debt_payments         debt_payments[]
+
+  @@index([user_id])
+}
+
+model categories {
+  id          String   @id @default(uuid()) @db.Uuid
+  user_id     String?  @db.Uuid
+  nombre      String
+  icono       String?
+  color       String?
+  tipo        String
+  parent_id   String?  @db.Uuid
+  es_sistema  Boolean  @default(false)
+  created_at  DateTime @default(now())
+
+  parent        categories?    @relation("subcategorias", fields: [parent_id], references: [id], onDelete: Cascade)
+  subcategorias categories[]   @relation("subcategorias")
+  transactions  transactions[]
+  budgets       budgets[]
+
+  @@index([user_id])
+}
+
+model transactions {
+  id                 String    @id @default(uuid()) @db.Uuid
+  user_id            String    @db.Uuid
+  wallet_id          String    @db.Uuid
+  category_id        String?   @db.Uuid
+  wallet_destino_id  String?   @db.Uuid
+  monto              Float
+  tipo               String
+  descripcion        String?
+  fecha              DateTime  @db.Date
+  created_at         DateTime  @default(now())
+
+  wallet         wallets     @relation("wallet", fields: [wallet_id], references: [id], onDelete: Cascade)
+  wallet_destino wallets?    @relation("wallet_destino", fields: [wallet_destino_id], references: [id], onDelete: SetNull)
+  category       categories? @relation(fields: [category_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id, fecha])
+  @@index([wallet_id])
+  @@index([category_id])
+}
+
+model budgets {
+  id            String   @id @default(uuid()) @db.Uuid
+  user_id       String   @db.Uuid
+  category_id   String   @db.Uuid
+  monto_limite  Float
+  mes           Int
+  anio          Int      @map("ano")
+  created_at    DateTime @default(now())
+
+  category categories @relation(fields: [category_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, category_id, mes, anio])
+  @@index([user_id])
+}
+
+model debts {
+  id            String    @id @default(uuid()) @db.Uuid
+  user_id       String    @db.Uuid
+  nombre        String
+  descripcion   String?
+  tipo          String
+  monto_total   Float
+  monto_pagado  Float     @default(0)
+  fecha_limite  DateTime? @db.Date
+  completada    Boolean   @default(false)
+  created_at    DateTime  @default(now())
+
+  payments debt_payments[]
+
+  @@index([user_id])
+}
+
+model debt_payments {
+  id          String   @id @default(uuid()) @db.Uuid
+  debt_id     String   @db.Uuid
+  user_id     String   @db.Uuid
+  wallet_id   String?  @db.Uuid
+  monto       Float
+  fecha       DateTime @db.Date
+  nota        String?
+  created_at  DateTime @default(now())
+
+  debt   debts    @relation(fields: [debt_id], references: [id], onDelete: Cascade)
+  wallet wallets? @relation(fields: [wallet_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([debt_id])
+}
+
+model grupos {
+  id                String   @id @default(uuid()) @db.Uuid
+  nombre            String
+  moneda            String   @default("USD")
+  codigo_invitacion String   @unique
+  creado_por        String   @db.Uuid
+  created_at        DateTime @default(now())
+
+  miembros      grupo_miembros[]
+  gastos        gastos_compartidos[]
+  liquidaciones liquidaciones[]
+}
+
+model grupo_miembros {
+  id         String   @id @default(uuid()) @db.Uuid
+  grupo_id   String   @db.Uuid
+  user_id    String   @db.Uuid
+  rol        String   @default("miembro")
+  estado     String   @default("activo")
+  created_at DateTime @default(now())
+
+  grupo grupos @relation(fields: [grupo_id], references: [id], onDelete: Cascade)
+
+  @@unique([grupo_id, user_id])
+  @@index([user_id])
+}
+
+model gastos_compartidos {
+  id              String   @id @default(uuid()) @db.Uuid
+  grupo_id        String   @db.Uuid
+  descripcion     String
+  monto_total     Float
+  fecha           DateTime @db.Date
+  mes             Int
+  anio            Int
+  category_id     String?  @db.Uuid
+  recibo_url      String?
+  metodo_division String
+  creado_por      String   @db.Uuid
+  created_at      DateTime @default(now())
+
+  grupo      grupos             @relation(fields: [grupo_id], references: [id], onDelete: Cascade)
+  pagos      gasto_pagos[]
+  divisiones gasto_divisiones[]
+
+  @@index([grupo_id, anio, mes])
+}
+
+model gasto_pagos {
+  id             String  @id @default(uuid()) @db.Uuid
+  gasto_id       String  @db.Uuid
+  user_id        String  @db.Uuid
+  wallet_id      String? @db.Uuid
+  transaction_id String? @db.Uuid
+  monto          Float
+
+  gasto gastos_compartidos @relation(fields: [gasto_id], references: [id], onDelete: Cascade)
+
+  @@index([gasto_id])
+  @@index([user_id])
+}
+
+model gasto_divisiones {
+  id             String  @id @default(uuid()) @db.Uuid
+  gasto_id       String  @db.Uuid
+  user_id        String  @db.Uuid
+  monto_asignado Float
+  valor          Float?
+
+  gasto gastos_compartidos @relation(fields: [gasto_id], references: [id], onDelete: Cascade)
+
+  @@index([gasto_id])
+  @@index([user_id])
+}
+
+model liquidaciones {
+  id                String   @id @default(uuid()) @db.Uuid
+  grupo_id          String   @db.Uuid
+  de_user_id        String   @db.Uuid
+  a_user_id         String   @db.Uuid
+  monto             Float
+  fecha             DateTime @db.Date
+  nota              String?
+  de_wallet_id      String?  @db.Uuid
+  de_transaction_id String?  @db.Uuid
+  a_wallet_id       String?  @db.Uuid
+  a_transaction_id  String?  @db.Uuid
+  created_at        DateTime @default(now())
+
+  grupo grupos @relation(fields: [grupo_id], references: [id], onDelete: Cascade)
+
+  @@index([grupo_id])
+}
