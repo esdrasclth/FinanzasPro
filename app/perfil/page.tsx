@@ -127,7 +127,7 @@ export default function Perfil() {
 
   return (
     <AppLayout>
-      <div className="max-w-2xl p-6 mx-auto lg:p-8">
+      <div className="max-w-[1728px] p-6 mx-auto lg:p-8">
 
         {/* Header */}
         <div className="mb-8">

@@ -152,7 +152,7 @@ export default function Transacciones() {
   if (loading) {
     return (
       <AppLayout>
-        <div className="max-w-4xl px-6 py-8 mx-auto space-y-6">
+        <div className="max-w-[1728px] px-6 py-8 mx-auto space-y-6">
           <div className="flex items-center justify-between">
             <div className="w-40 h-10 bg-fog rounded-input animate-pulse" />
             <div className="w-32 h-6 rounded-badge bg-fog animate-pulse" />
@@ -173,7 +173,7 @@ export default function Transacciones() {
   return (
     <AppLayout>
 
-      <div className="max-w-4xl px-6 py-8 mx-auto">
+      <div className="max-w-[1728px] px-6 py-8 mx-auto">
 
         {/* Selector de mes */}
         <div className="flex items-center justify-between mb-6">

@@ -133,7 +133,7 @@ export default function Reportes() {
   if (loading) {
     return (
       <AppLayout>
-        <div className="max-w-6xl px-6 py-8 mx-auto space-y-6">
+        <div className="max-w-[1728px] px-6 py-8 mx-auto space-y-6">
           <div className="w-48 h-8 rounded bg-fog animate-pulse" />
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             {[1, 2, 3, 4].map(i => (
@@ -155,7 +155,7 @@ export default function Reportes() {
 
   return (
     <AppLayout>
-      <div className="max-w-6xl p-6 mx-auto lg:p-8">
+      <div className="max-w-[1728px] p-6 mx-auto lg:p-8">
 
         {/* Header */}
         <div className="flex items-center justify-between mb-8">

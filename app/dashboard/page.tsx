@@ -10,6 +10,7 @@ import FormTransaccion from '../components/FormTransaccion'
 import { SkeletonStats, SkeletonChart, SkeletonList } from '../components/Skeleton'
 import Notificaciones from '../components/Notificaciones'
 import CalendarioFinanciero from '../components/CalendarioFinanciero'
+import { TrendingUp, TrendingDown, Wallet } from 'lucide-react'
 
 export default function Dashboard() {
   const router = useRouter()
@@ -17,6 +18,7 @@ export default function Dashboard() {
   const [transacciones, setTransacciones] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
   const [resumen, setResumen] = useState({ ingresos: 0, gastos: 0 })
+  const [resumenPrev, setResumenPrev] = useState({ ingresos: 0, gastos: 0 })
   const [loading, setLoading] = useState(true)
   const [vistaGrafica, setVistaGrafica] = useState<'gasto' | 'ingreso'>('gasto')
   const [mesOffset, setMesOffset] = useState(0) // 0 = mes actual, -1 = mes anterior
@@ -56,6 +58,17 @@ export default function Dashboard() {
     const ingresos = (data || []).filter(t => t.tipo === 'ingreso').reduce((sum, t) => sum + Number(t.monto), 0)
     const gastos = (data || []).filter(t => t.tipo === 'gasto').reduce((sum, t) => sum + Number(t.monto), 0)
     setResumen({ ingresos, gastos })
+
+    const prev = getMesRango(-1)
+    const { data: dataPrev } = await supabase
+      .from('transactions')
+      .select('monto, tipo')
+      .eq('user_id', user.id)
+      .gte('fecha', prev.inicio)
+      .lte('fecha', prev.fin)
+    const ingresosPrev = (dataPrev || []).filter(t => t.tipo === 'ingreso').reduce((s, t) => s + Number(t.monto), 0)
+    const gastosPrev = (dataPrev || []).filter(t => t.tipo === 'gasto').reduce((s, t) => s + Number(t.monto), 0)
+    setResumenPrev({ ingresos: ingresosPrev, gastos: gastosPrev })
   }
 
   const formatMonto = (n: number) =>
@@ -78,20 +91,45 @@ export default function Dashboard() {
     month: 'long', year: 'numeric'
   })
 
-  const getMesRango = () => {
-    const fecha = getMesActual()
-    const inicio = new Date(fecha.getFullYear(), fecha.getMonth(), 1)
-    const fin = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0)
+  const getMesRango = (extra = 0) => {
+    const base = getMesActual()
+    const inicio = new Date(base.getFullYear(), base.getMonth() + extra, 1)
+    const fin = new Date(base.getFullYear(), base.getMonth() + extra + 1, 0)
     return {
       inicio: inicio.toISOString().split('T')[0],
       fin: fin.toISOString().split('T')[0]
     }
   }
 
+  const mesAnteriorNombre = (() => {
+    const base = getMesActual()
+    return new Date(base.getFullYear(), base.getMonth() - 1, 1)
+      .toLocaleDateString('es-HN', { month: 'long' })
+  })()
+
+  const trend = (cur: number, prev: number) => {
+    if (prev === 0) {
+      return (
+        <p className="mt-1.5 text-sm font-medium flex items-center gap-1 text-white/50">
+          <span>Sin datos</span>
+          <span className="text-white/40">de {mesAnteriorNombre}</span>
+        </p>
+      )
+    }
+    const pct = ((cur - prev) / Math.abs(prev)) * 100
+    const up = pct >= 0
+    return (
+      <p className={`mt-1.5 text-sm font-medium flex items-center gap-1 ${up ? 'text-emerald-300' : 'text-red-300'}`}>
+        <span>{up ? '↑' : '↓'} {Math.abs(pct).toFixed(1)}%</span>
+        <span className="text-white/40">vs {mesAnteriorNombre}</span>
+      </p>
+    )
+  }
+
   if (loading) {
     return (
       <AppLayout>
-        <div className="max-w-6xl p-6 mx-auto space-y-6 lg:p-8">
+        <div className="max-w-[1728px] p-6 mx-auto space-y-6 lg:p-8">
           <div className="space-y-2">
             <div className="w-32 h-3 rounded bg-fog animate-pulse" />
             <div className="w-56 h-8 rounded bg-fog animate-pulse" />
@@ -109,7 +147,7 @@ export default function Dashboard() {
 
   return (
     <AppLayout>
-      <div className="max-w-6xl p-6 mx-auto lg:p-8">
+      <div className="max-w-[1728px] p-6 mx-auto lg:p-8">
 
         {/* Header */}
         <div className="flex items-start justify-between mb-8">
@@ -122,35 +160,52 @@ export default function Dashboard() {
           <Notificaciones />
         </div>
 
-        {/* Cards resumen */}
-        <div className="grid grid-cols-1 gap-4 mb-8 sm:grid-cols-3">
-          <div className="p-6 transition-all border bg-snow border-fog rounded-card">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-medium text-steel">Ingresos</p>
-              <div className="flex items-center justify-center w-8 h-8 text-sm rounded-badge bg-emerald-50">💰</div>
+        {/* Hero resumen */}
+        <div
+          className="relative mb-8 overflow-hidden text-white shadow-soft rounded-2xl"
+          style={{ background: 'linear-gradient(135deg, #2c6e49 0%, #14361f 55%, #000000 100%)' }}
+        >
+          <div className="absolute top-0 right-0 rounded-full pointer-events-none -mt-16 -mr-16 w-72 h-72 bg-white/5 blur-2xl" />
+          <div className="absolute bottom-0 rounded-full pointer-events-none left-1/3 -mb-24 w-72 h-72 bg-emerald-400/10 blur-3xl" />
+          <div className="relative px-6 py-9 lg:px-8 lg:py-12">
+            <div className="mb-8">
+              <h2 className="text-xl font-semibold">Resumen de este mes</h2>
+              <p className="text-base capitalize text-white/60">{mesNombre}</p>
             </div>
-            <p className="text-2xl font-bold text-emerald-600">L {formatMonto(resumen.ingresos)}</p>
-            <p className="mt-1 text-xs text-ash">Este mes</p>
-          </div>
+            <div className="grid grid-cols-1 gap-8 sm:grid-cols-3 sm:gap-6 sm:divide-x sm:divide-white/10">
+              <div className="flex items-start gap-4 sm:pr-6">
+                <div className="flex items-center justify-center flex-shrink-0 w-11 h-11 rounded-xl bg-white/10">
+                  <TrendingUp size={20} strokeWidth={2} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-base text-white/60">Ingresos</p>
+                  <p className="text-2xl font-bold break-words sm:text-3xl">L {formatMonto(resumen.ingresos)}</p>
+                  {trend(resumen.ingresos, resumenPrev.ingresos)}
+                </div>
+              </div>
 
-          <div className="p-6 transition-all border bg-snow border-fog rounded-card">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-medium text-steel">Gastos</p>
-              <div className="flex items-center justify-center w-8 h-8 text-sm rounded-badge bg-red-50">💸</div>
-            </div>
-            <p className="text-2xl font-bold text-red-500">L {formatMonto(resumen.gastos)}</p>
-            <p className="mt-1 text-xs text-ash">Este mes</p>
-          </div>
+              <div className="flex items-start gap-4 sm:px-6">
+                <div className="flex items-center justify-center flex-shrink-0 w-11 h-11 rounded-xl bg-white/10">
+                  <TrendingDown size={20} strokeWidth={2} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-base text-white/60">Gastos</p>
+                  <p className="text-2xl font-bold break-words sm:text-3xl">L {formatMonto(resumen.gastos)}</p>
+                  {trend(resumen.gastos, resumenPrev.gastos)}
+                </div>
+              </div>
 
-          <div className="p-6 transition-all border bg-snow border-fog rounded-card">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-medium text-steel">Saldo neto</p>
-              <div className="flex items-center justify-center w-8 h-8 text-sm rounded-badge bg-fog">📊</div>
+              <div className="flex items-start gap-4 sm:pl-6">
+                <div className="flex items-center justify-center flex-shrink-0 w-11 h-11 rounded-xl bg-white/10">
+                  <Wallet size={20} strokeWidth={2} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-base text-white/60">Saldo neto</p>
+                  <p className="text-2xl font-bold break-words sm:text-3xl">L {formatMonto(resumen.ingresos - resumen.gastos)}</p>
+                  {trend(resumen.ingresos - resumen.gastos, resumenPrev.ingresos - resumenPrev.gastos)}
+                </div>
+              </div>
             </div>
-            <p className={`text-2xl font-bold ${resumen.ingresos - resumen.gastos >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-              L {formatMonto(resumen.ingresos - resumen.gastos)}
-            </p>
-            <p className="mt-1 text-xs text-ash">Ingresos - Gastos</p>
           </div>
         </div>
 

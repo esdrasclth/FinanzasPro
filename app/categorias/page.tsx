@@ -72,7 +72,7 @@ export default function Categorias() {
 
   return (
     <AppLayout>
-      <div className="p-6 lg:p-8 max-w-4xl mx-auto">
+      <div className="p-6 lg:p-8 max-w-[1728px] mx-auto">
 
         {/* Header */}
         <div className="mb-8">

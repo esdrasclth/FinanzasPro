@@ -89,7 +89,7 @@ export default function Carteras() {
   if (loading) {
     return (
       <AppLayout>
-        <div className="max-w-4xl px-6 py-8 mx-auto space-y-6">
+        <div className="max-w-[1728px] px-6 py-8 mx-auto space-y-6">
           <div className="w-48 h-8 rounded-badge bg-fog animate-pulse" />
           <div className="grid grid-cols-2 gap-4">
             <div className="p-6 border bg-snow border-fog rounded-card animate-pulse">
@@ -112,7 +112,7 @@ export default function Carteras() {
   return (
     <AppLayout>
 
-      <div className="max-w-4xl px-6 py-8 mx-auto">
+      <div className="max-w-[1728px] px-6 py-8 mx-auto">
 
         {/* Valor neto total */}
         <div className={`rounded-card-lg p-8 mb-8 text-center bg-obsidian ${valorNeto >= 0

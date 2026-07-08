@@ -144,7 +144,7 @@ export default function GrupoDetalle() {
   if (loading && !grupo) {
     return (
       <AppLayout>
-        <div className="max-w-3xl px-6 py-8 mx-auto space-y-4">
+        <div className="max-w-[1728px] px-6 py-8 mx-auto space-y-4">
           <div className="w-48 h-8 rounded-badge bg-fog animate-pulse" />
           <div className="h-32 rounded-card bg-fog animate-pulse" />
         </div>
@@ -154,7 +154,7 @@ export default function GrupoDetalle() {
 
   return (
     <AppLayout>
-      <div className="max-w-3xl px-6 py-8 mx-auto">
+      <div className="max-w-[1728px] px-6 py-8 mx-auto">
         {/* Header */}
         <div className="flex items-start justify-between mb-6">
           <div>

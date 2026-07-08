@@ -83,7 +83,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <main className="pb-[calc(5rem+env(safe-area-inset-bottom))] lg:ml-64 lg:pb-0">
-          <div className="max-w-6xl p-6 mx-auto space-y-6 lg:p-8">
+          <div className="max-w-[1728px] p-6 mx-auto space-y-6 lg:p-8">
             <div className="w-48 h-8 rounded bg-fog animate-pulse" />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               {[1, 2, 3].map(i => (

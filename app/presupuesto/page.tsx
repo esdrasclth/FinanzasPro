@@ -80,7 +80,7 @@ export default function Presupuesto() {
   if (loading) {
     return (
       <AppLayout>
-        <div className="max-w-4xl px-6 py-8 mx-auto space-y-6">
+        <div className="max-w-[1728px] px-6 py-8 mx-auto space-y-6">
           <div className="w-48 h-8 rounded-badge bg-fog animate-pulse" />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {[1, 2, 3].map(i => (
@@ -99,7 +99,7 @@ export default function Presupuesto() {
   return (
     <AppLayout>
 
-      <div className="max-w-4xl px-6 py-8 mx-auto">
+      <div className="max-w-[1728px] px-6 py-8 mx-auto">
 
         {/* Resumen general */}
         <div className="p-6 mb-8 border bg-snow border-fog rounded-card">
