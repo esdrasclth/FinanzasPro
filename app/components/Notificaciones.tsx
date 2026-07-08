@@ -138,9 +138,9 @@ export default function Notificaciones() {
       {/* Botón campana */}
       <button
         onClick={() => setMostrar(!mostrar)}
-        className="relative flex items-center justify-center w-10 h-10 transition-colors border rounded-full bg-snow border-fog shadow-soft text-graphite hover:text-ink hover:bg-mist"
+        className="relative flex items-center justify-center transition-colors border rounded-full w-11 h-11 bg-snow border-fog shadow-soft text-graphite hover:text-ink hover:bg-mist"
       >
-        <Bell size={18} strokeWidth={2} />
+        <Bell size={19} strokeWidth={2} />
         {cantidad > 0 && (
           <span className="absolute flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full -top-1 -right-1">
             {cantidad > 9 ? '9+' : cantidad}

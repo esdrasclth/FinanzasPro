@@ -24,7 +24,7 @@ export default function GraficaGastos({ transacciones, vista, onVistaChange }: P
     new Intl.NumberFormat('es-HN', { minimumFractionDigits: 2 }).format(n)
 
   const datos = transacciones
-    .filter(t => t.tipo === vista && t.categories?.nombre !== 'Transferencia')
+    .filter(t => t.tipo === vista && t.categories?.nombre !== 'Transferencia' && t.categories?.nombre !== 'Saldo inicial')
     .reduce((acc: any[], t) => {
       const nombre = t.categories?.nombre || 'Sin categoría'
       const icono = t.categories?.icono || '💸'
@@ -43,19 +43,25 @@ export default function GraficaGastos({ transacciones, vista, onVistaChange }: P
   return (
     <div>
       {/* Toggle */}
-      <div className="flex gap-1 p-1 mb-6 bg-mist rounded-xl">
+      <div className="relative flex p-1 mb-6 bg-mist rounded-xl">
+        {/* Indicador deslizante */}
+        <span
+          aria-hidden
+          className="absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-lg bg-snow shadow-soft transition-transform duration-300 ease-out"
+          style={{ transform: vista === 'ingreso' ? 'translateX(100%)' : 'translateX(0)' }}
+        />
         <button
           onClick={() => onVistaChange('gasto')}
-          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-            vista === 'gasto' ? 'bg-snow text-red-500 shadow-soft' : 'text-steel hover:text-ink'
+          className={`relative z-10 flex-1 py-2 text-sm font-medium transition-colors ${
+            vista === 'gasto' ? 'text-red-500' : 'text-steel hover:text-ink'
           }`}
         >
           Gastos
         </button>
         <button
           onClick={() => onVistaChange('ingreso')}
-          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-            vista === 'ingreso' ? 'bg-snow text-emerald-600 shadow-soft' : 'text-steel hover:text-ink'
+          className={`relative z-10 flex-1 py-2 text-sm font-medium transition-colors ${
+            vista === 'ingreso' ? 'text-emerald-600' : 'text-steel hover:text-ink'
           }`}
         >
           Ingresos

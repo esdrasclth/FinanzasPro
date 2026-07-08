@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import FormGastoCompartido from './FormGastoCompartido'
+import { X, TrendingUp, TrendingDown, ArrowLeftRight, ArrowDown, Users } from 'lucide-react'
 
 interface Props {
   onClose: () => void
@@ -248,7 +249,9 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
           </div>
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-fog sm:px-6 sm:py-4">
             <h2 className="text-base font-semibold text-ink sm:text-lg">Nueva transacción</h2>
-            <button onClick={onClose} className="flex items-center justify-center w-8 h-8 -mr-1 text-lg rounded-full text-ash hover:text-ink hover:bg-mist">✕</button>
+            <button onClick={onClose} className="flex items-center justify-center w-8 h-8 -mr-1 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist">
+              <X size={18} strokeWidth={2} />
+            </button>
           </div>
         </div>
 
@@ -257,16 +260,16 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
           {/* Tipo */}
           <div className="grid grid-cols-3 gap-2 p-1 bg-mist rounded-full">
             <button type="button" onClick={() => { setTipo('gasto'); setCategoriaId('') }}
-              className={`py-2.5 rounded-full text-sm font-medium transition-all ${tipo === 'gasto' ? 'bg-red-500 text-white' : 'text-steel hover:text-ink'}`}>
-              💸 Gasto
+              className={`flex items-center justify-center gap-1.5 py-2.5 rounded-full text-sm font-medium transition-all ${tipo === 'gasto' ? 'bg-red-500 text-white' : 'text-steel hover:text-ink'}`}>
+              <TrendingDown size={16} strokeWidth={2} /> Gasto
             </button>
             <button type="button" onClick={() => { setTipo('ingreso'); setCategoriaId(''); setEsCompartido(false); setGrupoSel('') }}
-              className={`py-2.5 rounded-full text-sm font-medium transition-all ${tipo === 'ingreso' ? 'bg-emerald-500 text-white' : 'text-steel hover:text-ink'}`}>
-              💰 Ingreso
+              className={`flex items-center justify-center gap-1.5 py-2.5 rounded-full text-sm font-medium transition-all ${tipo === 'ingreso' ? 'bg-emerald-500 text-white' : 'text-steel hover:text-ink'}`}>
+              <TrendingUp size={16} strokeWidth={2} /> Ingreso
             </button>
             <button type="button" onClick={() => { setTipo('transferencia'); setCategoriaId(''); setEsCompartido(false); setGrupoSel('') }}
-              className={`py-2.5 rounded-full text-sm font-medium transition-all ${tipo === 'transferencia' ? 'bg-indigo-500 text-white' : 'text-steel hover:text-ink'}`}>
-              ↔️ Mover
+              className={`flex items-center justify-center gap-1.5 py-2.5 rounded-full text-sm font-medium transition-all ${tipo === 'transferencia' ? 'bg-violet-500 text-white' : 'text-steel hover:text-ink'}`}>
+              <ArrowLeftRight size={16} strokeWidth={2} /> Mover
             </button>
           </div>
 
@@ -274,7 +277,9 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
           {tipo === 'gasto' && grupos.length > 0 && (
             <div className="p-4 space-y-3 border bg-mist/60 border-fog rounded-input">
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="text-sm font-medium text-graphite">👥 ¿Es un gasto compartido?</span>
+                <span className="flex items-center gap-2 text-sm font-medium text-graphite">
+                  <Users size={16} strokeWidth={2} /> ¿Es un gasto compartido?
+                </span>
                 <input
                   type="checkbox"
                   checked={esCompartido}
@@ -335,8 +340,10 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
 
           {/* Transferencia */}
           {tipo === 'transferencia' ? (
-            <div className="p-4 space-y-4 border bg-indigo-50 border-indigo-100 rounded-input">
-              <p className="text-sm font-medium text-indigo-600">↔️ Mover dinero entre cuentas</p>
+            <div className="p-4 space-y-4 border bg-violet-50 border-violet-100 rounded-input">
+              <p className="flex items-center gap-2 text-sm font-medium text-violet-600">
+                <ArrowLeftRight size={16} strokeWidth={2} /> Mover dinero entre cuentas
+              </p>
               <div>
                 <label className="block mb-2 text-sm font-medium text-graphite">Desde</label>
                 <select value={walletId} onChange={(e) => { setWalletId(e.target.value); setWalletDestinoId('') }}
@@ -344,7 +351,7 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
                   {wallets.map(w => <option key={w.id} value={w.id}>{w.nombre}</option>)}
                 </select>
               </div>
-              <div className="flex justify-center text-2xl text-indigo-500">↓</div>
+              <div className="flex justify-center text-violet-500"><ArrowDown size={22} strokeWidth={2} /></div>
               <div>
                 <label className="block mb-2 text-sm font-medium text-graphite">Hacia</label>
                 <select value={walletDestinoId} onChange={(e) => setWalletDestinoId(e.target.value)}
@@ -414,11 +421,12 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
 
           <div className="grid grid-cols-2 gap-3 pt-2">
             <button type="button" onClick={onClose}
-              className="py-3 font-medium transition-all border rounded-full border-pebble text-graphite hover:bg-fog">
+              className="py-3 font-medium transition-colors border rounded-full border-fog text-graphite hover:bg-mist">
               Cancelar
             </button>
             <button type="submit" disabled={loading}
-              className="py-3 rounded-full bg-obsidian text-snow hover:bg-graphite font-medium shadow-pill transition-all disabled:opacity-40">
+              style={{ background: 'linear-gradient(135deg, #2c6e49 0%, #14361f 55%, #000000 100%)' }}
+              className="py-3 font-medium transition-all rounded-full text-snow hover:brightness-110 disabled:opacity-40">
               {loading ? 'Guardando...' : tipo === 'transferencia' ? 'Mover dinero' : 'Guardar'}
             </button>
           </div>

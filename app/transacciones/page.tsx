@@ -23,6 +23,7 @@ export default function Transacciones() {
   const [busqueda, setBusqueda] = useState('')
   const [filtroTipo, setFiltroTipo] = useState('todos')
   const [filtroCategoria, setFiltroCategoria] = useState('todas')
+  const [filtroCartera, setFiltroCartera] = useState('')
   const [filtroMes, setFiltroMes] = useState(
     new Date().toISOString().slice(0, 7)
   )
@@ -40,8 +41,13 @@ export default function Transacciones() {
   }, [filtroMes])
 
   useEffect(() => {
+    const cartera = new URLSearchParams(window.location.search).get('cartera')
+    if (cartera) setFiltroCartera(cartera)
+  }, [])
+
+  useEffect(() => {
     aplicarFiltros()
-  }, [busqueda, filtroTipo, filtroCategoria, transacciones])
+  }, [busqueda, filtroTipo, filtroCategoria, filtroCartera, transacciones])
 
   const cargarDatos = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -105,6 +111,10 @@ export default function Transacciones() {
 
     if (filtroCategoria !== 'todas') {
       resultado = resultado.filter(t => t.category_id === filtroCategoria)
+    }
+
+    if (filtroCartera) {
+      resultado = resultado.filter(t => t.wallet_id === filtroCartera)
     }
 
     setFiltradas(resultado)

@@ -40,7 +40,7 @@ export default function GraficaMensual({ transacciones }: Props) {
       if (!user) return
       const { data } = await supabase
         .from('transactions')
-        .select('monto, tipo, fecha')
+        .select('monto, tipo, fecha, categories(nombre)')
         .eq('user_id', user.id)
         .gte('fecha', `${yearRef}-01-01`)
         .lte('fecha', `${yearRef}-12-31`)
@@ -53,10 +53,14 @@ export default function GraficaMensual({ transacciones }: Props) {
   const formatMonto = (n: number) =>
     new Intl.NumberFormat('es-HN', { minimumFractionDigits: 0 }).format(n)
 
-  const ingresosTotal = transacciones
+  // El "Saldo inicial" es una apertura de cartera, no un movimiento del mes: se excluye.
+  const esMovimiento = (t: any) => t.categories?.nombre !== 'Saldo inicial'
+  const movimientos = transacciones.filter(esMovimiento)
+
+  const ingresosTotal = movimientos
     .filter(t => t.tipo === 'ingreso')
     .reduce((s, t) => s + Number(t.monto), 0)
-  const gastosTotal = transacciones
+  const gastosTotal = movimientos
     .filter(t => t.tipo === 'gasto')
     .reduce((s, t) => s + Number(t.monto), 0)
 
@@ -71,7 +75,7 @@ export default function GraficaMensual({ transacciones }: Props) {
   // Acumular por día
   const porDia = new Map<number, { ingreso: number; gasto: number }>()
   for (let d = 1; d <= diasEnMes; d++) porDia.set(d, { ingreso: 0, gasto: 0 })
-  transacciones.forEach(t => {
+  movimientos.forEach(t => {
     const dia = Number(String(t.fecha).slice(8, 10))
     const entry = porDia.get(dia)
     if (!entry) return
@@ -83,7 +87,7 @@ export default function GraficaMensual({ transacciones }: Props) {
   let ticks: (string | number)[]
 
   if (agrupacion === 'mes') {
-    const fuente = datosAnuales ?? transacciones
+    const fuente = (datosAnuales ?? transacciones).filter(esMovimiento)
     const meses = Array.from({ length: 12 }, () => ({ ingreso: 0, gasto: 0 }))
     fuente.forEach(t => {
       const m = Number(String(t.fecha).slice(5, 7)) - 1

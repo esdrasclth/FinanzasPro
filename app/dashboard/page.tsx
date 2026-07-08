@@ -10,7 +10,7 @@ import FormTransaccion from '../components/FormTransaccion'
 import { SkeletonStats, SkeletonChart, SkeletonList } from '../components/Skeleton'
 import CalendarioFinanciero from '../components/CalendarioFinanciero'
 import Notificaciones from '../components/Notificaciones'
-import { TrendingUp, TrendingDown, Wallet, ChevronLeft, ChevronRight, Calendar, ArrowLeftRight, PieChart, BarChart3, Download } from 'lucide-react'
+import { TrendingUp, TrendingDown, Wallet, ChevronLeft, ChevronRight, Calendar, ArrowLeftRight, PieChart, BarChart3, Download, Plus } from 'lucide-react'
 
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
@@ -60,19 +60,22 @@ export default function Dashboard() {
       .order('fecha', { ascending: false })
 
     setTransacciones(data || [])
-    const ingresos = (data || []).filter(t => t.tipo === 'ingreso').reduce((sum, t) => sum + Number(t.monto), 0)
-    const gastos = (data || []).filter(t => t.tipo === 'gasto').reduce((sum, t) => sum + Number(t.monto), 0)
+    // El "Saldo inicial" (apertura de cartera) no cuenta como ingreso/gasto del mes.
+    const movimientos = (data || []).filter(t => t.categories?.nombre !== 'Saldo inicial')
+    const ingresos = movimientos.filter(t => t.tipo === 'ingreso').reduce((sum, t) => sum + Number(t.monto), 0)
+    const gastos = movimientos.filter(t => t.tipo === 'gasto').reduce((sum, t) => sum + Number(t.monto), 0)
     setResumen({ ingresos, gastos })
 
     const prev = getMesRango(-1)
     const { data: dataPrev } = await supabase
       .from('transactions')
-      .select('monto, tipo')
+      .select('monto, tipo, categories(nombre)')
       .eq('user_id', user.id)
       .gte('fecha', prev.inicio)
       .lte('fecha', prev.fin)
-    const ingresosPrev = (dataPrev || []).filter(t => t.tipo === 'ingreso').reduce((s, t) => s + Number(t.monto), 0)
-    const gastosPrev = (dataPrev || []).filter(t => t.tipo === 'gasto').reduce((s, t) => s + Number(t.monto), 0)
+    const movPrev = (dataPrev || []).filter(t => t.categories?.nombre !== 'Saldo inicial')
+    const ingresosPrev = movPrev.filter(t => t.tipo === 'ingreso').reduce((s, t) => s + Number(t.monto), 0)
+    const gastosPrev = movPrev.filter(t => t.tipo === 'gasto').reduce((s, t) => s + Number(t.monto), 0)
     setResumenPrev({ ingresos: ingresosPrev, gastos: gastosPrev })
   }
 
@@ -425,9 +428,10 @@ export default function Dashboard() {
       {/* Botón flotante */}
       <button
         onClick={() => abrirForm('gasto')}
-        className="fixed z-40 flex items-center justify-center text-2xl transition-all rounded-full text-snow bg-obsidian shadow-pill bottom-24 lg:bottom-8 right-6 lg:right-8 w-14 h-14 hover:bg-graphite hover:scale-110"
+        style={{ background: 'linear-gradient(135deg, #2c6e49 0%, #14361f 55%, #000000 100%)' }}
+        className="fixed z-40 flex items-center justify-center transition-transform rounded-full text-snow bottom-24 lg:bottom-8 right-6 lg:right-8 w-14 h-14 hover:scale-105 hover:brightness-110"
       >
-        +
+        <Plus size={24} strokeWidth={2.5} />
       </button>
 
       {showForm && (

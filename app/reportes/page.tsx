@@ -46,7 +46,8 @@ export default function Reportes() {
       .gte('fecha', inicioStr)
       .order('fecha', { ascending: true })
 
-    setTransacciones(data || [])
+    // El "Saldo inicial" (apertura de cartera) no es un movimiento del periodo.
+    setTransacciones((data || []).filter(t => t.categories?.nombre !== 'Saldo inicial'))
     setLoading(false)
   }
 
