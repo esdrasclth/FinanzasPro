@@ -2,14 +2,20 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import FormGastoCompartido from './FormGastoCompartido'
 
 interface Props {
   onClose: () => void
   onSuccess: () => void
+  tipoInicial?: 'gasto' | 'ingreso' | 'transferencia'
 }
 
-export default function FormTransaccion({ onClose, onSuccess }: Props) {
-  const [tipo, setTipo] = useState<'gasto' | 'ingreso' | 'transferencia'>('gasto')
+interface GrupoResumen { id: string; nombre: string; moneda: string }
+interface Miembro { user_id: string; nombre: string }
+interface GrupoData { moneda: string; miembros: Miembro[]; yo: string }
+
+export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gasto' }: Props) {
+  const [tipo, setTipo] = useState<'gasto' | 'ingreso' | 'transferencia'>(tipoInicial)
   const [monto, setMonto] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
@@ -23,7 +29,35 @@ export default function FormTransaccion({ onClose, onSuccess }: Props) {
   const [error, setError] = useState('')
   const montoRef = useRef<HTMLInputElement>(null)
 
+  // Gasto compartido con un grupo.
+  const [grupos, setGrupos] = useState<GrupoResumen[]>([])
+  const [esCompartido, setEsCompartido] = useState(false)
+  const [grupoSel, setGrupoSel] = useState('')
+  const [grupoData, setGrupoData] = useState<GrupoData | null>(null)
+  const [cargandoGrupo, setCargandoGrupo] = useState(false)
+
   useEffect(() => { cargarDatos() }, [])
+
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
+  useEffect(() => {
+    if (!esCompartido || !grupoSel) { setGrupoData(null); return }
+    let cancelado = false
+    setCargandoGrupo(true)
+    setGrupoData(null)
+    fetch(`/api/grupos/${grupoSel}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(json => {
+        if (cancelado) return
+        if (json) setGrupoData({ moneda: json.grupo.moneda, miembros: json.miembros, yo: json.yo })
+      })
+      .finally(() => { if (!cancelado) setCargandoGrupo(false) })
+    return () => { cancelado = true }
+  }, [esCompartido, grupoSel])
   useEffect(() => { setSubcategoriaId('') }, [categoriaId])
   useEffect(() => {
     const disponibles = wallets.filter(w => w.id !== walletId)
@@ -71,6 +105,12 @@ export default function FormTransaccion({ onClose, onSuccess }: Props) {
     if (walls && walls.length > 0) {
       setWalletId(walls[0].id)
       setWalletDestinoId(walls.length > 1 ? walls[1].id : '')
+    }
+
+    const rg = await fetch('/api/grupos')
+    if (rg.ok) {
+      const jg = await rg.json()
+      setGrupos(jg.grupos || [])
     }
   }
 
@@ -182,16 +222,37 @@ export default function FormTransaccion({ onClose, onSuccess }: Props) {
     onClose()
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-obsidian/30 backdrop-blur-sm sm:items-center">
-      <div className="bg-snow border border-fog rounded-card w-full max-w-md max-h-[90vh] overflow-y-auto">
+  // Si es gasto compartido y ya se eligió grupo, delegamos al formulario del grupo.
+  if (esCompartido && grupoSel && grupoData) {
+    return (
+      <FormGastoCompartido
+        grupoId={grupoSel}
+        moneda={grupoData.moneda}
+        miembros={grupoData.miembros}
+        yo={grupoData.yo}
+        onClose={() => setGrupoSel('')}
+        onSuccess={() => { onSuccess(); onClose() }}
+      />
+    )
+  }
 
-        <div className="flex items-center justify-between p-6 border-b border-fog">
-          <h2 className="text-lg font-semibold text-ink">Nueva transacción</h2>
-          <button onClick={onClose} className="text-xl text-ash hover:text-ink">✕</button>
+  return (
+    <div onClick={onClose}
+      className="fixed inset-0 z-50 flex items-end justify-center bg-obsidian/40 backdrop-blur-sm animate-fade sm:items-center sm:p-4">
+      <div onClick={e => e.stopPropagation()}
+        className="bg-snow w-full max-w-md max-h-[92vh] overflow-y-auto overscroll-contain rounded-t-3xl sm:rounded-card sm:border sm:border-fog animate-sheet pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-0">
+
+        <div className="sticky top-0 z-10 bg-snow/95 backdrop-blur">
+          <div className="flex justify-center pt-2.5 sm:hidden">
+            <div className="w-10 h-1 rounded-full bg-pebble" />
+          </div>
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-fog sm:px-6 sm:py-4">
+            <h2 className="text-base font-semibold text-ink sm:text-lg">Nueva transacción</h2>
+            <button onClick={onClose} className="flex items-center justify-center w-8 h-8 -mr-1 text-lg rounded-full text-ash hover:text-ink hover:bg-mist">✕</button>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4 sm:px-6 sm:space-y-5">
 
           {/* Tipo */}
           <div className="grid grid-cols-3 gap-2 p-1 bg-mist rounded-full">
@@ -199,15 +260,41 @@ export default function FormTransaccion({ onClose, onSuccess }: Props) {
               className={`py-2.5 rounded-full text-sm font-medium transition-all ${tipo === 'gasto' ? 'bg-red-500 text-white' : 'text-steel hover:text-ink'}`}>
               💸 Gasto
             </button>
-            <button type="button" onClick={() => { setTipo('ingreso'); setCategoriaId('') }}
+            <button type="button" onClick={() => { setTipo('ingreso'); setCategoriaId(''); setEsCompartido(false); setGrupoSel('') }}
               className={`py-2.5 rounded-full text-sm font-medium transition-all ${tipo === 'ingreso' ? 'bg-emerald-500 text-white' : 'text-steel hover:text-ink'}`}>
               💰 Ingreso
             </button>
-            <button type="button" onClick={() => { setTipo('transferencia'); setCategoriaId('') }}
+            <button type="button" onClick={() => { setTipo('transferencia'); setCategoriaId(''); setEsCompartido(false); setGrupoSel('') }}
               className={`py-2.5 rounded-full text-sm font-medium transition-all ${tipo === 'transferencia' ? 'bg-indigo-500 text-white' : 'text-steel hover:text-ink'}`}>
               ↔️ Mover
             </button>
           </div>
+
+          {/* Gasto compartido */}
+          {tipo === 'gasto' && grupos.length > 0 && (
+            <div className="p-4 space-y-3 border bg-mist/60 border-fog rounded-input">
+              <label className="flex items-center justify-between cursor-pointer">
+                <span className="text-sm font-medium text-graphite">👥 ¿Es un gasto compartido?</span>
+                <input
+                  type="checkbox"
+                  checked={esCompartido}
+                  onChange={(e) => { setEsCompartido(e.target.checked); if (!e.target.checked) setGrupoSel('') }}
+                  className="w-4 h-4 accent-obsidian"
+                />
+              </label>
+              {esCompartido && (
+                <div>
+                  <label className="block mb-2 text-sm font-medium text-graphite">¿De qué grupo?</label>
+                  <select value={grupoSel} onChange={(e) => setGrupoSel(e.target.value)}
+                    className="w-full px-4 py-3 text-ink transition-colors border bg-mist border-transparent rounded-input focus:outline-none focus:border-obsidian focus:bg-snow">
+                    <option value="">— Selecciona un grupo —</option>
+                    {grupos.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
+                  </select>
+                  {cargandoGrupo && <p className="mt-2 text-xs text-ash">Cargando grupo…</p>}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Monto */}
           <div>

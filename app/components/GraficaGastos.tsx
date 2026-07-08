@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { Fragment } from 'react'
+import { useRouter } from 'next/navigation'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
+import { ChevronRight } from 'lucide-react'
 
 interface Props {
   transacciones: any[]
@@ -10,6 +12,7 @@ interface Props {
 }
 
 export default function GraficaGastos({ transacciones, vista, onVistaChange }: Props) {
+  const router = useRouter()
 
   const COLORES = [
     '#0D9488', '#3B82F6', '#8B5CF6', '#F59E0B',
@@ -35,25 +38,27 @@ export default function GraficaGastos({ transacciones, vista, onVistaChange }: P
     }, [])
     .sort((a, b) => b.valor - a.valor)
 
+  const total = datos.reduce((s, d) => s + d.valor, 0)
+
   return (
     <div>
       {/* Toggle */}
-      <div className="flex gap-1 p-1 mb-4 bg-mist rounded-full">
+      <div className="flex gap-1 p-1 mb-6 bg-mist rounded-xl">
         <button
           onClick={() => onVistaChange('gasto')}
-          className={`flex-1 py-2 rounded-full text-xs font-medium transition-all ${
-            vista === 'gasto' ? 'bg-red-50 text-red-600' : 'text-steel hover:text-ink'
+          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
+            vista === 'gasto' ? 'bg-snow text-red-500 shadow-soft' : 'text-steel hover:text-ink'
           }`}
         >
-          💸 Gastos
+          Gastos
         </button>
         <button
           onClick={() => onVistaChange('ingreso')}
-          className={`flex-1 py-2 rounded-full text-xs font-medium transition-all ${
-            vista === 'ingreso' ? 'bg-emerald-50 text-emerald-600' : 'text-steel hover:text-ink'
+          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
+            vista === 'ingreso' ? 'bg-snow text-emerald-600 shadow-soft' : 'text-steel hover:text-ink'
           }`}
         >
-          💰 Ingresos
+          Ingresos
         </button>
       </div>
 
@@ -66,31 +71,66 @@ export default function GraficaGastos({ transacciones, vista, onVistaChange }: P
         </div>
       ) : (
         <div>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie data={datos} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={3} dataKey="valor">
-                {datos.map((_, index) => (
-                  <Cell key={index} fill={COLORES[index % COLORES.length]} />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(value) => [`L ${formatMonto(Number(value) || 0)}`, 'Monto']}
-                contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #ececee', borderRadius: 16, color: '#18181b' }}
-                labelStyle={{ color: '#71717a' }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-
-          <div className="mt-2 space-y-2">
-            {datos.map((item, index) => (
-              <div key={index} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="flex-shrink-0 w-3 h-3 rounded-full" style={{ backgroundColor: COLORES[index % COLORES.length] }} />
-                  <span className="text-sm text-graphite">{item.nombre}</span>
-                </div>
-                <span className="text-sm font-medium text-ink">L {formatMonto(item.valor)}</span>
+          <div className="grid items-center gap-6 sm:grid-cols-2">
+            {/* Donut */}
+            <div className="relative w-[180px] h-[180px] justify-self-center">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={datos}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={58}
+                    outerRadius={82}
+                    paddingAngle={3}
+                    cornerRadius={4}
+                    dataKey="valor"
+                    stroke="none"
+                  >
+                    {datos.map((_, index) => (
+                      <Cell key={index} fill={COLORES[index % COLORES.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value) => [`L ${formatMonto(Number(value) || 0)}`, 'Monto']}
+                    contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #ececee', borderRadius: 16, color: '#18181b' }}
+                    labelStyle={{ color: '#71717a' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span className="text-[11px] font-medium text-steel">Total</span>
+                <span className="text-lg font-bold leading-tight text-ink">L {formatMonto(total)}</span>
               </div>
-            ))}
+            </div>
+
+            {/* Leyenda */}
+            <div className="grid w-full grid-cols-[1fr_auto_2.25rem] items-center gap-x-3 gap-y-3.5">
+              {datos.map((item, index) => {
+                const pct = total > 0 ? Math.round((item.valor / total) * 100) : 0
+                return (
+                  <Fragment key={index}>
+                    <div className="flex items-center min-w-0 gap-2.5">
+                      <span className="flex-shrink-0 w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORES[index % COLORES.length] }} />
+                      <span className="text-sm truncate text-ink">{item.key}</span>
+                    </div>
+                    <span className="text-sm font-medium text-right text-ink whitespace-nowrap">L {formatMonto(item.valor)}</span>
+                    <span className="text-xs font-medium text-right text-steel">{pct}%</span>
+                  </Fragment>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Ver todas */}
+          <div className="flex justify-center mt-6">
+            <button
+              onClick={() => router.push('/categorias')}
+              className="inline-flex items-center gap-1 py-2 pl-4 pr-3 text-sm font-medium transition-colors rounded-full text-graphite bg-mist hover:bg-fog hover:text-ink"
+            >
+              Ver todas las categorías
+              <ChevronRight size={16} strokeWidth={2} />
+            </button>
           </div>
         </div>
       )}

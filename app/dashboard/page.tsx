@@ -8,9 +8,9 @@ import GraficaGastos from '../components/GraficaGastos'
 import GraficaMensual from '../components/GraficaMensual'
 import FormTransaccion from '../components/FormTransaccion'
 import { SkeletonStats, SkeletonChart, SkeletonList } from '../components/Skeleton'
-import Notificaciones from '../components/Notificaciones'
 import CalendarioFinanciero from '../components/CalendarioFinanciero'
-import { TrendingUp, TrendingDown, Wallet, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
+import Notificaciones from '../components/Notificaciones'
+import { TrendingUp, TrendingDown, Wallet, ChevronLeft, ChevronRight, Calendar, ArrowLeftRight, PieChart, BarChart3, Download } from 'lucide-react'
 
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
@@ -19,6 +19,7 @@ export default function Dashboard() {
   const [usuario, setUsuario] = useState<any>(null)
   const [transacciones, setTransacciones] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
+  const [formTipo, setFormTipo] = useState<'gasto' | 'ingreso' | 'transferencia'>('gasto')
   const [resumen, setResumen] = useState({ ingresos: 0, gastos: 0 })
   const [resumenPrev, setResumenPrev] = useState({ ingresos: 0, gastos: 0 })
   const [loading, setLoading] = useState(true)
@@ -121,6 +122,11 @@ export default function Dashboard() {
     const offset = (year - base.getFullYear()) * 12 + (mes - base.getMonth())
     setMesOffset(Math.min(0, offset))
     setShowMesPicker(false)
+  }
+
+  const abrirForm = (tipo: 'gasto' | 'ingreso' | 'transferencia') => {
+    setFormTipo(tipo)
+    setShowForm(true)
   }
 
   const trend = (cur: number, prev: number) => {
@@ -316,6 +322,11 @@ export default function Dashboard() {
 
         {/* Gráficas */}
         <div className="grid grid-cols-1 gap-6 mb-8 lg:grid-cols-2">
+          <div className="relative flex flex-col p-6 border bg-snow border-fog rounded-card">
+            <h2 className="mb-1 font-semibold text-obsidian">Movimientos Mensuales</h2>
+            <p className="mb-4 text-xs text-steel">Ingresos vs Gastos</p>
+            <GraficaMensual transacciones={transacciones} />
+          </div>
           <div className="p-6 border bg-snow border-fog rounded-card">
             <h2 className="mb-1 font-semibold text-obsidian">
               {vistaGrafica === 'gasto' ? 'Gastos por Categoría' : 'Ingresos por Categoría'}
@@ -328,21 +339,41 @@ export default function Dashboard() {
             />
           </div>
           <div className="flex flex-col p-6 border bg-snow border-fog rounded-card">
-            <h2 className="mb-1 font-semibold text-obsidian">Movimientos Mensuales</h2>
-            <p className="mb-4 text-xs text-steel">Ingresos vs Gastos</p>
-            <GraficaMensual transacciones={transacciones} />
-          </div>
-          <div className="flex flex-col p-6 border bg-snow border-fog rounded-card">
             <h2 className="mb-1 font-semibold text-obsidian">Calendario Financiero</h2>
             <p className="mb-4 text-xs text-steel">Actividad diaria del mes</p>
             <CalendarioFinanciero transacciones={transacciones} mes={getMesActual()} />
+          </div>
+          <div className="flex flex-col p-6 border bg-snow border-fog rounded-card">
+            <h2 className="mb-1 font-semibold text-obsidian">Acciones rápidas</h2>
+            <p className="mb-4 text-xs text-steel">Atajos a lo que más usas</p>
+            <div className="grid flex-1 grid-cols-2 gap-3 auto-rows-fr">
+              {[
+                { label: 'Nuevo ingreso', icon: TrendingUp, tint: 'bg-emerald-50 text-emerald-600', onClick: () => abrirForm('ingreso') },
+                { label: 'Nuevo gasto', icon: TrendingDown, tint: 'bg-red-50 text-red-500', onClick: () => abrirForm('gasto') },
+                { label: 'Transferencia', icon: ArrowLeftRight, tint: 'bg-violet-50 text-violet-600', onClick: () => abrirForm('transferencia') },
+                { label: 'Ver presupuestos', icon: PieChart, tint: 'bg-blue-50 text-blue-600', onClick: () => router.push('/presupuesto') },
+                { label: 'Ver reportes', icon: BarChart3, tint: 'bg-amber-50 text-amber-600', onClick: () => router.push('/reportes') },
+                { label: 'Exportar datos', icon: Download, tint: 'bg-teal-50 text-teal-600', onClick: () => router.push('/exportar') },
+              ].map(({ label, icon: Icon, tint, onClick }) => (
+                <button
+                  key={label}
+                  onClick={onClick}
+                  className="flex items-center gap-3 p-3.5 text-left transition-colors border border-fog rounded-xl bg-snow hover:bg-mist hover:border-pebble"
+                >
+                  <span className={`flex items-center justify-center flex-shrink-0 w-10 h-10 rounded-xl ${tint}`}>
+                    <Icon size={18} strokeWidth={2} />
+                  </span>
+                  <span className="text-sm font-medium leading-tight text-ink">{label}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
         
 
         {/* Últimas transacciones */}
-        <div className="p-6 border bg-snow border-fog rounded-card-lg">
+        <div className="p-6 border bg-snow border-fog rounded-card">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="font-semibold text-obsidian">Últimas transacciones</h2>
@@ -350,9 +381,10 @@ export default function Dashboard() {
             </div>
             <button
               onClick={() => router.push('/transacciones')}
-              className="text-sm font-medium text-graphite transition-colors hover:text-ink"
+              className="inline-flex items-center gap-0.5 text-sm font-medium text-graphite transition-colors hover:text-ink"
             >
-              Ver todas →
+              Ver todas
+              <ChevronRight size={16} strokeWidth={2} />
             </button>
           </div>
 
@@ -392,7 +424,7 @@ export default function Dashboard() {
 
       {/* Botón flotante */}
       <button
-        onClick={() => setShowForm(true)}
+        onClick={() => abrirForm('gasto')}
         className="fixed z-40 flex items-center justify-center text-2xl transition-all rounded-full text-snow bg-obsidian shadow-pill bottom-24 lg:bottom-8 right-6 lg:right-8 w-14 h-14 hover:bg-graphite hover:scale-110"
       >
         +
@@ -400,6 +432,7 @@ export default function Dashboard() {
 
       {showForm && (
         <FormTransaccion
+          tipoInicial={formTipo}
           onClose={() => setShowForm(false)}
           onSuccess={cargarTransacciones}
         />

@@ -119,16 +119,16 @@ export default function CalendarioFinanciero({ transacciones, mes }: Props) {
 
             {/* Leyenda */}
             <div className="flex items-center gap-4 mt-4 text-xs font-medium text-steel">
-                <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 rounded bg-emerald-500" />
+                <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#10b981' }} />
                     <span>Ingresos</span>
                 </div>
-                <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 rounded bg-red-200" />
+                <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#ef4444' }} />
                     <span>Gastos</span>
                 </div>
-                <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 border rounded bg-mist border-fog" />
+                <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 border rounded-full bg-mist border-fog" />
                     <span>Sin actividad</span>
                 </div>
             </div>

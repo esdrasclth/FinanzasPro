@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useRouter } from 'next/navigation'
-import { Bell, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { Bell, CheckCircle2, AlertTriangle, ChevronRight } from 'lucide-react'
 
 interface Notificacion {
   id: string
@@ -138,11 +138,11 @@ export default function Notificaciones() {
       {/* Botón campana */}
       <button
         onClick={() => setMostrar(!mostrar)}
-        className="relative p-2 transition-colors text-ash hover:text-ink"
+        className="relative flex items-center justify-center w-10 h-10 transition-colors border rounded-full bg-snow border-fog shadow-soft text-graphite hover:text-ink hover:bg-mist"
       >
-        <Bell size={20} strokeWidth={2} />
+        <Bell size={18} strokeWidth={2} />
         {cantidad > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+          <span className="absolute flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full -top-1 -right-1">
             {cantidad > 9 ? '9+' : cantidad}
           </span>
         )}
@@ -157,7 +157,7 @@ export default function Notificaciones() {
             onClick={() => setMostrar(false)}
           />
 
-          <div className="absolute left-0 z-50 overflow-hidden border shadow-soft top-12 w-80 max-w-[calc(100vw-2rem)] bg-snow border-fog rounded-card">
+          <div className="absolute right-0 z-50 overflow-hidden border shadow-soft top-12 w-80 max-w-[calc(100vw-2rem)] bg-snow border-fog rounded-card">
 
             <div className="flex items-center justify-between p-4 border-b border-fog">
               <h3 className="text-sm font-semibold text-ink">Notificaciones</h3>
@@ -199,9 +199,10 @@ export default function Notificaciones() {
             <div className="p-3 border-t border-fog">
               <button
                 onClick={() => { setMostrar(false); router.push('/presupuesto') }}
-                className="w-full text-xs text-center font-medium text-steel transition-colors hover:text-ink"
+                className="inline-flex items-center justify-center w-full gap-0.5 text-xs font-medium transition-colors text-steel hover:text-ink"
               >
-                Ver todos los presupuestos →
+                Ver todos los presupuestos
+                <ChevronRight size={14} strokeWidth={2} />
               </button>
             </div>
 
