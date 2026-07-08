@@ -10,7 +10,9 @@ import FormTransaccion from '../components/FormTransaccion'
 import { SkeletonStats, SkeletonChart, SkeletonList } from '../components/Skeleton'
 import Notificaciones from '../components/Notificaciones'
 import CalendarioFinanciero from '../components/CalendarioFinanciero'
-import { TrendingUp, TrendingDown, Wallet } from 'lucide-react'
+import { TrendingUp, TrendingDown, Wallet, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
+
+const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
 export default function Dashboard() {
   const router = useRouter()
@@ -22,6 +24,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [vistaGrafica, setVistaGrafica] = useState<'gasto' | 'ingreso'>('gasto')
   const [mesOffset, setMesOffset] = useState(0) // 0 = mes actual, -1 = mes anterior
+  const [showMesPicker, setShowMesPicker] = useState(false)
+  const [pickerYear, setPickerYear] = useState(new Date().getFullYear())
 
   useEffect(() => {
     const init = async () => {
@@ -106,6 +110,18 @@ export default function Dashboard() {
     return new Date(base.getFullYear(), base.getMonth() - 1, 1)
       .toLocaleDateString('es-HN', { month: 'long' })
   })()
+
+  const abrirPicker = () => {
+    setPickerYear(getMesActual().getFullYear())
+    setShowMesPicker(true)
+  }
+
+  const seleccionarMes = (year: number, mes: number) => {
+    const base = new Date()
+    const offset = (year - base.getFullYear()) * 12 + (mes - base.getMonth())
+    setMesOffset(Math.min(0, offset))
+    setShowMesPicker(false)
+  }
 
   const trend = (cur: number, prev: number) => {
     if (prev === 0) {
@@ -210,34 +226,92 @@ export default function Dashboard() {
         </div>
 
         {/* Navegador de mes */}
-        <div className="flex items-center justify-between px-4 py-3 mb-6 border bg-snow border-fog rounded-full">
-          <button
-            onClick={() => setMesOffset(mesOffset - 1)}
-            className="flex items-center justify-center transition-all border rounded-full w-9 h-9 bg-snow border-fog text-graphite hover:bg-fog"
-          >
-            ←
-          </button>
-          <div className="text-center">
-            <p className="font-semibold text-ink capitalize">{mesNombre}</p>
-            {mesOffset !== 0 && (
-              <button
-                onClick={() => setMesOffset(0)}
-                className="text-xs font-medium text-graphite transition-colors hover:text-ink"
-              >
-                Volver al mes actual
-              </button>
-            )}
+        <div className="relative mb-6">
+          <div className="flex items-center justify-between h-16 px-3 border bg-snow border-fog rounded-2xl">
+            <button
+              onClick={() => setMesOffset(mesOffset - 1)}
+              className="flex items-center justify-center transition-all border rounded-full w-9 h-9 bg-snow border-fog text-graphite hover:bg-mist hover:text-ink"
+              aria-label="Mes anterior"
+            >
+              <ChevronLeft size={18} strokeWidth={2} />
+            </button>
+
+            <button
+              onClick={abrirPicker}
+              className="flex items-center gap-2 px-4 py-2 transition-colors rounded-full hover:bg-mist"
+            >
+              <Calendar size={16} strokeWidth={2} className="text-steel" />
+              <span className="font-semibold capitalize text-ink">{mesNombre}</span>
+            </button>
+
+            <button
+              onClick={() => setMesOffset(Math.min(0, mesOffset + 1))}
+              className={`w-9 h-9 flex items-center justify-center rounded-full border transition-all ${mesOffset === 0
+                  ? 'bg-snow border-fog text-pebble cursor-not-allowed'
+                  : 'bg-snow border-fog text-graphite hover:bg-mist hover:text-ink'
+                }`}
+              disabled={mesOffset === 0}
+              aria-label="Mes siguiente"
+            >
+              <ChevronRight size={18} strokeWidth={2} />
+            </button>
           </div>
-          <button
-            onClick={() => setMesOffset(Math.min(0, mesOffset + 1))}
-            className={`w-9 h-9 flex items-center justify-center rounded-full border transition-all ${mesOffset === 0
-                ? 'bg-snow border-fog text-pebble cursor-not-allowed'
-                : 'bg-snow border-fog text-graphite hover:bg-fog'
-              }`}
-            disabled={mesOffset === 0}
-          >
-            →
-          </button>
+
+          {showMesPicker && (
+            <>
+              <div className="fixed inset-0 z-20" onClick={() => setShowMesPicker(false)} />
+              <div className="absolute z-30 p-4 mt-2 -translate-x-1/2 border shadow-soft left-1/2 top-full w-72 bg-snow border-fog rounded-2xl">
+                <div className="flex items-center justify-between mb-3">
+                  <button
+                    onClick={() => setPickerYear(y => y - 1)}
+                    className="flex items-center justify-center w-8 h-8 rounded-full text-graphite hover:bg-mist"
+                    aria-label="Año anterior"
+                  >
+                    <ChevronLeft size={16} strokeWidth={2} />
+                  </button>
+                  <p className="font-semibold text-ink">{pickerYear}</p>
+                  <button
+                    onClick={() => setPickerYear(y => Math.min(new Date().getFullYear(), y + 1))}
+                    disabled={pickerYear >= new Date().getFullYear()}
+                    className={`w-8 h-8 flex items-center justify-center rounded-full ${pickerYear >= new Date().getFullYear() ? 'text-pebble cursor-not-allowed' : 'text-graphite hover:bg-mist'}`}
+                    aria-label="Año siguiente"
+                  >
+                    <ChevronRight size={16} strokeWidth={2} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {MESES_CORTOS.map((m, i) => {
+                    const activo = i === getMesActual().getMonth() && pickerYear === getMesActual().getFullYear()
+                    const hoy = new Date()
+                    const futuro = pickerYear > hoy.getFullYear() || (pickerYear === hoy.getFullYear() && i > hoy.getMonth())
+                    return (
+                      <button
+                        key={m}
+                        onClick={() => seleccionarMes(pickerYear, i)}
+                        disabled={futuro}
+                        className={`py-2 text-sm font-medium rounded-xl transition-colors ${activo
+                            ? 'bg-obsidian text-snow'
+                            : futuro
+                              ? 'text-pebble cursor-not-allowed'
+                              : 'text-graphite hover:bg-mist'
+                          }`}
+                      >
+                        {m}
+                      </button>
+                    )
+                  })}
+                </div>
+                {mesOffset !== 0 && (
+                  <button
+                    onClick={() => { setMesOffset(0); setShowMesPicker(false) }}
+                    className="w-full py-2 mt-3 text-sm font-medium transition-colors rounded-xl text-graphite hover:bg-mist"
+                  >
+                    Ir al mes actual
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Gráficas */}
