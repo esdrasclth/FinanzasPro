@@ -1,8 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { round2, simboloMoneda } from '../lib/dinero'
+
+const gradiente = 'linear-gradient(135deg, #2c6e49 0%, #14361f 55%, #000000 100%)'
 
 interface Miembro { user_id: string; nombre: string }
 interface Props {
@@ -143,14 +146,21 @@ export default function FormGastoCompartido({ grupoId, moneda, miembros, yo, gas
   const nombre = (uid: string) => miembros.find(m => m.user_id === uid)?.nombre || 'Usuario'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-obsidian/30 backdrop-blur-sm sm:items-center">
-      <div className="bg-snow border border-fog rounded-card w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-fog">
-          <h2 className="text-lg font-semibold text-ink">{gasto ? 'Editar gasto' : 'Nuevo gasto compartido'}</h2>
-          <button onClick={onClose} className="text-xl text-ash hover:text-ink">✕</button>
+    <div onClick={onClose} className="fixed inset-0 z-50 flex items-end justify-center bg-obsidian/40 backdrop-blur-sm animate-fade sm:items-center sm:p-4">
+      <div onClick={e => e.stopPropagation()} className="bg-snow w-full max-w-md max-h-[92vh] overflow-y-auto overscroll-contain rounded-t-3xl sm:rounded-card sm:border sm:border-fog animate-sheet pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-0">
+        <div className="sticky top-0 z-10 bg-snow/95 backdrop-blur">
+          <div className="flex justify-center pt-2.5 sm:hidden">
+            <div className="w-10 h-1 rounded-full bg-pebble" />
+          </div>
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-fog sm:px-6 sm:py-4">
+            <h2 className="text-base font-semibold text-ink sm:text-lg">{gasto ? 'Editar gasto' : 'Nuevo gasto compartido'}</h2>
+            <button onClick={onClose} className="flex items-center justify-center w-8 h-8 -mr-1 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist">
+              <X size={18} strokeWidth={2} />
+            </button>
+          </div>
         </div>
 
-        <form onSubmit={submit} className="p-6 space-y-5">
+        <form onSubmit={submit} className="px-5 py-5 space-y-5 sm:px-6">
           <div>
             <label className="block mb-2 text-sm font-medium text-graphite">Descripción</label>
             <input value={descripcion} onChange={e => setDescripcion(e.target.value)} required placeholder="Ej: Compra en Walmart"
@@ -285,8 +295,8 @@ export default function FormGastoCompartido({ grupoId, moneda, miembros, yo, gas
           {error && <div className="px-4 py-3 text-sm text-red-600 border bg-red-50 border-red-200 rounded-input">{error}</div>}
 
           <div className="grid grid-cols-2 gap-3 pt-2">
-            <button type="button" onClick={onClose} className="py-3 font-medium transition-all border rounded-full border-pebble text-graphite hover:bg-fog">Cancelar</button>
-            <button type="submit" disabled={loading} className="py-3 font-medium transition-all rounded-full bg-obsidian text-snow hover:bg-graphite shadow-pill disabled:opacity-40">{loading ? 'Guardando...' : gasto ? 'Guardar cambios' : 'Guardar gasto'}</button>
+            <button type="button" onClick={onClose} className="py-3 font-medium transition-colors border rounded-full border-fog text-graphite hover:bg-mist">Cancelar</button>
+            <button type="submit" disabled={loading} style={{ background: gradiente }} className="py-3 font-medium transition-all rounded-full text-snow hover:brightness-110 disabled:opacity-40">{loading ? 'Guardando...' : gasto ? 'Guardar cambios' : 'Guardar gasto'}</button>
           </div>
         </form>
       </div>

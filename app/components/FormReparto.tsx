@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { X, Plus, Trash2, RotateCcw } from 'lucide-react'
 import { round2, simboloMoneda } from '../lib/dinero'
 
 interface ParticipanteUI { key: string; nombre: string; monto: string }
@@ -126,7 +127,9 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', onClose, o
           </div>
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-fog sm:px-6 sm:py-4">
             <h2 className="text-base font-semibold text-ink sm:text-lg">{reparto ? 'Editar reparto' : 'Nuevo reparto'}</h2>
-            <button onClick={onClose} className="flex items-center justify-center w-8 h-8 -mr-1 text-lg rounded-full text-ash hover:text-ink hover:bg-mist">✕</button>
+            <button onClick={onClose} className="flex items-center justify-center w-8 h-8 -mr-1 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist">
+              <X size={18} strokeWidth={2} />
+            </button>
           </div>
         </div>
 
@@ -175,7 +178,9 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', onClose, o
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium text-graphite">Personas</label>
-              <button type="button" onClick={agregar} className="text-sm font-medium text-graphite hover:text-ink">+ Agregar</button>
+              <button type="button" onClick={agregar} className="inline-flex items-center gap-1 text-sm font-medium text-graphite hover:text-ink">
+                <Plus size={15} strokeWidth={2} /> Agregar
+              </button>
             </div>
             <div className="space-y-2">
               {participantes.map(p => (
@@ -189,14 +194,16 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', onClose, o
                         className="w-full py-2.5 pl-7 pr-2 text-sm text-right border bg-mist border-transparent rounded-input text-ink focus:outline-none focus:border-obsidian focus:bg-snow" />
                     </div>
                   )}
-                  <button type="button" onClick={() => quitar(p.key)} className="w-8 text-lg text-ash hover:text-red-500 shrink-0">✕</button>
+                  <button type="button" onClick={() => quitar(p.key)} className="flex items-center justify-center w-8 h-8 transition-colors rounded-full text-ash hover:text-red-500 hover:bg-red-50 shrink-0">
+                    <Trash2 size={15} strokeWidth={2} />
+                  </button>
                 </div>
               ))}
             </div>
             {metodo === 'manual' && (
               <div className="flex items-center justify-between mt-2">
-                <button type="button" onClick={repartirRestante} className="text-xs font-medium text-graphite hover:text-ink">
-                  ↻ Repartir lo restante entre los vacíos
+                <button type="button" onClick={repartirRestante} className="inline-flex items-center gap-1 text-xs font-medium text-graphite hover:text-ink">
+                  <RotateCcw size={12} strokeWidth={2} /> Repartir lo restante entre los vacíos
                 </button>
                 <span className={`text-xs ${sumaManual === total ? 'text-emerald-600' : 'text-red-500'}`}>
                   {simbolo}{sumaManual.toFixed(2)} / {simbolo}{total.toFixed(2)}
@@ -227,8 +234,10 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', onClose, o
           {error && <div className="px-4 py-3 text-sm text-red-600 border bg-red-50 border-red-200 rounded-input">{error}</div>}
 
           <div className="grid grid-cols-2 gap-3 pt-2">
-            <button type="button" onClick={onClose} className="py-3 font-medium transition-all border rounded-full border-pebble text-graphite hover:bg-fog">Cancelar</button>
-            <button type="submit" disabled={loading} className="py-3 font-medium transition-all rounded-full bg-obsidian text-snow hover:bg-graphite shadow-pill disabled:opacity-40">{loading ? 'Guardando...' : reparto ? 'Guardar cambios' : 'Crear reparto'}</button>
+            <button type="button" onClick={onClose} className="py-3 font-medium transition-colors border rounded-full border-fog text-graphite hover:bg-mist">Cancelar</button>
+            <button type="submit" disabled={loading}
+              style={{ background: 'linear-gradient(135deg, #2c6e49 0%, #14361f 55%, #000000 100%)' }}
+              className="py-3 font-medium transition-all rounded-full text-snow hover:brightness-110 disabled:opacity-40">{loading ? 'Guardando...' : reparto ? 'Guardar cambios' : 'Crear reparto'}</button>
           </div>
         </form>
       </div>

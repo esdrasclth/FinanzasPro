@@ -92,6 +92,13 @@ export default function FormCartera({ cartera, onClose, onSuccess }: Props) {
       // El saldo inicial se registra como una transacción con su propia categoría
       // ("Saldo inicial"), excluida de las gráficas, en vez de contarse como ingreso/gasto del mes.
       payload.saldo_inicial = 0
+      // Colocar la nueva cartera al final del orden manual.
+      const { data: existentes } = await supabase
+        .from('wallets')
+        .select('posicion')
+        .eq('user_id', user.id)
+        .eq('activo', true)
+      payload.posicion = (existentes || []).reduce((max, w) => Math.max(max, Number(w.posicion) || 0), 0) + 1
       const { data: nuevaCartera, error } = await supabase
         .from('wallets')
         .insert(payload)

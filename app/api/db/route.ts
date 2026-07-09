@@ -26,14 +26,16 @@ const TABLES: Record<
   categories: { user: 'user_id', allowSystem: true },
   transactions: { user: 'user_id', relations: { categories: 'category', wallets: 'wallet' } },
   budgets: { user: 'user_id', relations: { categories: 'category' } },
+  budget_rollovers: { user: 'user_id' },
+  metas: { user: 'user_id' },
   debts: { user: 'user_id' },
   debt_payments: { user: 'user_id' },
 }
 
 const DATE_COLS = new Set(['fecha', 'fecha_limite'])
 const NUM_COLS = new Set([
-  'monto', 'monto_limite', 'monto_total', 'monto_pagado',
-  'saldo_inicial', 'credito_limite', 'mes', 'anio', 'fecha_corte', 'fecha_pago',
+  'monto', 'monto_limite', 'monto_total', 'monto_pagado', 'monto_objetivo', 'monto_actual',
+  'saldo_inicial', 'credito_limite', 'mes', 'anio', 'fecha_corte', 'fecha_pago', 'posicion',
 ])
 const BOOL_COLS = new Set(['activo', 'es_sistema', 'completada', 'onboarding_completado'])
 

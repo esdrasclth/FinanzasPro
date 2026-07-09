@@ -2,14 +2,18 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { X } from 'lucide-react'
 
 interface Props {
   presupuesto?: any
+  tipo?: 'gasto' | 'ingreso'
+  mes?: number
+  anio?: number
   onClose: () => void
   onSuccess: () => void
 }
 
-export default function FormPresupuesto({ presupuesto, onClose, onSuccess }: Props) {
+export default function FormPresupuesto({ presupuesto, tipo = 'gasto', mes, anio, onClose, onSuccess }: Props) {
   const [categorias, setCategorias] = useState<any[]>([])
   const [categoriaId, setCategoriaId] = useState(presupuesto?.category_id || '')
   const [montoLimite, setMontoLimite] = useState(
@@ -18,13 +22,20 @@ export default function FormPresupuesto({ presupuesto, onClose, onSuccess }: Pro
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const mesActual = new Date().getMonth() + 1
-  const añoActual = new Date().getFullYear()
+  const mesActual = mes ?? new Date().getMonth() + 1
+  const añoActual = anio ?? new Date().getFullYear()
   const esEdicion = !!presupuesto
+  const esIngreso = (presupuesto?.categories?.tipo || tipo) === 'ingreso'
+
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
 
   useEffect(() => {
     cargarCategorias()
-  }, [])
+  }, [tipo])
 
   const cargarCategorias = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -34,11 +45,14 @@ export default function FormPresupuesto({ presupuesto, onClose, onSuccess }: Pro
       .from('categories')
       .select('*')
       .or(`user_id.eq.${user.id},es_sistema.eq.true`)
-      .eq('tipo', 'gasto')
+      .eq('tipo', tipo)
       .order('nombre')
 
     setCategorias(data || [])
   }
+
+  const principales = categorias.filter(c => !c.parent_id)
+  const subcategorias = (parentId: string) => categorias.filter(c => c.parent_id === parentId)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -72,7 +86,9 @@ export default function FormPresupuesto({ presupuesto, onClose, onSuccess }: Pro
         .single()
 
       if (existing) {
-        setError('Ya tienes un presupuesto para esta categoría este mes')
+        setError(esIngreso
+          ? 'Ya tienes una meta para esta categoría este mes'
+          : 'Ya tienes un presupuesto para esta categoría este mes')
         setLoading(false)
         return
       }
@@ -94,40 +110,84 @@ export default function FormPresupuesto({ presupuesto, onClose, onSuccess }: Pro
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-obsidian/30 backdrop-blur-sm sm:items-center">
-      <div className="bg-snow border border-fog rounded-card w-full max-w-md max-h-[90vh] overflow-y-auto">
+    <div onClick={onClose}
+      className="fixed inset-0 z-50 flex items-end justify-center bg-obsidian/40 backdrop-blur-sm animate-fade sm:items-center sm:p-4">
+      <div onClick={e => e.stopPropagation()}
+        className="bg-snow w-full max-w-md max-h-[92vh] overflow-y-auto overscroll-contain rounded-t-3xl sm:rounded-card sm:border sm:border-fog animate-sheet pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-0">
 
-        <div className="flex items-center justify-between p-6 border-b border-fog">
-          <h2 className="text-lg font-semibold text-ink">
-            {esEdicion ? 'Editar presupuesto' : 'Nuevo presupuesto'}
-          </h2>
-          <button onClick={onClose} className="text-xl text-ash hover:text-ink">✕</button>
+        <div className="sticky top-0 z-10 bg-snow/95 backdrop-blur">
+          <div className="flex justify-center pt-2.5 sm:hidden">
+            <div className="w-10 h-1 rounded-full bg-pebble" />
+          </div>
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-fog sm:px-6 sm:py-4">
+            <h2 className="text-base font-semibold text-ink sm:text-lg">
+              {esEdicion
+                ? (esIngreso ? 'Editar meta de ingreso' : 'Editar presupuesto')
+                : (esIngreso ? 'Nueva meta de ingreso' : 'Nuevo presupuesto')}
+            </h2>
+            <button onClick={onClose} className="flex items-center justify-center w-8 h-8 -mr-1 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist">
+              <X size={18} strokeWidth={2} />
+            </button>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4 sm:px-6 sm:space-y-5">
 
           {/* Categoría */}
           {!esEdicion && (
             <div>
               <label className="block mb-2 text-sm font-medium text-graphite">
-                Categoría
+                Categoría o subcategoría
               </label>
-              <div className="grid grid-cols-3 gap-2 overflow-y-auto max-h-48">
-                {categorias.map(cat => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setCategoriaId(cat.id)}
-                    className={`p-2.5 rounded-xl text-xs text-center transition-all border ${
-                      categoriaId === cat.id
-                        ? 'border-obsidian bg-obsidian/5 text-ink'
-                        : 'border-fog text-steel hover:border-pebble'
-                    }`}
-                  >
-                    <div className="mb-1 text-lg">{cat.icono || '📦'}</div>
-                    <div className="leading-tight">{cat.nombre}</div>
-                  </button>
-                ))}
+              <div className="space-y-1.5 overflow-y-auto max-h-64 pr-1">
+                {principales.length === 0 && (
+                  <p className="py-6 text-sm text-center text-ash">
+                    No hay categorías de {esIngreso ? 'ingreso' : 'gasto'} disponibles
+                  </p>
+                )}
+                {principales.map(cat => {
+                  const subs = subcategorias(cat.id)
+                  const tieneSubs = subs.length > 0
+                  return (
+                    <div key={cat.id}>
+                      <button
+                        type="button"
+                        disabled={tieneSubs}
+                        onClick={() => setCategoriaId(cat.id)}
+                        title={tieneSubs ? 'Asigna el presupuesto en sus subcategorías' : undefined}
+                        className={`flex items-center w-full gap-2.5 px-3 py-2 text-sm text-left transition-all border rounded-xl ${
+                          tieneSubs
+                            ? 'border-fog text-ash cursor-not-allowed opacity-70'
+                            : categoriaId === cat.id
+                            ? 'border-obsidian bg-obsidian/5 text-ink font-medium'
+                            : 'border-fog text-steel hover:border-pebble'
+                        }`}
+                      >
+                        <span className="text-lg">{cat.icono || '📦'}</span>
+                        <span className="truncate">{cat.nombre}</span>
+                        {tieneSubs && (
+                          <span className="ml-auto text-xs text-ash whitespace-nowrap">Elige una subcategoría</span>
+                        )}
+                      </button>
+                      {subs.map(sub => (
+                        <button
+                          key={sub.id}
+                          type="button"
+                          onClick={() => setCategoriaId(sub.id)}
+                          className={`flex items-center w-full gap-2.5 pl-8 pr-3 py-1.5 mt-1 text-sm text-left transition-all border rounded-xl ${
+                            categoriaId === sub.id
+                              ? 'border-obsidian bg-obsidian/5 text-ink font-medium'
+                              : 'border-fog text-steel hover:border-pebble'
+                          }`}
+                        >
+                          <span className="flex-shrink-0 w-1 h-1 rounded-full bg-pebble" />
+                          <span className="text-base">{sub.icono || '📦'}</span>
+                          <span className="truncate">{sub.nombre}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -145,7 +205,7 @@ export default function FormPresupuesto({ presupuesto, onClose, onSuccess }: Pro
           {/* Monto límite */}
           <div>
             <label className="block mb-2 text-sm font-medium text-graphite">
-              Límite mensual
+              {esIngreso ? 'Meta mensual de ingreso' : 'Límite mensual'}
             </label>
             <div className="relative">
               <span className="absolute -translate-y-1/2 left-4 top-1/2 text-ash">L</span>
@@ -172,14 +232,15 @@ export default function FormPresupuesto({ presupuesto, onClose, onSuccess }: Pro
             <button
               type="button"
               onClick={onClose}
-              className="py-3 font-medium transition-all border rounded-full border-pebble text-graphite hover:bg-fog"
+              className="py-3 font-medium transition-colors border rounded-full border-fog text-graphite hover:bg-mist"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="py-3 font-medium transition-all rounded-full bg-obsidian text-snow hover:bg-graphite shadow-pill disabled:opacity-40"
+              style={{ background: 'linear-gradient(135deg, #2c6e49 0%, #14361f 55%, #000000 100%)' }}
+              className="py-3 font-medium transition-all rounded-full text-snow hover:brightness-110 disabled:opacity-40"
             >
               {loading ? 'Guardando...' : esEdicion ? 'Actualizar' : 'Crear'}
             </button>

@@ -40,6 +40,7 @@ model wallets {
   fecha_pago      Int?
   numero_cuenta   String?
   numero_tarjeta  String?
+  posicion        Int      @default(0)
   created_at      DateTime @default(now())
 
   transactions          transactions[] @relation("wallet")
@@ -102,6 +103,32 @@ model budgets {
   category categories @relation(fields: [category_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, category_id, mes, anio])
+  @@index([user_id])
+}
+
+model budget_rollovers {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String   @db.Uuid
+  mes        Int
+  anio       Int      @map("ano")
+  created_at DateTime @default(now())
+
+  @@unique([user_id, mes, anio])
+  @@index([user_id])
+}
+
+model metas {
+  id             String    @id @default(uuid()) @db.Uuid
+  user_id        String    @db.Uuid
+  nombre         String
+  icono          String?
+  color          String?
+  monto_objetivo Float
+  monto_actual   Float     @default(0)
+  fecha_limite   DateTime? @db.Date
+  completada     Boolean   @default(false)
+  created_at     DateTime  @default(now())
+
   @@index([user_id])
 }
 

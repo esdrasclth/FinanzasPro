@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode, type CSSProperties } from 'react'
 import { supabase } from '../lib/supabase'
 import { useRouter } from 'next/navigation'
 import FormCartera from '../components/FormCartera'
@@ -10,9 +10,19 @@ import Notificaciones from '../components/Notificaciones'
 import { SkeletonCard } from '../components/Skeleton'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import {
+  DndContext, closestCenter, PointerSensor, KeyboardSensor,
+  useSensor, useSensors, MeasuringStrategy, type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext, rectSortingStrategy, arrayMove,
+  sortableKeyboardCoordinates, useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import {
   Pencil, Trash2, Scale, Plus, Wallet, Landmark, CreditCard, PiggyBank,
   Clock, PieChart as PieIcon, ChevronRight, ChevronDown, Search,
-  Filter, Coins, type LucideIcon,
+  Filter, Coins, Check, Lightbulb, CalendarClock,
+  TrendingDown, Moon, GripVertical, type LucideIcon,
 } from 'lucide-react'
 
 export default function Carteras() {
@@ -44,6 +54,7 @@ export default function Carteras() {
       .select('*')
       .eq('user_id', user.id)
       .eq('activo', true)
+      .order('posicion', { ascending: true })
       .order('created_at', { ascending: true })
 
     // Calcular saldo real de cada cartera
@@ -175,6 +186,96 @@ export default function Carteras() {
     .sort((a, b) => b.valor - a.valor)
 
   const totalDistribucion = distribucion.reduce((s, d) => s + d.valor, 0)
+
+  // Días hasta el próximo día de pago de una tarjeta (envuelve al mes siguiente).
+  const diasHastaPago = (diaPago: number) => {
+    const hoy = new Date()
+    const diaHoy = hoy.getDate()
+    let diff = diaPago - diaHoy
+    if (diff < 0) {
+      const diasEnMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate()
+      diff = diasEnMes - diaHoy + diaPago
+    }
+    return diff
+  }
+
+  // Próximos pagos: tarjetas de crédito con saldo usado, ordenadas por cercanía de pago.
+  const proximosPagos = carteras
+    .filter(c => c.tipo === 'credito')
+    .map(c => {
+      const monto = Math.abs(Math.min(0, Number((c.saldos || {})['HNL'] || 0)))
+      return { id: c.id, nombre: c.nombre, dias: diasHastaPago(c.fecha_pago || 15), monto, moneda: c.moneda || 'HNL' }
+    })
+    .filter(p => p.monto > 0)
+    .sort((a, b) => a.dias - b.dias)
+
+  const totalProximosPagos = proximosPagos.reduce((s, p) => s + p.monto, 0)
+
+  // Movimiento más reciente entre todas las carteras (para "Estado de las cuentas").
+  const ultimoMovGlobal = carteras.reduce(
+    (max, c) => (c.ultimo_movimiento && c.ultimo_movimiento > max ? c.ultimo_movimiento : max), 0)
+
+  // Alertas de salud de las cuentas: uso de crédito alto, sobregiros y carteras inactivas.
+  const DIAS_INACTIVA = 45
+  type Alerta = { id: string; icon: LucideIcon; texto: string; grave: boolean }
+  const alertas: Alerta[] = []
+  carteras.forEach(c => {
+    const esCred = c.tipo === 'credito'
+    if (esCred && Number(c.credito_limite) > 0) {
+      const usado = Math.abs(Math.min(0, Number((c.saldos || {})['HNL'] || 0)))
+      const uso = (usado / Number(c.credito_limite)) * 100
+      if (uso >= 80)
+        alertas.push({ id: `${c.id}-cred`, icon: CreditCard, texto: `${c.nombre}: crédito al ${Math.round(uso)}%`, grave: true })
+    }
+    if (!esCred && Number(c.saldo_actual) < 0)
+      alertas.push({ id: `${c.id}-neg`, icon: TrendingDown, texto: `${c.nombre} tiene saldo negativo`, grave: true })
+    if (c.ultimo_movimiento) {
+      const dias = Math.floor((Date.now() - c.ultimo_movimiento) / 86400000)
+      if (dias >= DIAS_INACTIVA)
+        alertas.push({ id: `${c.id}-inact`, icon: Moon, texto: `${c.nombre} sin actividad hace ${dias} días`, grave: false })
+    }
+  })
+  const alertasGraves = alertas.filter(a => a.grave).length
+
+  // Efectivo como porcentaje del patrimonio (para el consejo financiero).
+  const efectivoTotal = carteras
+    .filter(c => c.tipo === 'efectivo')
+    .reduce((s, c) => s + Number((c.saldos || {})['HNL'] || 0), 0)
+  const efectivoPct = valorNeto > 0 ? Math.round((efectivoTotal / valorNeto) * 100) : 0
+
+  const consejoFinanciero = (() => {
+    if (creditoLimiteTotal > 0 && creditoUsoPct >= 70)
+      return `Tu uso de crédito está en ${creditoUsoPct}%. Intenta mantenerlo por debajo del 30% para cuidar tu salud financiera.`
+    if (efectivoPct >= 40)
+      return `Tu efectivo representa el ${efectivoPct}% de tu patrimonio. Considera invertir una parte para hacerlo crecer.`
+    if (efectivoPct > 0 && efectivoPct < 10)
+      return `Tu efectivo es solo el ${efectivoPct}% de tu patrimonio. Mantén un fondo disponible equivalente a un mes de gastos.`
+    if (disponiblePct >= 60)
+      return `Tienes el ${disponiblePct}% de tu patrimonio disponible. Es buen momento para planificar un ahorro o inversión.`
+    return 'Registra tus movimientos con regularidad para mantener el control de tus finanzas y tomar mejores decisiones.'
+  })()
+
+  // Reordenamiento manual (arrastrar). Solo con la lista completa: si hay filtros
+  // activos, la vista es un subconjunto y reordenar sería ambiguo.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { delay: 160, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+  const sinFiltros = filtroTipo === 'todos' && filtroMoneda === 'todas' && busqueda.trim() === ''
+  const puedeReordenar = sinFiltros && carteras.length > 1
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = carteras.findIndex(c => c.id === active.id)
+    const newIndex = carteras.findIndex(c => c.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    const nuevo = arrayMove(carteras, oldIndex, newIndex)
+    setCarteras(nuevo)
+    await Promise.all(
+      nuevo.map((c, i) => supabase.from('wallets').update({ posicion: i }).eq('id', c.id))
+    )
+  }
 
   const carterasFiltradas = carteras.filter(c => {
     if (filtroTipo !== 'todos' && c.tipo !== filtroTipo) return false
@@ -315,6 +416,8 @@ export default function Carteras() {
         {/* Columna carteras */}
         <div className="lg:col-span-2">
 
+        <h2 className="mb-4 text-sm font-semibold text-steel">Mis carteras</h2>
+
         {/* Filtros */}
         <div className="flex flex-wrap items-center gap-2 mb-5">
           <FiltroMenu
@@ -352,7 +455,6 @@ export default function Carteras() {
           </div>
         </div>
 
-        <h2 className="mb-4 text-sm font-semibold text-steel">Mis carteras</h2>
         {carteras.length === 0 ? (
           <div className="p-12 text-center border bg-snow border-fog rounded-card">
             <Wallet size={40} strokeWidth={1.5} className="mx-auto mb-4 text-pebble" />
@@ -368,6 +470,13 @@ export default function Carteras() {
             <p className="text-sm text-ash">Prueba con otros criterios de búsqueda</p>
           </div>
         ) : (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+            measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+          >
+          <SortableContext items={carterasFiltradas.map(c => c.id)} strategy={rectSortingStrategy}>
           <div className="grid items-stretch grid-cols-1 gap-4 mb-6 sm:grid-cols-2">
             {carterasFiltradas.map(cartera => {
               const esTarjeta = cartera.tipo === 'credito'
@@ -392,12 +501,19 @@ export default function Carteras() {
               const Icono = ICONOS_TIPO[cartera.tipo] || Wallet
 
               return (
+                <SortableItem key={cartera.id} id={cartera.id} disabled={!puedeReordenar}>
+                  {({ setNodeRef, style, attributes, listeners, isDragging }: any) => (
                 <div
-                  key={cartera.id}
-                  className={`flex flex-col h-full p-5 transition-all border bg-snow rounded-card ${proximoPago ? 'border-amber-300' : 'border-fog hover:border-pebble'}`}
+                  ref={setNodeRef}
+                  style={style}
+                  className={`flex flex-col h-full p-5 transition-colors border bg-snow rounded-card ${proximoPago ? 'border-amber-300' : 'border-fog hover:border-pebble'} ${isDragging ? 'shadow-lg opacity-90 border-pebble' : ''}`}
                 >
-                  {/* Encabezado: ícono + nombre · Ajustar / Eliminar arriba */}
-                  <div className="flex items-start justify-between mb-4">
+                  {/* Encabezado: zona de agarre (arrastrar) + Ajustar / Eliminar */}
+                  <div
+                    {...(puedeReordenar ? attributes : {})}
+                    {...(puedeReordenar ? listeners : {})}
+                    className={`flex items-start justify-between mb-4 outline-none ${puedeReordenar ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                  >
                     <div className="flex items-center min-w-0 gap-3">
                       <div className="flex items-center justify-center flex-shrink-0 w-12 h-12 rounded-2xl" style={{ backgroundColor: cartera.color + '15', color: cartera.color }}>
                         <Icono size={22} strokeWidth={2} />
@@ -408,6 +524,11 @@ export default function Carteras() {
                       </div>
                     </div>
                     <div className="flex items-center flex-shrink-0 gap-1">
+                      {puedeReordenar && (
+                        <span className="p-1.5 text-pebble" title="Arrastra para reordenar">
+                          <GripVertical size={16} strokeWidth={2} />
+                        </span>
+                      )}
                       {proximoPago && (
                         <span className="inline-flex items-center gap-1 px-2 py-1 mr-1 text-xs font-medium text-amber-600 rounded-badge bg-amber-50">
                           <Clock size={12} strokeWidth={2} />
@@ -499,32 +620,38 @@ export default function Carteras() {
                     </button>
                   </div>
                 </div>
+                  )}
+                </SortableItem>
               )
             })}
           </div>
+          </SortableContext>
+          </DndContext>
         )}
         </div>
 
         {/* Columna distribución */}
-        <div className="lg:col-span-1">
-          <h2 className="mb-4 text-sm font-semibold text-steel">Distribución del patrimonio</h2>
+        <div className="space-y-6 lg:col-span-1">
+          <div>
+          <h2 className="mb-4 text-sm font-semibold text-steel">Resumen y análisis</h2>
           <div className="p-6 border bg-snow border-fog rounded-card">
+            <h3 className="mb-5 text-sm font-semibold text-steel">Distribución del patrimonio</h3>
             {distribucion.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <PieIcon size={36} strokeWidth={1.5} className="mb-3 text-pebble" />
                 <p className="text-sm text-steel">Sin saldos positivos para mostrar</p>
               </div>
             ) : (
-              <>
-                <div className="relative w-[180px] h-[180px] mx-auto">
+              <div className="flex items-center gap-5">
+                <div className="relative flex-shrink-0 w-[136px] h-[136px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={distribucion}
                         cx="50%"
                         cy="50%"
-                        innerRadius={58}
-                        outerRadius={82}
+                        innerRadius={44}
+                        outerRadius={64}
                         paddingAngle={3}
                         cornerRadius={4}
                         dataKey="valor"
@@ -542,27 +669,122 @@ export default function Carteras() {
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-[11px] font-medium text-steel">Total</span>
-                    <span className="text-lg font-bold leading-tight text-ink">L {formatMonto(totalDistribucion)}</span>
+                    <span className="text-[10px] font-medium text-steel">Total</span>
+                    <span className="text-sm font-bold leading-tight text-ink">L {formatMonto(totalDistribucion)}</span>
                   </div>
                 </div>
 
-                <div className="mt-6 space-y-3">
+                <div className="flex-1 min-w-0 space-y-2.5">
                   {distribucion.map((item, index) => {
                     const pct = totalDistribucion > 0 ? Math.round((item.valor / totalDistribucion) * 100) : 0
                     return (
-                      <div key={index} className="flex items-center gap-3">
+                      <div key={index} className="flex items-center gap-2">
                         <span className="flex-shrink-0 w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORES[index % COLORES.length] }} />
                         <span className="flex-1 min-w-0 text-sm truncate text-ink">{item.nombre}</span>
-                        <span className="text-sm font-medium text-ink whitespace-nowrap">L {formatMonto(item.valor)}</span>
-                        <span className="text-xs font-medium text-right text-steel w-9">{pct}%</span>
+                        <span className="text-xs font-medium text-steel w-8 text-right">{pct}%</span>
+                        <span className="text-xs font-medium text-ink whitespace-nowrap w-[4.5rem] text-right">L {formatMonto(item.valor)}</span>
                       </div>
                     )
                   })}
                 </div>
-              </>
+              </div>
             )}
           </div>
+          </div>
+
+          {/* Estado de las cuentas */}
+          <div className="p-5 border bg-snow border-fog rounded-card">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-steel">Estado de las cuentas</h3>
+              {alertas.length > 0 && (
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-badge ${alertasGraves > 0 ? 'text-red-600 bg-red-50' : 'text-amber-600 bg-amber-50'}`}>
+                  {alertas.length} {alertas.length === 1 ? 'aviso' : 'avisos'}
+                </span>
+              )}
+            </div>
+            {alertas.length === 0 ? (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 rounded-full bg-emerald-50">
+                  <Check size={18} strokeWidth={2.5} className="text-emerald-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-ink">Todo en orden</p>
+                  <p className="text-xs text-ash">
+                    {ultimoMovGlobal ? `Actualizado ${tiempoRelativo(ultimoMovGlobal).toLowerCase()}` : 'Sin movimientos registrados'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {alertas.slice(0, 4).map(a => {
+                  const Icono = a.icon
+                  return (
+                    <div key={a.id} className="flex items-center gap-3">
+                      <div className={`flex items-center justify-center flex-shrink-0 w-9 h-9 rounded-xl ${a.grave ? 'bg-red-50 text-red-500' : 'bg-amber-50 text-amber-600'}`}>
+                        <Icono size={16} strokeWidth={2} />
+                      </div>
+                      <p className="flex-1 min-w-0 text-sm text-ink">{a.texto}</p>
+                    </div>
+                  )
+                })}
+                {alertas.length > 4 && (
+                  <p className="text-xs text-ash">y {alertas.length - 4} más</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Próximos pagos */}
+          <div className="p-5 border bg-snow border-fog rounded-card">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-steel">Próximos pagos</h3>
+              {totalProximosPagos > 0 && (
+                <span className="text-xs font-medium text-ash">L {formatMonto(totalProximosPagos)}</span>
+              )}
+            </div>
+            {proximosPagos.length === 0 ? (
+              <div className="flex items-center gap-3 py-1">
+                <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 rounded-xl bg-mist text-pebble">
+                  <CalendarClock size={18} strokeWidth={2} />
+                </div>
+                <p className="text-sm text-ash">Sin pagos pendientes</p>
+              </div>
+            ) : (
+              <div className="space-y-3.5">
+                {proximosPagos.slice(0, 3).map(p => {
+                  const urgente = p.dias <= 5
+                  return (
+                    <div key={p.id} className="flex items-center gap-3">
+                      <div className={`flex items-center justify-center flex-shrink-0 w-10 h-10 rounded-xl ${urgente ? 'bg-red-50 text-red-500' : 'bg-mist text-steel'}`}>
+                        <CreditCard size={18} strokeWidth={2} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate text-ink">{p.nombre}</p>
+                        <p className="text-xs text-ash">
+                          {p.dias === 0 ? 'Vence hoy' : `Vence en ${p.dias} ${p.dias === 1 ? 'día' : 'días'}`}
+                        </p>
+                      </div>
+                      <p className={`text-sm font-semibold whitespace-nowrap ${urgente ? 'text-red-500' : 'text-ink'}`}>
+                        {SIMBOLOS[p.moneda] || 'L'} {formatMonto(p.monto)}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Consejo financiero */}
+          <div className="p-5 border rounded-card border-fog" style={{ background: 'linear-gradient(135deg, #f4f9f6 0%, #eef5f0 100%)' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-full bg-emerald-100">
+                <Lightbulb size={16} strokeWidth={2} className="text-emerald-700" />
+              </div>
+              <h3 className="text-sm font-semibold text-steel">Consejo financiero</h3>
+            </div>
+            <p className="text-sm leading-relaxed text-graphite">{consejoFinanciero}</p>
+          </div>
+
         </div>
 
         </div>
@@ -599,6 +821,26 @@ export default function Carteras() {
 
     </AppLayout>
   )
+}
+
+function SortableItem({ id, disabled, children }: {
+  id: string
+  disabled?: boolean
+  children: (props: {
+    setNodeRef: (el: HTMLElement | null) => void
+    style: CSSProperties
+    attributes: Record<string, any>
+    listeners: Record<string, any> | undefined
+    isDragging: boolean
+  }) => ReactNode
+}) {
+  const { setNodeRef, transform, transition, attributes, listeners, isDragging } = useSortable({ id, disabled })
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+  }
+  return <>{children({ setNodeRef, style, attributes, listeners, isDragging })}</>
 }
 
 function FiltroMenu({ icon: Icon, value, onChange, options }: {

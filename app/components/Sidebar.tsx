@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useState } from 'react'
 import {
   LayoutDashboard, ArrowLeftRight, Target, Wallet, Users, Tag,
-  Download, Handshake, BarChart3, Settings, Droplets, LogOut, Plus, Split,
+  Download, Handshake, BarChart3, Settings, Droplets, LogOut, Plus,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -21,7 +21,6 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/presupuesto', Icon: Target, label: 'Presupuestos' },
   { href: '/carteras', Icon: Wallet, label: 'Carteras' },
   { href: '/grupos', Icon: Users, label: 'Compartidos' },
-  { href: '/repartos', Icon: Split, label: 'Repartos' },
   { href: '/categorias', Icon: Tag, label: 'Categorías' },
   { href: '/exportar', Icon: Download, label: 'Exportar' },
   { href: '/deudas', Icon: Handshake, label: 'Deudas' },
@@ -34,7 +33,6 @@ function MasMenu({ pathname, router }: { pathname: string, router: any }) {
 
   const MAS_ITEMS: NavItem[] = [
     { href: '/grupos', Icon: Users, label: 'Compartidos' },
-    { href: '/repartos', Icon: Split, label: 'Repartos' },
     { href: '/categorias', Icon: Tag, label: 'Categorías' },
     { href: '/deudas', Icon: Handshake, label: 'Deudas' },
     { href: '/reportes', Icon: BarChart3, label: 'Reportes' },
