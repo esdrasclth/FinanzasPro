@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { round2, simboloMoneda } from '../lib/dinero'
+import { fechaHoyLocal } from '../lib/fecha'
 
 const gradiente = 'linear-gradient(135deg, #2c6e49 0%, #14361f 55%, #000000 100%)'
 
@@ -14,13 +15,16 @@ interface Props {
   miembros: Miembro[]
   yo: string
   gasto?: any
+  descripcionInicial?: string
+  montoInicial?: string
+  fechaInicial?: string
   onClose: () => void
   onSuccess: () => void
 }
 
 type Metodo = 'igual' | 'exacto' | 'porcentaje'
 
-export default function FormGastoCompartido({ grupoId, moneda, miembros, yo, gasto, onClose, onSuccess }: Props) {
+export default function FormGastoCompartido({ grupoId, moneda, miembros, yo, gasto, descripcionInicial, montoInicial, fechaInicial, onClose, onSuccess }: Props) {
   const simbolo = simboloMoneda(moneda)
 
   const metodoInicial: Metodo = gasto
@@ -34,9 +38,9 @@ export default function FormGastoCompartido({ grupoId, moneda, miembros, yo, gas
     }
   }
 
-  const [descripcion, setDescripcion] = useState(gasto?.descripcion || '')
-  const [monto, setMonto] = useState(gasto ? String(gasto.monto_total) : '')
-  const [fecha, setFecha] = useState(gasto ? String(gasto.fecha).slice(0, 10) : new Date().toISOString().split('T')[0])
+  const [descripcion, setDescripcion] = useState(gasto?.descripcion || descripcionInicial || '')
+  const [monto, setMonto] = useState(gasto ? String(gasto.monto_total) : (montoInicial || ''))
+  const [fecha, setFecha] = useState(gasto ? String(gasto.fecha).slice(0, 10) : (fechaInicial || fechaHoyLocal()))
   const [seleccionados, setSeleccionados] = useState<Set<string>>(
     gasto ? new Set<string>(gasto.divisiones.map((d: any) => d.user_id)) : new Set(miembros.map(m => m.user_id))
   )

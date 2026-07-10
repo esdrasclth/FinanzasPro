@@ -12,6 +12,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   Plus, Search, X, ChevronDown, Users, Receipt, Coins, HandCoins, KeyRound,
   CheckCircle2, Clock, ArrowDownLeft, ArrowUpRight, Scale, PieChart as PieIcon,
+  ShieldCheck, User, Activity,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -30,10 +31,13 @@ export default function CompartidosPage() {
   )
 }
 
+type Accion = null | 'crear-grupo' | 'unirse' | 'crear-reparto'
+
 function Compartidos() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [tab, setTab] = useState<'grupos' | 'repartos'>('grupos')
+  const [accion, setAccion] = useState<Accion>(null)
 
   useEffect(() => {
     if (searchParams.get('tab') === 'repartos') setTab('repartos')
@@ -43,6 +47,9 @@ function Compartidos() {
     setTab(t)
     router.replace(`/grupos${t === 'repartos' ? '?tab=repartos' : ''}`, { scroll: false })
   }
+
+  const nuevo = () => setAccion(tab === 'grupos' ? 'crear-grupo' : 'crear-reparto')
+  const labelNuevo = tab === 'grupos' ? 'Nuevo grupo' : 'Nuevo reparto'
 
   return (
     <AppLayout>
@@ -54,31 +61,55 @@ function Compartidos() {
             <p className="mb-1 text-sm font-medium text-steel">Compartidos</p>
             <h1 className="text-3xl font-bold text-obsidian">Divide gastos con otras personas</h1>
           </div>
-          <Notificaciones />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={nuevo}
+              style={{ background: gradiente }}
+              className="items-center hidden gap-2 px-4 py-2.5 text-sm font-medium transition-transform rounded-input text-snow sm:inline-flex hover:scale-105 hover:brightness-110"
+            >
+              <Plus size={18} strokeWidth={2.5} /> {labelNuevo}
+            </button>
+            <Notificaciones />
+          </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex items-center gap-1 p-1 mb-8 border w-fit bg-snow border-fog rounded-full">
-          {([
-            { id: 'grupos' as const, label: 'Grupos', icon: Users },
-            { id: 'repartos' as const, label: 'Repartos', icon: Receipt },
-          ]).map(t => {
-            const Icon = t.icon
-            return (
-              <button
-                key={t.id}
-                onClick={() => cambiarTab(t.id)}
-                className={`inline-flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-full transition-colors ${tab === t.id ? 'bg-obsidian text-snow' : 'text-steel hover:text-ink'}`}
-              >
-                <Icon size={15} strokeWidth={2} /> {t.label}
-              </button>
-            )
-          })}
-        </div>
-
-        {tab === 'grupos' ? <GruposPanel router={router} /> : <RepartosPanel router={router} />}
+        {tab === 'grupos'
+          ? <GruposPanel router={router} accion={accion} setAccion={setAccion} tab={tab} cambiarTab={cambiarTab} />
+          : <RepartosPanel router={router} accion={accion} setAccion={setAccion} tab={tab} cambiarTab={cambiarTab} />}
       </div>
+
+      {/* Botón flotante (móvil) */}
+      <button
+        onClick={nuevo}
+        style={{ background: gradiente }}
+        className="fixed z-40 flex items-center justify-center transition-transform rounded-full text-snow bottom-24 lg:bottom-8 right-6 lg:right-8 w-14 h-14 hover:scale-105 hover:brightness-110 sm:hidden"
+        aria-label={labelNuevo}
+      >
+        <Plus size={24} strokeWidth={2.5} />
+      </button>
     </AppLayout>
+  )
+}
+
+function Tabs({ tab, onChange }: { tab: 'grupos' | 'repartos'; onChange: (t: 'grupos' | 'repartos') => void }) {
+  return (
+    <div className="flex items-center flex-shrink-0 gap-1 p-1 border w-fit bg-snow border-fog rounded-full">
+      {([
+        { id: 'grupos' as const, label: 'Grupos', icon: Users },
+        { id: 'repartos' as const, label: 'Repartos', icon: Receipt },
+      ]).map(t => {
+        const Icon = t.icon
+        return (
+          <button
+            key={t.id}
+            onClick={() => onChange(t.id)}
+            className={`inline-flex items-center gap-2 px-4 py-1.5 text-sm font-medium rounded-full transition-colors ${tab === t.id ? 'bg-obsidian text-snow' : 'text-steel hover:text-ink'}`}
+          >
+            <Icon size={15} strokeWidth={2} /> {t.label}
+          </button>
+        )
+      })}
+    </div>
   )
 }
 
@@ -88,25 +119,67 @@ interface Grupo {
   id: string
   nombre: string
   moneda: string
+  icono: string
+  color: string
   codigo_invitacion: string
   creado_por: string
+  mi_rol: string
   miembros: number
   mi_saldo: number
   total_mes: number
+  ultima_actividad: { descripcion: string; fecha: string } | null
 }
 
-function GruposPanel({ router }: { router: ReturnType<typeof useRouter> }) {
+interface Actividad {
+  id: string
+  grupo_id: string
+  grupo_nombre: string
+  grupo_color: string
+  grupo_icono: string
+  descripcion: string
+  monto: number
+  moneda: string
+  autor: string
+  fecha: string
+}
+
+const ICONOS_GRUPO = ['👥', '🏠', '✈️', '🎉', '🍽️', '🚗', '🏖️', '⚽', '🎓', '💼', '🛒', '🎁', '🏢', '🐾', '💡', '❤️']
+
+// "hace X" legible a partir de un ISO.
+function haceTiempo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const min = Math.floor(diff / 60000)
+  if (min < 1) return 'ahora'
+  if (min < 60) return `hace ${min} min`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `hace ${h} h`
+  const d = Math.floor(h / 24)
+  if (d < 7) return `hace ${d} d`
+  return new Date(iso).toLocaleDateString('es-HN', { day: 'numeric', month: 'short' })
+}
+
+function GruposPanel({ router, accion, setAccion, tab, cambiarTab }: {
+  router: ReturnType<typeof useRouter>
+  accion: Accion
+  setAccion: (a: Accion) => void
+  tab: 'grupos' | 'repartos'
+  cambiarTab: (t: 'grupos' | 'repartos') => void
+}) {
   const [grupos, setGrupos] = useState<Grupo[]>([])
+  const [actividad, setActividad] = useState<Actividad[]>([])
   const [monedaDefault, setMonedaDefault] = useState('USD')
   const [loading, setLoading] = useState(true)
-  const [showCrear, setShowCrear] = useState(false)
-  const [showUnirse, setShowUnirse] = useState(false)
+  const [busqueda, setBusqueda] = useState('')
+  const showCrear = accion === 'crear-grupo'
+  const showUnirse = accion === 'unirse'
+  const cerrar = () => setAccion(null)
 
   const cargar = async () => {
     const res = await fetch('/api/grupos')
     if (res.status === 401) { router.push('/login'); return }
     const json = await res.json()
     setGrupos(json.grupos || [])
+    setActividad(json.actividad || [])
     setLoading(false)
   }
 
@@ -151,46 +224,46 @@ function GruposPanel({ router }: { router: ReturnType<typeof useRouter> }) {
     )
   }
 
+  const modales = (
+    <>
+      {showCrear && <ModalCrear onClose={cerrar} onSuccess={(id) => router.push(`/grupos/${id}`)} />}
+      {showUnirse && <ModalUnirse onClose={cerrar} onSuccess={(id) => router.push(`/grupos/${id}`)} />}
+    </>
+  )
+
   if (grupos.length === 0) {
     return (
       <>
+        <div className="mb-6"><Tabs tab={tab} onChange={cambiarTab} /></div>
         <div className="p-12 text-center border bg-snow border-fog rounded-card">
           <Users size={40} strokeWidth={1.5} className="mx-auto mb-4 text-pebble" />
           <p className="mb-2 text-steel">Aún no tienes grupos</p>
           <p className="mb-6 text-sm text-ash">Crea un grupo para gastos recurrentes (casa, viaje) o únete con un código de invitación.</p>
           <div className="flex justify-center gap-3">
-            <button onClick={() => setShowCrear(true)} style={{ background: gradiente }}
+            <button onClick={() => setAccion('crear-grupo')} style={{ background: gradiente }}
               className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-transform rounded-input text-snow hover:scale-105 hover:brightness-110">
               <Plus size={18} strokeWidth={2.5} /> Crear grupo
             </button>
-            <button onClick={() => setShowUnirse(true)}
+            <button onClick={() => setAccion('unirse')}
               className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border rounded-input border-fog text-graphite hover:bg-mist">
               <KeyRound size={16} strokeWidth={2} /> Unirme con código
             </button>
           </div>
         </div>
-        {showCrear && <ModalCrear onClose={() => setShowCrear(false)} onSuccess={(id) => router.push(`/grupos/${id}`)} />}
-        {showUnirse && <ModalUnirse onClose={() => setShowUnirse(false)} onSuccess={(id) => router.push(`/grupos/${id}`)} />}
+        {modales}
       </>
     )
   }
 
+  const maxMes = Math.max(...grupos.map(g => g.total_mes), 1)
+  const miembrosTotales = grupos.reduce((s, g) => s + g.miembros, 0)
+  const q = busqueda.trim().toLowerCase()
+  const filtrados = q ? grupos.filter(g => g.nombre.toLowerCase().includes(q)) : grupos
+
   return (
     <>
-      {/* Acciones */}
-      <div className="flex justify-end gap-2 mb-6 -mt-2">
-        <button onClick={() => setShowUnirse(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors border rounded-full border-fog text-graphite hover:bg-mist">
-          <KeyRound size={15} strokeWidth={2} /> Unirme con código
-        </button>
-        <button onClick={() => setShowCrear(true)} style={{ background: gradiente }}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium transition-transform rounded-full text-snow hover:scale-105 hover:brightness-110">
-          <Plus size={16} strokeWidth={2.5} /> Nuevo grupo
-        </button>
-      </div>
-
       {/* Hero */}
-      <div className="relative mb-8 overflow-hidden text-white shadow-soft rounded-2xl" style={{ background: gradiente }}>
+      <div className="relative mb-6 overflow-hidden text-white shadow-soft rounded-2xl" style={{ background: gradiente }}>
         <div className="absolute top-0 right-0 rounded-full pointer-events-none -mt-16 -mr-16 w-72 h-72 bg-white/5 blur-2xl" />
         <div className="absolute bottom-0 rounded-full pointer-events-none left-1/3 -mb-24 w-72 h-72 bg-emerald-400/10 blur-3xl" />
         <div className="relative px-6 py-9 lg:px-8 lg:py-12">
@@ -210,47 +283,181 @@ function GruposPanel({ router }: { router: ReturnType<typeof useRouter> }) {
         </div>
       </div>
 
-      {/* Tarjetas de grupos */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {grupos.map(g => {
-          const saldo = g.mi_saldo
-          const alDia = Math.abs(saldo) <= 0.005
-          return (
-            <button key={g.id} onClick={() => router.push(`/grupos/${g.id}`)}
-              className="p-5 text-left transition-all border bg-snow border-fog rounded-card hover:border-pebble hover:shadow-soft active:scale-[0.99]">
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex items-center justify-center flex-shrink-0 w-11 h-11 rounded-xl" style={{ background: gradiente }}>
-                    <Users size={18} strokeWidth={2} className="text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold truncate text-ink">{g.nombre}</p>
-                    <p className="text-xs text-ash">{g.miembros} {g.miembros === 1 ? 'miembro' : 'miembros'} · {g.moneda}</p>
-                  </div>
-                </div>
-                <span className="font-mono text-xs font-semibold tracking-widest flex-shrink-0 text-steel bg-mist rounded-badge px-2 py-0.5">{g.codigo_invitacion}</span>
-              </div>
-              <div className="flex items-end justify-between pt-3 border-t border-fog">
-                <div>
-                  <p className="text-xs text-ash">Este mes</p>
-                  <p className="text-sm font-semibold text-ink">{formatoMoneda(g.total_mes, g.moneda)}</p>
-                </div>
-                <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-badge ${alDia ? 'text-steel bg-mist' : saldo > 0 ? 'text-emerald-600 bg-emerald-50' : 'text-red-600 bg-red-50'}`}>
-                  {alDia ? 'Al día' : saldo > 0 ? `Te deben ${formatoMoneda(saldo, g.moneda)}` : `Debes ${formatoMoneda(-saldo, g.moneda)}`}
-                </span>
-              </div>
-            </button>
-          )
-        })}
-        <button onClick={() => setShowCrear(true)}
-          className="flex flex-col items-center justify-center gap-2 py-10 text-sm font-medium transition-colors border border-dashed rounded-card border-pebble text-graphite hover:bg-mist hover:text-ink min-h-[150px]">
-          <Plus size={22} strokeWidth={2} /> Nuevo grupo
-        </button>
+      {/* Controles (debajo del hero): tabs + buscador (col 1) · unirme (col 2) */}
+      <div className="grid grid-cols-1 gap-3 mb-6 lg:grid-cols-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:col-span-2">
+          <Tabs tab={tab} onChange={cambiarTab} />
+          <div className="relative flex-1">
+            <Search size={16} strokeWidth={2} className="absolute -translate-y-1/2 left-3.5 top-1/2 text-ash" />
+            <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="Buscar grupo..."
+              className="w-full py-2 pl-10 pr-10 text-sm text-ink transition-colors border bg-snow border-fog placeholder-ash rounded-full focus:outline-none focus:border-obsidian" />
+            {busqueda && (
+              <button onClick={() => setBusqueda('')}
+                className="absolute flex items-center justify-center w-6 h-6 -translate-y-1/2 rounded-full right-2.5 top-1/2 text-ash hover:text-ink hover:bg-fog">
+                <X size={14} strokeWidth={2} />
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="flex lg:justify-end lg:col-span-1">
+          <button onClick={() => setAccion('unirse')}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors border rounded-full bg-snow border-fog text-graphite hover:bg-mist">
+            <KeyRound size={15} strokeWidth={2} /> Unirme con código
+          </button>
+        </div>
       </div>
 
-      {showCrear && <ModalCrear onClose={() => setShowCrear(false)} onSuccess={(id) => router.push(`/grupos/${id}`)} />}
-      {showUnirse && <ModalUnirse onClose={() => setShowUnirse(false)} onSuccess={(id) => router.push(`/grupos/${id}`)} />}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Lista de grupos */}
+        <div className="lg:col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-steel">Mis grupos</h3>
+            <span className="text-xs text-ash">{filtrados.length} {filtrados.length === 1 ? 'grupo' : 'grupos'}</span>
+          </div>
+          <div className="overflow-hidden border bg-snow border-fog rounded-card">
+            {filtrados.length === 0 && (
+              <div className="px-6 py-12 text-center">
+                <Search size={28} strokeWidth={1.5} className="mx-auto mb-3 text-pebble" />
+                <p className="text-sm text-steel">Ningún grupo coincide con "{busqueda}"</p>
+              </div>
+            )}
+            {filtrados.map((g) => {
+              const saldo = g.mi_saldo
+              const alDia = Math.abs(saldo) <= 0.005
+              const color = g.color
+              const esAdmin = g.mi_rol === 'admin'
+              return (
+                <button key={g.id} onClick={() => router.push(`/grupos/${g.id}`)}
+                  className="flex items-center w-full gap-4 px-5 py-4 text-left transition-colors border-b border-fog last:border-b-0 hover:bg-mist/50">
+                  <div className="flex items-center justify-center flex-shrink-0 text-xl w-12 h-12 rounded-xl" style={{ backgroundColor: color + '1a' }}>
+                    {g.icono}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold truncate text-ink">{g.nombre}</p>
+                      <span className={`inline-flex items-center gap-1 flex-shrink-0 px-1.5 py-0.5 text-[10px] font-semibold rounded-badge ${esAdmin ? 'text-emerald-700 bg-emerald-50' : 'text-steel bg-mist'}`}>
+                        {esAdmin ? <ShieldCheck size={11} strokeWidth={2.5} /> : <User size={11} strokeWidth={2.5} />}
+                        {esAdmin ? 'Administrador' : 'Miembro'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <Avatares n={g.miembros} />
+                      <span className="text-xs text-ash">{g.miembros} {g.miembros === 1 ? 'miembro' : 'miembros'}</span>
+                    </div>
+                    <p className="mt-1 text-xs truncate text-ash">
+                      {g.ultima_actividad
+                        ? <>Última: {g.ultima_actividad.descripcion} · {haceTiempo(g.ultima_actividad.fecha)}</>
+                        : 'Sin actividad todavía'}
+                    </p>
+                    <div className="w-full h-1.5 mt-2 overflow-hidden rounded-full bg-fog max-w-[220px]">
+                      <div className="h-full rounded-full" style={{ width: `${(g.total_mes / maxMes) * 100}%`, backgroundColor: color }} />
+                    </div>
+                  </div>
+
+                  <div className="flex-shrink-0 text-right">
+                    <p className="text-xs text-ash">Este mes</p>
+                    <p className="text-sm font-semibold text-ink">{formatoMoneda(g.total_mes, g.moneda)}</p>
+                    <span className={`inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 text-xs font-medium rounded-badge ${alDia ? 'text-steel bg-mist' : saldo > 0 ? 'text-emerald-600 bg-emerald-50' : 'text-red-600 bg-red-50'}`}>
+                      {alDia ? 'Al día' : saldo > 0 ? `Te deben ${formatoMoneda(saldo, g.moneda)}` : `Debes ${formatoMoneda(-saldo, g.moneda)}`}
+                    </span>
+                  </div>
+                </button>
+              )
+            })}
+            <button onClick={() => setAccion('crear-grupo')}
+              className="flex items-center justify-center w-full gap-2 py-4 text-sm font-medium transition-colors text-graphite hover:bg-mist hover:text-ink">
+              <Plus size={18} strokeWidth={2} /> Nuevo grupo
+            </button>
+          </div>
+        </div>
+
+        {/* Insights */}
+        <div className="space-y-6 lg:col-span-1">
+          <div className="p-5 border bg-snow border-fog rounded-card">
+            <h3 className="mb-4 text-sm font-semibold text-steel">Resumen general</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <StatMini icon={Users} label="Grupos" valor={`${grupos.length}`} color="#2c6e49" />
+              <StatMini icon={User} label="Miembros" valor={`${miembrosTotales}`} color="#3B82F6" />
+              <StatMini icon={Coins} label="Gasto del mes" valor={fmt(gastoMes)} color="#F59E0B" full />
+            </div>
+          </div>
+
+          <div className="p-5 border bg-snow border-fog rounded-card">
+            <div className="flex items-center gap-2 mb-4">
+              <Activity size={16} strokeWidth={2} className="text-steel" />
+              <h3 className="text-sm font-semibold text-steel">Actividad reciente</h3>
+            </div>
+            {actividad.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <Activity size={32} strokeWidth={1.5} className="mb-3 text-pebble" />
+                <p className="text-sm text-steel">Aún no hay movimientos</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {actividad.map(a => (
+                  <button key={a.id} onClick={() => router.push(`/grupos/${a.grupo_id}`)}
+                    className="flex items-center w-full gap-3 px-2 py-2 -mx-2 text-left transition-colors rounded-xl hover:bg-mist">
+                    <span className="flex items-center justify-center flex-shrink-0 text-base rounded-full w-9 h-9" style={{ backgroundColor: a.grupo_color + '1a' }}>
+                      {a.grupo_icono}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm truncate text-ink">
+                        <span className="font-medium">{a.autor}</span> agregó <span className="font-medium">{a.descripcion}</span>
+                      </p>
+                      <p className="text-xs truncate text-ash">{a.grupo_nombre} · {haceTiempo(a.fecha)}</p>
+                    </div>
+                    <span className="flex-shrink-0 text-sm font-semibold text-ink">{formatoMoneda(a.monto, a.moneda)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="p-5 border bg-emerald-50/50 border-emerald-100 rounded-card">
+            <div className="flex items-center gap-2 mb-2 text-emerald-700">
+              <HandCoins size={16} strokeWidth={2} />
+              <h3 className="text-sm font-semibold">Consejo rápido</h3>
+            </div>
+            <p className="text-sm text-graphite">Comparte el código de invitación de cada grupo para que tus contactos se unan y registren gastos juntos.</p>
+          </div>
+        </div>
+      </div>
+
+      {modales}
     </>
+  )
+}
+
+function Avatares({ n }: { n: number }) {
+  const visibles = Math.min(n, 3)
+  const extra = n - visibles
+  return (
+    <div className="flex -space-x-1.5">
+      {Array.from({ length: visibles }).map((_, i) => (
+        <span key={i} className="inline-flex items-center justify-center w-5 h-5 text-[9px] font-semibold rounded-full ring-2 ring-snow text-steel"
+          style={{ backgroundColor: COLORES[i % COLORES.length] + '30' }}>
+          {String.fromCharCode(65 + i)}
+        </span>
+      ))}
+      {extra > 0 && (
+        <span className="inline-flex items-center justify-center w-5 h-5 text-[9px] font-semibold rounded-full ring-2 ring-snow bg-fog text-steel">
+          +{extra}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function StatMini({ icon: Icon, label, valor, color, full }: { icon: LucideIcon; label: string; valor: string; color: string; full?: boolean }) {
+  return (
+    <div className={`p-3.5 border rounded-card border-fog bg-mist/40 ${full ? 'col-span-2' : ''}`}>
+      <span className="inline-flex items-center justify-center w-8 h-8 mb-2 rounded-lg" style={{ backgroundColor: color + '1a', color }}>
+        <Icon size={16} strokeWidth={2.5} />
+      </span>
+      <p className="text-xs text-ash">{label}</p>
+      <p className="text-lg font-bold leading-tight text-ink">{valor}</p>
+    </div>
   )
 }
 
@@ -268,11 +475,18 @@ interface Reparto {
   monto_pagado: number
 }
 
-function RepartosPanel({ router }: { router: ReturnType<typeof useRouter> }) {
+function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
+  router: ReturnType<typeof useRouter>
+  accion: Accion
+  setAccion: (a: Accion) => void
+  tab: 'grupos' | 'repartos'
+  cambiarTab: (t: 'grupos' | 'repartos') => void
+}) {
   const [repartos, setRepartos] = useState<Reparto[]>([])
   const [monedaDefault, setMonedaDefault] = useState('HNL')
   const [loading, setLoading] = useState(true)
-  const [showCrear, setShowCrear] = useState(false)
+  const showCrear = accion === 'crear-reparto'
+  const setShowCrear = (v: boolean) => setAccion(v ? 'crear-reparto' : null)
   const [busqueda, setBusqueda] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('todos')
   const [orden, setOrden] = useState('recientes')
@@ -342,6 +556,7 @@ function RepartosPanel({ router }: { router: ReturnType<typeof useRouter> }) {
   if (repartos.length === 0) {
     return (
       <>
+        <div className="mb-6"><Tabs tab={tab} onChange={cambiarTab} /></div>
         <div className="p-12 text-center border bg-snow border-fog rounded-card">
           <Receipt size={40} strokeWidth={1.5} className="mx-auto mb-4 text-pebble" />
           <p className="mb-2 text-steel">Aún no tienes repartos</p>
@@ -358,13 +573,6 @@ function RepartosPanel({ router }: { router: ReturnType<typeof useRouter> }) {
 
   return (
     <>
-      <div className="flex justify-end mb-6 -mt-2">
-        <button onClick={() => setShowCrear(true)} style={{ background: gradiente }}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium transition-transform rounded-full text-snow hover:scale-105 hover:brightness-110">
-          <Plus size={16} strokeWidth={2.5} /> Nuevo reparto
-        </button>
-      </div>
-
       {/* Hero */}
       <div className="relative mb-8 overflow-hidden text-white shadow-soft rounded-2xl" style={{ background: gradiente }}>
         <div className="absolute top-0 right-0 rounded-full pointer-events-none -mt-16 -mr-16 w-72 h-72 bg-white/5 blur-2xl" />
@@ -384,12 +592,13 @@ function RepartosPanel({ router }: { router: ReturnType<typeof useRouter> }) {
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative flex-1 max-w-sm">
+      {/* Controles (debajo del hero): tabs · buscador · filtros */}
+      <div className="flex flex-col gap-3 mb-6 lg:flex-row lg:items-center">
+        <Tabs tab={tab} onChange={cambiarTab} />
+        <div className="relative flex-1 lg:max-w-xs">
           <Search size={16} strokeWidth={2} className="absolute -translate-y-1/2 left-3.5 top-1/2 text-ash" />
           <input type="text" value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="Buscar reparto..."
-            className="w-full py-2.5 pl-10 pr-10 text-sm text-ink transition-colors border bg-snow border-fog placeholder-ash rounded-full focus:outline-none focus:border-obsidian" />
+            className="w-full py-2 pl-10 pr-10 text-sm text-ink transition-colors border bg-snow border-fog placeholder-ash rounded-full focus:outline-none focus:border-obsidian" />
           {busqueda && (
             <button onClick={() => setBusqueda('')}
               className="absolute flex items-center justify-center w-6 h-6 -translate-y-1/2 rounded-full right-2.5 top-1/2 text-ash hover:text-ink hover:bg-fog">
@@ -397,7 +606,7 @@ function RepartosPanel({ router }: { router: ReturnType<typeof useRouter> }) {
             </button>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 lg:ml-auto">
           <FiltroMenu icon={Clock} value={filtroEstado} onChange={setFiltroEstado} options={[
             { value: 'todos', label: 'Todos' },
             { value: 'pendiente', label: 'Pendientes' },
@@ -541,6 +750,8 @@ function RepartosPanel({ router }: { router: ReturnType<typeof useRouter> }) {
 function ModalCrear({ onClose, onSuccess }: { onClose: () => void; onSuccess: (id: string) => void }) {
   const [nombre, setNombre] = useState('')
   const [moneda, setMoneda] = useState('USD')
+  const [icono, setIcono] = useState('👥')
+  const [color, setColor] = useState(COLORES[0])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -550,7 +761,7 @@ function ModalCrear({ onClose, onSuccess }: { onClose: () => void; onSuccess: (i
     const res = await fetch('/api/grupos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre, moneda }),
+      body: JSON.stringify({ nombre, moneda, icono, color }),
     })
     const json = await res.json()
     if (!res.ok) { setError(json.error || 'Error al crear'); setLoading(false); return }
@@ -560,11 +771,48 @@ function ModalCrear({ onClose, onSuccess }: { onClose: () => void; onSuccess: (i
   return (
     <Modal titulo="Crear grupo" onClose={onClose}>
       <form onSubmit={submit} className="px-5 py-5 space-y-5 sm:px-6">
+        {/* Vista previa */}
+        <div className="flex items-center gap-3 p-4 border rounded-card border-fog bg-mist/40">
+          <div className="flex items-center justify-center flex-shrink-0 text-2xl w-14 h-14 rounded-2xl" style={{ backgroundColor: color + '1a' }}>
+            {icono}
+          </div>
+          <div className="min-w-0">
+            <p className="font-semibold truncate text-ink">{nombre || 'Nombre del grupo'}</p>
+            <p className="text-xs text-ash">{moneda} · tú serás administrador</p>
+          </div>
+        </div>
+
         <div>
           <label className="block mb-2 text-sm font-medium text-graphite">Nombre del grupo</label>
           <input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Ej: Casa, Viaje a la playa" required autoFocus
             className="w-full px-4 py-3 text-ink transition-colors border bg-mist border-transparent placeholder-ash rounded-input focus:outline-none focus:border-obsidian focus:bg-snow" />
         </div>
+
+        {/* Icono */}
+        <div>
+          <label className="block mb-2 text-sm font-medium text-graphite">Icono</label>
+          <div className="grid grid-cols-8 gap-2">
+            {ICONOS_GRUPO.map(ic => (
+              <button key={ic} type="button" onClick={() => setIcono(ic)}
+                className={`flex items-center justify-center h-10 text-xl transition-all rounded-xl ${icono === ic ? 'bg-obsidian/5 ring-2 ring-obsidian' : 'bg-mist hover:bg-fog'}`}>
+                {ic}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Color */}
+        <div>
+          <label className="block mb-2 text-sm font-medium text-graphite">Color</label>
+          <div className="flex flex-wrap gap-3">
+            {COLORES.map(c => (
+              <button key={c} type="button" onClick={() => setColor(c)}
+                className={`w-8 h-8 rounded-full transition-all ${color === c ? 'ring-2 ring-obsidian ring-offset-2 ring-offset-snow scale-110' : ''}`}
+                style={{ backgroundColor: c }} />
+            ))}
+          </div>
+        </div>
+
         <div>
           <label className="block mb-2 text-sm font-medium text-graphite">Moneda</label>
           <select value={moneda} onChange={e => setMoneda(e.target.value)}

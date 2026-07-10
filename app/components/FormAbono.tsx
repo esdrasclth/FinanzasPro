@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { fechaHoyLocal } from '../lib/fecha'
 
 interface Props {
   deuda: any
@@ -13,7 +14,7 @@ export default function FormAbono({ deuda, onClose, onSuccess }: Props) {
   const [monto, setMonto] = useState('')
   const [walletId, setWalletId] = useState('')
   const [wallets, setWallets] = useState<any[]>([])
-  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
+  const [fecha, setFecha] = useState(fechaHoyLocal())
   const [nota, setNota] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')

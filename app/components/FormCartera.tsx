@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { fechaHoyLocal } from '../lib/fecha'
 import { X, Wallet, Landmark, CreditCard, PiggyBank } from 'lucide-react'
 
 interface Props {
@@ -160,7 +161,7 @@ export default function FormCartera({ cartera, onClose, onSuccess }: Props) {
       tipo: tipoCat,
       moneda: monedaMov,
       descripcion: 'Saldo inicial',
-      fecha: new Date().toISOString().split('T')[0],
+      fecha: fechaHoyLocal(),
     })
   }
 

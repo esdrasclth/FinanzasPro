@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { fechaHoyLocal } from '../lib/fecha'
 import { useRouter } from 'next/navigation'
 import { Bell, CheckCircle2, AlertTriangle, ChevronRight } from 'lucide-react'
 
@@ -81,7 +82,7 @@ export default function Notificaciones() {
       .select('*')
       .eq('user_id', user.id)
       .eq('completada', false)
-      .lt('fecha_limite', new Date().toISOString().split('T')[0])
+      .lt('fecha_limite', fechaHoyLocal())
 
     for (const deuda of deudas || []) {
       nuevasNotificaciones.push({

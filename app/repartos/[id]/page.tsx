@@ -9,7 +9,7 @@ import { formatoMoneda } from '../../lib/dinero'
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import {
   ArrowLeft, Share2, Copy, Check, Pencil, Trash2, MoreHorizontal,
-  Coins, CheckCircle2, HandCoins, Users, Send, CheckCheck, RotateCcw,
+  Coins, CheckCircle2, HandCoins, Users, Send, CheckCheck, RotateCcw, X,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -19,6 +19,7 @@ interface Participante {
   monto_asignado: number
   pagado: boolean
   fecha_pago: string | null
+  es_yo: boolean
 }
 interface Reparto {
   id: string
@@ -27,9 +28,13 @@ interface Reparto {
   moneda: string
   metodo: string
   fecha: string
+  wallet_id: string | null
   monto_pagado: number
+  monto_recuperable: number
+  mi_parte: number
   participantes: Participante[]
 }
+interface WalletMini { id: string; nombre: string; moneda: string }
 
 export default function RepartoDetalle() {
   const router = useRouter()
@@ -41,6 +46,9 @@ export default function RepartoDetalle() {
   const [showEditar, setShowEditar] = useState(false)
   const [copiado, setCopiado] = useState(false)
   const [procesando, setProcesando] = useState(false)
+  const [wallets, setWallets] = useState<WalletMini[]>([])
+  // Modal para elegir en qué cartera entra el cobro (individual o de todos).
+  const [cobroModal, setCobroModal] = useState<{ tipo: 'uno'; p: Participante } | { tipo: 'todos' } | null>(null)
 
   const cargar = useCallback(async () => {
     const res = await fetch(`/api/repartos/${repartoId}`)
@@ -55,41 +63,62 @@ export default function RepartoDetalle() {
     const check = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
+      const { data } = await supabase.from('wallets').select('id, nombre, moneda').eq('user_id', user.id).eq('activo', true).order('posicion', { ascending: true })
+      setWallets(data || [])
       cargar()
     }
     check()
   }, [router, cargar])
 
-  const togglePago = async (p: Participante) => {
+  // Al marcar como pagado hay que elegir cartera; al reabrir se revierte directo.
+  const togglePago = (p: Participante) => {
+    if (p.es_yo) return
+    if (p.pagado) { reabrirPago(p); return }
+    setCobroModal({ tipo: 'uno', p })
+  }
+
+  const reabrirPago = async (p: Participante) => {
     setReparto(prev => prev && {
       ...prev,
-      participantes: prev.participantes.map(x => x.id === p.id ? { ...x, pagado: !x.pagado } : x),
-      monto_pagado: Math.round((prev.monto_pagado + (p.pagado ? -p.monto_asignado : p.monto_asignado) + Number.EPSILON) * 100) / 100,
+      participantes: prev.participantes.map(x => x.id === p.id ? { ...x, pagado: false } : x),
+      monto_pagado: Math.round((prev.monto_pagado - p.monto_asignado + Number.EPSILON) * 100) / 100,
     })
     await fetch(`/api/repartos/${repartoId}/participantes/${p.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pagado: !p.pagado }),
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pagado: false }),
     })
     cargar()
   }
 
-  // Marca o reabre el pago de todos los participantes en lote.
-  const marcarTodos = async (pagado: boolean) => {
-    if (!reparto || procesando) return
-    const objetivo = reparto.participantes.filter(p => p.pagado !== pagado)
+  // Confirma el cobro (uno o todos) hacia la cartera elegida.
+  const confirmarCobro = async (walletId: string) => {
+    if (!reparto || !cobroModal) return
+    const objetivo = cobroModal.tipo === 'uno'
+      ? [cobroModal.p]
+      : reparto.participantes.filter(p => !p.es_yo && !p.pagado)
+    setCobroModal(null)
     if (objetivo.length === 0) return
     setProcesando(true)
-    setReparto(prev => prev && {
-      ...prev,
-      participantes: prev.participantes.map(x => ({ ...x, pagado })),
-      monto_pagado: pagado ? prev.monto_total : 0,
-    })
     await Promise.all(objetivo.map(p =>
       fetch(`/api/repartos/${repartoId}/participantes/${p.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pagado }),
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pagado: true, wallet_id: walletId }),
+      })
+    ))
+    await cargar()
+    setProcesando(false)
+  }
+
+  // Reabre el pago de todos los cobrables (revierte sus ingresos).
+  const reabrirTodos = async () => {
+    if (!reparto || procesando) return
+    const objetivo = reparto.participantes.filter(p => !p.es_yo && p.pagado)
+    if (objetivo.length === 0) return
+    setProcesando(true)
+    await Promise.all(objetivo.map(p =>
+      fetch(`/api/repartos/${repartoId}/participantes/${p.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pagado: false }),
       })
     ))
     await cargar()
@@ -144,10 +173,13 @@ export default function RepartoDetalle() {
     )
   }
 
-  const pct = reparto.monto_total > 0 ? Math.round((reparto.monto_pagado / reparto.monto_total) * 100) : 0
-  const pagados = reparto.participantes.filter(p => p.pagado).length
-  const total = reparto.participantes.length
-  const pendiente = Math.max(0, reparto.monto_total - reparto.monto_pagado)
+  // Solo cuentan los que deben pagarme (excluye mi propia parte).
+  const cobrables = reparto.participantes.filter(p => !p.es_yo)
+  const recuperable = reparto.monto_recuperable
+  const pct = recuperable > 0 ? Math.round((reparto.monto_pagado / recuperable) * 100) : 100
+  const pagados = cobrables.filter(p => p.pagado).length
+  const total = cobrables.length
+  const pendiente = Math.max(0, recuperable - reparto.monto_pagado)
   const liquidado = total > 0 && pagados === total
   const fmt = (n: number) => formatoMoneda(n, reparto.moneda)
 
@@ -193,9 +225,10 @@ export default function RepartoDetalle() {
               <p className="text-base text-white/60">{pct}% pagado · {pagados}/{total} personas</p>
             </div>
             <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4 sm:gap-6 lg:divide-x lg:divide-white/10">
-              <HeroMetrica icon={Coins} label="Total del gasto" valor={fmt(reparto.monto_total)} />
+              <HeroMetrica icon={Coins} label="Total del gasto" valor={fmt(reparto.monto_total)}
+                nota={reparto.mi_parte > 0 ? <span className="text-white/60">Tu parte: {fmt(reparto.mi_parte)}</span> : undefined} />
               <HeroMetrica icon={CheckCircle2} label="Cobrado" valor={fmt(reparto.monto_pagado)}
-                nota={<span className="text-emerald-300">{pct}% del total</span>} className="lg:px-6" />
+                nota={<span className="text-emerald-300">{pct}% de lo recuperable</span>} className="lg:px-6" />
               <HeroMetrica icon={HandCoins} label="Por cobrar" valor={fmt(pendiente)} className="lg:px-6" />
               <HeroMetrica icon={Users} label="Personas" valor={`${pagados} / ${total}`} className="lg:pl-6" />
             </div>
@@ -211,12 +244,12 @@ export default function RepartoDetalle() {
                 <h2 className="font-semibold text-obsidian">Personas</h2>
                 <div className="flex items-center gap-2">
                   {liquidado ? (
-                    <button onClick={() => marcarTodos(false)} disabled={procesando}
+                    <button onClick={reabrirTodos} disabled={procesando}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors border rounded-full border-fog text-graphite hover:bg-mist disabled:opacity-40">
                       <RotateCcw size={13} strokeWidth={2} /> Reabrir todos
                     </button>
                   ) : (
-                    <button onClick={() => marcarTodos(true)} disabled={procesando}
+                    <button onClick={() => setCobroModal({ tipo: 'todos' })} disabled={procesando || total === 0}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors border rounded-full border-fog text-emerald-700 hover:bg-emerald-50 disabled:opacity-40">
                       <CheckCheck size={13} strokeWidth={2} /> Marcar todos pagados
                     </button>
@@ -227,22 +260,34 @@ export default function RepartoDetalle() {
                 {reparto.participantes.map((p, i) => (
                   <div key={p.id}
                     className={`flex items-center justify-between gap-3 px-4 py-3.5 sm:px-6 transition-colors hover:bg-mist/50 ${i > 0 ? 'border-t border-fog' : ''}`}>
-                    <button onClick={() => togglePago(p)} className="flex items-center flex-1 min-w-0 gap-3 text-left">
-                      <div className={`flex items-center justify-center flex-shrink-0 w-6 h-6 rounded-full border-2 transition-all ${p.pagado ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-pebble text-transparent'}`}>
-                        <Check size={13} strokeWidth={3} />
+                    {p.es_yo ? (
+                      <div className="flex items-center flex-1 min-w-0 gap-3">
+                        <div className="flex items-center justify-center flex-shrink-0 w-6 h-6 rounded-full bg-obsidian text-snow">
+                          <Check size={13} strokeWidth={3} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate text-ink">{p.nombre} <span className="ml-1 inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded-badge bg-obsidian/10 text-graphite">Tú</span></p>
+                          <p className="text-xs text-ash">Tu parte · no se cobra</p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className={`text-sm font-medium truncate ${p.pagado ? 'text-ash line-through' : 'text-ink'}`}>{p.nombre}</p>
-                        <p className="text-xs text-ash">
-                          {p.pagado
-                            ? (p.fecha_pago ? `Pagó el ${new Date(p.fecha_pago + 'T12:00:00').toLocaleDateString('es-HN', { day: 'numeric', month: 'short' })}` : 'Pagado')
-                            : 'Pendiente'}
-                        </p>
-                      </div>
-                    </button>
+                    ) : (
+                      <button onClick={() => togglePago(p)} disabled={procesando} className="flex items-center flex-1 min-w-0 gap-3 text-left disabled:opacity-60">
+                        <div className={`flex items-center justify-center flex-shrink-0 w-6 h-6 rounded-full border-2 transition-all ${p.pagado ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-pebble text-transparent'}`}>
+                          <Check size={13} strokeWidth={3} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className={`text-sm font-medium truncate ${p.pagado ? 'text-ash line-through' : 'text-ink'}`}>{p.nombre}</p>
+                          <p className="text-xs text-ash">
+                            {p.pagado
+                              ? (p.fecha_pago ? `Pagó el ${new Date(p.fecha_pago + 'T12:00:00').toLocaleDateString('es-HN', { day: 'numeric', month: 'short' })}` : 'Pagado')
+                              : 'Pendiente'}
+                          </p>
+                        </div>
+                      </button>
+                    )}
                     <div className="flex items-center flex-shrink-0 gap-2">
-                      <span className={`text-sm font-semibold ${p.pagado ? 'text-emerald-600' : 'text-obsidian'}`}>{fmt(p.monto_asignado)}</span>
-                      {!p.pagado && (
+                      <span className={`text-sm font-semibold ${p.es_yo ? 'text-graphite' : p.pagado ? 'text-emerald-600' : 'text-obsidian'}`}>{fmt(p.monto_asignado)}</span>
+                      {!p.es_yo && !p.pagado && (
                         <button onClick={() => recordar(p)} title={`Recordar a ${p.nombre}`}
                           className="flex items-center justify-center w-8 h-8 transition-colors rounded-full text-ash hover:text-emerald-600 hover:bg-emerald-50">
                           <Send size={15} strokeWidth={2} />
@@ -324,7 +369,65 @@ export default function RepartoDetalle() {
         <FormReparto reparto={reparto} monedaDefault={reparto.moneda}
           onClose={() => setShowEditar(false)} onSuccess={() => { setShowEditar(false); cargar() }} />
       )}
+
+      {cobroModal && (
+        <CobroModal
+          wallets={wallets}
+          walletDefault={reparto.wallet_id}
+          titulo={cobroModal.tipo === 'uno' ? `¿En qué cartera recibiste el pago de ${cobroModal.p.nombre}?` : '¿En qué cartera recibiste los pagos?'}
+          onClose={() => setCobroModal(null)}
+          onConfirm={confirmarCobro}
+        />
+      )}
     </AppLayout>
+  )
+}
+
+function CobroModal({ wallets, walletDefault, titulo, onClose, onConfirm }: {
+  wallets: WalletMini[]
+  walletDefault: string | null
+  titulo: string
+  onClose: () => void
+  onConfirm: (walletId: string) => void
+}) {
+  const [walletId, setWalletId] = useState<string>(walletDefault || wallets[0]?.id || '')
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
+  return (
+    <div onClick={onClose}
+      className="fixed inset-0 z-50 flex items-end justify-center bg-obsidian/40 backdrop-blur-sm animate-fade sm:items-center sm:p-4">
+      <div onClick={e => e.stopPropagation()}
+        className="bg-snow w-full max-w-sm rounded-t-3xl sm:rounded-card sm:border sm:border-fog animate-sheet pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-fog">
+          <h2 className="text-base font-semibold text-ink">Registrar cobro</h2>
+          <button onClick={onClose} className="flex items-center justify-center w-8 h-8 -mr-1 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist">
+            <X size={18} strokeWidth={2} />
+          </button>
+        </div>
+        <div className="px-5 py-5 space-y-4">
+          <p className="text-sm text-graphite">{titulo}</p>
+          {wallets.length === 0 ? (
+            <p className="text-sm text-ash">No tienes carteras activas.</p>
+          ) : (
+            <select value={walletId} onChange={e => setWalletId(e.target.value)}
+              className="w-full px-4 py-3 text-ink transition-colors border bg-mist border-transparent rounded-input focus:outline-none focus:border-obsidian focus:bg-snow">
+              {wallets.map(w => <option key={w.id} value={w.id}>{w.nombre} ({w.moneda})</option>)}
+            </select>
+          )}
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <button onClick={onClose}
+              className="py-3 font-medium transition-colors border rounded-full border-fog text-graphite hover:bg-mist">Cancelar</button>
+            <button onClick={() => walletId && onConfirm(walletId)} disabled={!walletId}
+              style={{ background: 'linear-gradient(135deg, #2c6e49 0%, #14361f 55%, #000000 100%)' }}
+              className="py-3 font-medium transition-all rounded-full text-snow hover:brightness-110 disabled:opacity-40">Confirmar</button>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 

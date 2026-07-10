@@ -1,13 +1,18 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { X, Plus, Trash2, RotateCcw } from 'lucide-react'
+import { X, Plus, Trash2, RotateCcw, User } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 import { round2, simboloMoneda } from '../lib/dinero'
+import { fechaHoyLocal } from '../lib/fecha'
 
-interface ParticipanteUI { key: string; nombre: string; monto: string }
+interface ParticipanteUI { key: string; nombre: string; monto: string; esYo: boolean }
 interface Props {
   reparto?: any
   monedaDefault?: string
+  descripcionInicial?: string
+  montoInicial?: string
+  fechaInicial?: string
   onClose: () => void
   onSuccess: (id: string) => void
 }
@@ -17,17 +22,19 @@ type Metodo = 'igual' | 'manual'
 let contador = 0
 const nuevaKey = () => `p${Date.now()}_${contador++}`
 
-export default function FormReparto({ reparto, monedaDefault = 'HNL', onClose, onSuccess }: Props) {
-  const [descripcion, setDescripcion] = useState(reparto?.descripcion || '')
-  const [monto, setMonto] = useState(reparto ? String(reparto.monto_total) : '')
+export default function FormReparto({ reparto, monedaDefault = 'HNL', descripcionInicial, montoInicial, fechaInicial, onClose, onSuccess }: Props) {
+  const [descripcion, setDescripcion] = useState(reparto?.descripcion || descripcionInicial || '')
+  const [monto, setMonto] = useState(reparto ? String(reparto.monto_total) : (montoInicial || ''))
   const [moneda, setMoneda] = useState(reparto?.moneda || monedaDefault)
-  const [fecha, setFecha] = useState(reparto ? String(reparto.fecha).slice(0, 10) : new Date().toISOString().split('T')[0])
+  const [fecha, setFecha] = useState(reparto ? String(reparto.fecha).slice(0, 10) : (fechaInicial || fechaHoyLocal()))
   const [metodo, setMetodo] = useState<Metodo>(reparto?.metodo === 'manual' ? 'manual' : 'igual')
   const [participantes, setParticipantes] = useState<ParticipanteUI[]>(
     reparto
-      ? reparto.participantes.map((p: any) => ({ key: nuevaKey(), nombre: p.nombre, monto: String(p.monto_asignado) }))
-      : [{ key: nuevaKey(), nombre: '', monto: '' }]
+      ? reparto.participantes.map((p: any) => ({ key: nuevaKey(), nombre: p.nombre, monto: String(p.monto_asignado), esYo: !!p.es_yo }))
+      : [{ key: nuevaKey(), nombre: '', monto: '', esYo: false }]
   )
+  const [wallets, setWallets] = useState<any[]>([])
+  const [walletId, setWalletId] = useState<string>(reparto?.wallet_id || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -38,14 +45,29 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', onClose, o
     return () => { document.body.style.overflow = prev }
   }, [])
 
+  // Carga las carteras del usuario para elegir de cuál sale el gasto.
+  useEffect(() => {
+    const cargar = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase.from('wallets').select('id, nombre, moneda').eq('user_id', user.id).eq('activo', true).order('posicion', { ascending: true })
+      setWallets(data || [])
+      if (data && data.length > 0) setWalletId(prev => prev || data[0].id)
+    }
+    cargar()
+  }, [])
+
   const simbolo = simboloMoneda(moneda)
   const total = round2(Number(monto) || 0)
   const conNombre = participantes.filter(p => p.nombre.trim().length > 0)
 
-  const agregar = () => setParticipantes(prev => [...prev, { key: nuevaKey(), nombre: '', monto: '' }])
+  const agregar = () => setParticipantes(prev => [...prev, { key: nuevaKey(), nombre: '', monto: '', esYo: false }])
   const quitar = (key: string) => setParticipantes(prev => prev.length > 1 ? prev.filter(p => p.key !== key) : prev)
   const editar = (key: string, campo: 'nombre' | 'monto', valor: string) =>
     setParticipantes(prev => prev.map(p => p.key === key ? { ...p, [campo]: valor } : p))
+  // Solo una persona puede ser "yo".
+  const marcarYo = (key: string) =>
+    setParticipantes(prev => prev.map(p => ({ ...p, esYo: p.key === key ? !p.esYo : false })))
 
   // Reparte lo que falta del total en partes iguales entre quienes no tienen monto.
   const repartirRestante = () => {
@@ -95,6 +117,7 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', onClose, o
       setError(`La suma (${simbolo}${sumaManual.toFixed(2)}) no cuadra con el total (${simbolo}${total.toFixed(2)})`)
       return
     }
+    if (!walletId) { setError('Elige la cartera de la que salió el gasto'); return }
 
     setLoading(true)
     const payload = {
@@ -103,7 +126,8 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', onClose, o
       moneda,
       metodo,
       fecha,
-      participantes: conNombre.map(p => ({ nombre: p.nombre.trim(), monto_asignado: Number(p.monto) || 0 })),
+      wallet_id: walletId,
+      participantes: conNombre.map(p => ({ nombre: p.nombre.trim(), monto_asignado: Number(p.monto) || 0, es_yo: p.esYo })),
     }
     const url = reparto ? `/api/repartos/${reparto.id}` : '/api/repartos'
     const res = await fetch(url, {
@@ -161,6 +185,17 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', onClose, o
             </div>
           </div>
 
+          {/* Cartera que pagó */}
+          <div>
+            <label className="block mb-2 text-sm font-medium text-graphite">¿Con qué cartera pagaste?</label>
+            <select value={walletId} onChange={e => setWalletId(e.target.value)}
+              className="w-full px-4 py-3 text-ink transition-colors border bg-mist border-transparent rounded-input focus:outline-none focus:border-obsidian focus:bg-snow">
+              <option value="">— Selecciona una cartera —</option>
+              {wallets.map(w => <option key={w.id} value={w.id}>{w.nombre}{w.moneda && w.moneda !== moneda ? ` (${w.moneda})` : ''}</option>)}
+            </select>
+            <p className="mt-1.5 text-xs text-ash">Se registrará un gasto por {simbolo}{total.toFixed(2)} en esta cartera.</p>
+          </div>
+
           {/* Método */}
           <div>
             <label className="block mb-2 text-sm font-medium text-graphite">¿Cómo se divide?</label>
@@ -194,12 +229,19 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', onClose, o
                         className="w-full py-2.5 pl-7 pr-2 text-sm text-right border bg-mist border-transparent rounded-input text-ink focus:outline-none focus:border-obsidian focus:bg-snow" />
                     </div>
                   )}
+                  <button type="button" onClick={() => marcarYo(p.key)} title={p.esYo ? 'Soy yo (mi parte no se cobra)' : 'Marcar como yo'}
+                    className={`flex items-center justify-center w-8 h-8 rounded-full shrink-0 transition-colors border ${p.esYo ? 'bg-obsidian text-snow border-obsidian' : 'border-fog text-ash hover:text-ink hover:bg-mist'}`}>
+                    <User size={15} strokeWidth={2} />
+                  </button>
                   <button type="button" onClick={() => quitar(p.key)} className="flex items-center justify-center w-8 h-8 transition-colors rounded-full text-ash hover:text-red-500 hover:bg-red-50 shrink-0">
                     <Trash2 size={15} strokeWidth={2} />
                   </button>
                 </div>
               ))}
             </div>
+            <p className="flex items-center gap-1.5 mt-2 text-xs text-ash">
+              <User size={12} strokeWidth={2} /> Marca con el icono quién eres tú; tu parte no se cobra.
+            </p>
             {metodo === 'manual' && (
               <div className="flex items-center justify-between mt-2">
                 <button type="button" onClick={repartirRestante} className="inline-flex items-center gap-1 text-xs font-medium text-graphite hover:text-ink">

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { simboloMoneda } from '../lib/dinero'
+import { fechaHoyLocal } from '../lib/fecha'
 
 const gradiente = 'linear-gradient(135deg, #2c6e49 0%, #14361f 55%, #000000 100%)'
 
@@ -24,7 +25,7 @@ export default function FormLiquidar({ grupoId, moneda, miembros, yo, prefill, o
   const [deUser, setDeUser] = useState(prefill?.de_user_id || yo)
   const [aUser, setAUser] = useState(prefill?.a_user_id || miembros.find(m => m.user_id !== yo)?.user_id || '')
   const [monto, setMonto] = useState(prefill ? String(prefill.monto) : '')
-  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
+  const [fecha, setFecha] = useState(fechaHoyLocal())
   const [nota, setNota] = useState('')
   const [wallets, setWallets] = useState<any[]>([])
   const [walletId, setWalletId] = useState('')

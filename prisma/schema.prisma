@@ -170,6 +170,8 @@ model grupos {
   id                String   @id @default(uuid()) @db.Uuid
   nombre            String
   moneda            String   @default("USD")
+  icono             String   @default("👥")
+  color             String   @default("#2c6e49")
   codigo_invitacion String   @unique
   creado_por        String   @db.Uuid
   created_at        DateTime @default(now())
@@ -261,14 +263,16 @@ model liquidaciones {
 }
 
 model repartos {
-  id          String   @id @default(uuid()) @db.Uuid
-  user_id     String   @db.Uuid
-  descripcion String
-  monto_total Float
-  moneda      String   @default("HNL")
-  metodo      String   @default("igual") // 'igual' | 'manual'
-  fecha       DateTime @db.Date
-  created_at  DateTime @default(now())
+  id             String   @id @default(uuid()) @db.Uuid
+  user_id        String   @db.Uuid
+  descripcion    String
+  monto_total    Float
+  moneda         String   @default("HNL")
+  metodo         String   @default("igual") // 'igual' | 'manual'
+  fecha          DateTime @db.Date
+  wallet_id      String?  @db.Uuid // cartera de la que salió el gasto
+  transaction_id String?  @db.Uuid // transacción de gasto asociada
+  created_at     DateTime @default(now())
 
   participantes reparto_participantes[]
 
@@ -283,6 +287,9 @@ model reparto_participantes {
   pagado         Boolean   @default(false)
   fecha_pago     DateTime? @db.Date
   orden          Int       @default(0)
+  es_yo          Boolean   @default(false) // participante es el propio usuario; su parte no se recupera
+  wallet_id      String?   @db.Uuid // cartera donde se recibió el cobro
+  transaction_id String?   @db.Uuid // transacción de ingreso del cobro
 
   reparto repartos @relation(fields: [reparto_id], references: [id], onDelete: Cascade)
 

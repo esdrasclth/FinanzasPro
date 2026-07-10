@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { fechaHoyLocal } from '../lib/fecha'
 
 interface Props {
   cartera: any
@@ -75,7 +76,7 @@ export default function AjusteSaldo({ cartera, onClose, onSuccess }: Props) {
         monto: Math.abs(diferencia),
         tipo: esIngreso ? 'ingreso' : 'gasto',
         descripcion: `Ajuste de saldo — ${cartera.nombre}`,
-        fecha: new Date().toISOString().split('T')[0]
+        fecha: fechaHoyLocal()
       })
 
     if (transError) {

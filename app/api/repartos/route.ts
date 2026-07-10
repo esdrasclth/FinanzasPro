@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '../../lib/prisma'
 import { getSessionUser } from '../../lib/auth-server'
-import { prepararReparto } from '../../lib/repartos-server'
+import { prepararReparto, walletDeUsuario } from '../../lib/repartos-server'
 
 // GET /api/repartos -> repartos del usuario con resumen de pago
 export async function GET() {
@@ -16,7 +16,9 @@ export async function GET() {
 
   return NextResponse.json({
     repartos: repartos.map(r => {
-      const pagado = r.participantes.filter(p => p.pagado).reduce((s, p) => s + p.monto_asignado, 0)
+      // Excluye la parte propia (es_yo): no se cobra.
+      const cobrables = r.participantes.filter(p => !p.es_yo)
+      const pagado = cobrables.filter(p => p.pagado).reduce((s, p) => s + p.monto_asignado, 0)
       return {
         id: r.id,
         descripcion: r.descripcion,
@@ -24,8 +26,8 @@ export async function GET() {
         moneda: r.moneda,
         metodo: r.metodo,
         fecha: r.fecha.toISOString().slice(0, 10),
-        participantes: r.participantes.length,
-        pagados: r.participantes.filter(p => p.pagado).length,
+        participantes: cobrables.length,
+        pagados: cobrables.filter(p => p.pagado).length,
         monto_pagado: Math.round((pagado + Number.EPSILON) * 100) / 100,
       }
     }),
@@ -43,22 +45,42 @@ export async function POST(req: Request) {
   if (!prep.ok) return NextResponse.json({ error: prep.error }, { status: prep.status })
   const d = prep.data
 
-  const reparto = await prisma.repartos.create({
-    data: {
-      user_id: user.id,
-      descripcion: d.descripcion,
-      monto_total: d.montoTotal,
-      moneda: d.moneda,
-      metodo: d.metodo,
-      fecha: d.fecha,
-      participantes: {
-        create: d.participantes.map((p, i) => ({
-          nombre: p.nombre,
-          monto_asignado: p.monto_asignado,
-          orden: i,
-        })),
+  const walletId = await walletDeUsuario(user.id, d.walletId)
+  if (!walletId) return NextResponse.json({ error: 'Selecciona la cartera de la que salió el gasto' }, { status: 400 })
+
+  const reparto = await prisma.$transaction(async (tx) => {
+    // Gasto real: sale el monto total de la cartera elegida.
+    const gasto = await tx.transactions.create({
+      data: {
+        user_id: user.id,
+        wallet_id: walletId,
+        monto: d.montoTotal,
+        tipo: 'gasto',
+        descripcion: `Reparto: ${d.descripcion}`,
+        moneda: d.moneda,
+        fecha: d.fecha,
       },
-    },
+    })
+    return tx.repartos.create({
+      data: {
+        user_id: user.id,
+        descripcion: d.descripcion,
+        monto_total: d.montoTotal,
+        moneda: d.moneda,
+        metodo: d.metodo,
+        fecha: d.fecha,
+        wallet_id: walletId,
+        transaction_id: gasto.id,
+        participantes: {
+          create: d.participantes.map((p, i) => ({
+            nombre: p.nombre,
+            monto_asignado: p.monto_asignado,
+            es_yo: p.es_yo,
+            orden: i,
+          })),
+        },
+      },
+    })
   })
 
   return NextResponse.json({ id: reparto.id })

@@ -354,9 +354,10 @@ export default function Transacciones() {
                 <div className="hidden px-6 sm:grid sm:grid-cols-12 sm:gap-3 sm:items-center py-3 border-b border-fog">
                   <span className="col-span-2 text-xs font-semibold tracking-wide uppercase text-ash">Fecha</span>
                   <span className="col-span-3 text-xs font-semibold tracking-wide uppercase text-ash">Descripción</span>
+                  <span className="col-span-1 text-xs font-semibold tracking-wide uppercase text-ash">Tipo</span>
                   <span className="col-span-2 text-xs font-semibold tracking-wide uppercase text-ash">Categoría</span>
                   <span className="col-span-2 text-xs font-semibold tracking-wide uppercase text-ash">Cartera</span>
-                  <span className="col-span-2 text-xs font-semibold tracking-wide text-right uppercase text-ash">Monto</span>
+                  <span className="col-span-1 text-xs font-semibold tracking-wide text-right uppercase text-ash">Monto</span>
                   <span className="col-span-1" />
                 </div>
 
@@ -552,7 +553,7 @@ function FilaTransaccion({ t, formatMonto, onEdit, onDelete }: {
   return (
     <div
       onClick={onEdit}
-      className="grid items-center grid-cols-1 gap-3 px-6 py-3.5 transition-colors border-b cursor-pointer sm:grid-cols-12 border-fog last:border-b-0 hover:bg-mist/50"
+      className="flex items-center gap-3 px-4 py-3 transition-colors border-b cursor-pointer sm:grid sm:grid-cols-12 sm:px-6 sm:py-3.5 border-fog last:border-b-0 hover:bg-mist/50"
     >
       {/* Fecha y hora */}
       <div className="hidden sm:block sm:col-span-2">
@@ -561,7 +562,7 @@ function FilaTransaccion({ t, formatMonto, onEdit, onDelete }: {
       </div>
 
       {/* Descripción */}
-      <div className="flex items-center gap-3 min-w-0 sm:col-span-3">
+      <div className="flex items-center flex-1 min-w-0 gap-3 sm:flex-none sm:col-span-3">
         <span
           className="flex items-center justify-center flex-shrink-0 text-lg w-11 h-11 rounded-xl"
           style={{ backgroundColor: catColor + '18' }}
@@ -570,8 +571,21 @@ function FilaTransaccion({ t, formatMonto, onEdit, onDelete }: {
         </span>
         <div className="min-w-0">
           <p className="text-sm font-medium truncate text-ink">{t.descripcion || t.categories?.nombre || 'Movimiento'}</p>
-          <p className="text-xs text-ash sm:hidden">{fechaTxt}{horaTxt ? ` · ${horaTxt}` : ''} · {t.wallets?.nombre}</p>
+          <p className="flex items-center gap-1.5 text-xs text-ash sm:hidden">
+            <span className={`inline-flex h-1.5 w-1.5 flex-shrink-0 rounded-full ${esIngreso ? 'bg-emerald-500' : 'bg-red-500'}`} />
+            <span className="truncate">{fechaTxt}{t.wallets?.nombre ? ` · ${t.wallets.nombre}` : ''}</span>
+          </p>
         </div>
+      </div>
+
+      {/* Tipo */}
+      <div className="hidden sm:block sm:col-span-1">
+        <span
+          title={esIngreso ? 'Ingreso' : 'Gasto'}
+          className={`inline-flex items-center justify-center w-7 h-7 rounded-lg ${esIngreso ? 'bg-emerald-500/12 text-emerald-600' : 'bg-red-500/12 text-red-500'}`}
+        >
+          {esIngreso ? <ArrowUpRight size={15} strokeWidth={2.5} /> : <ArrowDownRight size={15} strokeWidth={2.5} />}
+        </span>
       </div>
 
       {/* Categoría */}
@@ -593,15 +607,14 @@ function FilaTransaccion({ t, formatMonto, onEdit, onDelete }: {
       </div>
 
       {/* Monto */}
-      <div className="flex items-center justify-between sm:justify-end sm:col-span-2">
-        <span className="text-xs text-ash sm:hidden">Monto</span>
+      <div className="flex items-center flex-shrink-0 justify-end sm:col-span-1">
         <span className={`text-sm font-semibold whitespace-nowrap ${esIngreso ? 'text-emerald-600' : 'text-red-500'}`}>
           {esIngreso ? '+' : '-'}L {formatMonto(Number(t.monto))}
         </span>
       </div>
 
       {/* Acciones */}
-      <div className="flex justify-end sm:col-span-1" onClick={e => e.stopPropagation()}>
+      <div className="flex justify-end flex-shrink-0 sm:col-span-1" onClick={e => e.stopPropagation()}>
         <RowMenu onEdit={onEdit} onDelete={onDelete} />
       </div>
     </div>
