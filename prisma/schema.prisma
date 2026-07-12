@@ -50,6 +50,19 @@ model wallets {
   @@index([user_id])
 }
 
+model exchange_rates {
+  id             String   @id @default(uuid()) @db.Uuid
+  moneda_origen  String
+  moneda_destino String
+  tasa           Float
+  fecha          DateTime @db.Date
+  fuente         String   @default("BCH")
+  created_at     DateTime @default(now())
+
+  @@unique([moneda_origen, moneda_destino, fecha, fuente])
+  @@index([moneda_origen, moneda_destino, fecha])
+}
+
 model categories {
   id          String   @id @default(uuid()) @db.Uuid
   user_id     String?  @db.Uuid
@@ -59,12 +72,15 @@ model categories {
   tipo        String
   parent_id   String?  @db.Uuid
   es_sistema  Boolean  @default(false)
+  protegida   Boolean  @default(false)
+  archivada   Boolean  @default(false)
   created_at  DateTime @default(now())
 
   parent        categories?    @relation("subcategorias", fields: [parent_id], references: [id], onDelete: Cascade)
   subcategorias categories[]   @relation("subcategorias")
   transactions  transactions[]
   budgets       budgets[]
+  deudas        debts[]        @relation("deuda_categoria")
 
   @@index([user_id])
 }
@@ -79,16 +95,21 @@ model transactions {
   tipo               String
   descripcion        String?
   moneda             String?
+  monto_original     Float?
+  tasa_cambio        Float?
+  debt_id            String?   @db.Uuid
   fecha              DateTime  @db.Date
   created_at         DateTime  @default(now())
 
   wallet         wallets     @relation("wallet", fields: [wallet_id], references: [id], onDelete: Cascade)
   wallet_destino wallets?    @relation("wallet_destino", fields: [wallet_destino_id], references: [id], onDelete: SetNull)
   category       categories? @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  debt           debts?      @relation(fields: [debt_id], references: [id], onDelete: SetNull)
 
   @@index([user_id, fecha])
   @@index([wallet_id])
   @@index([category_id])
+  @@index([debt_id])
 }
 
 model budgets {
@@ -141,12 +162,20 @@ model debts {
   monto_total   Float
   monto_pagado  Float     @default(0)
   fecha_limite  DateTime? @db.Date
+  fecha_inicio  DateTime? @db.Date
+  tasa_interes  Float?
+  tasa_periodo  String?
+  plazo_meses   Int?
   completada    Boolean   @default(false)
+  category_id   String?   @db.Uuid
   created_at    DateTime  @default(now())
 
-  payments debt_payments[]
+  payments     debt_payments[]
+  transactions transactions[]
+  category     categories?     @relation("deuda_categoria", fields: [category_id], references: [id], onDelete: SetNull)
 
   @@index([user_id])
+  @@index([category_id])
 }
 
 model debt_payments {
@@ -164,6 +193,27 @@ model debt_payments {
 
   @@index([user_id])
   @@index([debt_id])
+}
+
+model subscriptions {
+  id            String    @id @default(uuid()) @db.Uuid
+  user_id       String    @db.Uuid
+  nombre        String
+  plan          String?
+  monto         Float
+  moneda        String    @default("HNL")
+  frecuencia    String    @default("mensual")
+  category_id   String?   @db.Uuid
+  wallet_id     String?   @db.Uuid
+  fecha_inicio  DateTime  @db.Date
+  proximo_cobro DateTime? @db.Date
+  estado        String    @default("activa")
+  color         String?
+  icono         String?
+  notas         String?
+  created_at    DateTime  @default(now())
+
+  @@index([user_id])
 }
 
 model grupos {

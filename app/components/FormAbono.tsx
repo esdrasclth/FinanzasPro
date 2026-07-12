@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { fechaHoyLocal } from '../lib/fecha'
+import { abonarDeuda, crearSubcategoriaDeuda } from '../lib/deudas'
 
 interface Props {
   deuda: any
@@ -49,58 +50,28 @@ export default function FormAbono({ deuda, onClose, onSuccess }: Props) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    // 1. Registrar el abono en debt_payments
-    const { error: e1 } = await supabase.from('debt_payments').insert({
-      debt_id: deuda.id,
-      user_id: user.id,
-      wallet_id: walletId,
-      monto: montoNum,
-      fecha,
-      nota
-    })
-
-    if (e1) { setError('Error al registrar abono'); setLoading(false); return }
-
-    // 2. Actualizar monto_pagado en la deuda
-    const nuevoPagado = Number(deuda.monto_pagado) + montoNum
-    const completada = nuevoPagado >= Number(deuda.monto_total)
-
-    await supabase.from('debts').update({
-      monto_pagado: nuevoPagado,
-      completada
-    }).eq('id', deuda.id)
-
-    // 3. Buscar o crear categoría de pago de deuda
-    let { data: cat } = await supabase
-      .from('categories')
-      .select('id')
-      .eq('nombre', 'Pago de deuda')
-      .eq('es_sistema', true)
-      .limit(1)
-
-    let catId = cat?.[0]?.id
+    // Subcategoría propia de la deuda (bajo "Deudas"). Se crea si faltara
+    // (deudas creadas antes de esta función) para que el abono cuente en su
+    // presupuesto mensual.
+    let catId = deuda.category_id
     if (!catId) {
-      const { data: newCat } = await supabase.from('categories').insert({
-        nombre: 'Pago de deuda',
-        tipo: 'gasto',
-        icono: '🤝',
-        color: '#6366F1',
-        es_sistema: true,
-        user_id: user.id
-      }).select().single()
-      catId = newCat?.id
+      catId = await crearSubcategoriaDeuda(user.id, { id: deuda.id, nombre: deuda.nombre })
     }
 
-    // 4. Registrar transacción en movimientos
-    await supabase.from('transactions').insert({
-      user_id: user.id,
-      wallet_id: walletId,
-      category_id: catId,
+    const { error } = await abonarDeuda({
+      userId: user.id,
+      deudaId: deuda.id,
+      nombreDeuda: deuda.nombre,
+      montoPagadoActual: Number(deuda.monto_pagado),
+      montoTotal: Number(deuda.monto_total),
+      walletId,
       monto: montoNum,
-      tipo: 'gasto',
-      descripcion: `Abono: ${deuda.nombre}${nota ? ' — ' + nota : ''}`,
-      fecha
+      fecha,
+      nota,
+      categoryId: catId,
     })
+
+    if (error) { setError(error); setLoading(false); return }
 
     onSuccess()
     onClose()

@@ -2,6 +2,11 @@
 
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
+import {
+  crearSubcategoriaDeuda,
+  renombrarSubcategoriaDeuda,
+  eliminarSubcategoriaDeuda,
+} from '../lib/deudas'
 
 interface Props {
   deuda?: any
@@ -16,6 +21,10 @@ export default function FormDeuda({ deuda, onClose, onSuccess }: Props) {
   const [montoTotal, setMontoTotal] = useState(deuda?.monto_total?.toString() || '')
   const [montoPagado, setMontoPagado] = useState(deuda?.monto_pagado?.toString() || '0')
   const [fechaLimite, setFechaLimite] = useState(deuda?.fecha_limite || '')
+  const [fechaInicio, setFechaInicio] = useState(deuda?.fecha_inicio || '')
+  const [tasaInteres, setTasaInteres] = useState(deuda?.tasa_interes?.toString() || '')
+  const [tasaPeriodo, setTasaPeriodo] = useState<'anual' | 'mensual' | 'semanal'>(deuda?.tasa_periodo || 'anual')
+  const [plazoMeses, setPlazoMeses] = useState(deuda?.plazo_meses?.toString() || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -37,6 +46,10 @@ export default function FormDeuda({ deuda, onClose, onSuccess }: Props) {
       monto_total: parseFloat(montoTotal),
       monto_pagado: parseFloat(montoPagado) || 0,
       fecha_limite: fechaLimite || null,
+      fecha_inicio: fechaInicio || null,
+      tasa_interes: tasaInteres ? parseFloat(tasaInteres) : null,
+      tasa_periodo: tasaInteres ? tasaPeriodo : null,
+      plazo_meses: plazoMeses ? parseInt(plazoMeses, 10) : null,
       completada: deuda?.completada || false
     }
 
@@ -45,11 +58,31 @@ export default function FormDeuda({ deuda, onClose, onSuccess }: Props) {
         .from('debts')
         .upsert({ id: deuda.id, ...payload })
       if (error) { setError('Error al actualizar'); setLoading(false); return }
+
+      // Sincroniza la subcategoría de la deuda con su tipo/nombre.
+      if (tipo === 'debo') {
+        if (deuda.category_id) {
+          if (nombre !== deuda.nombre) {
+            await renombrarSubcategoriaDeuda(deuda.category_id, nombre)
+          }
+        } else {
+          await crearSubcategoriaDeuda(user.id, { id: deuda.id, nombre })
+        }
+      } else if (deuda.category_id) {
+        // Pasó de "debo" a "me_deben": ya no aplica subcategoría de gasto.
+        await eliminarSubcategoriaDeuda(deuda.category_id)
+      }
     } else {
-      const { error } = await supabase
+      const { data: creada, error } = await supabase
         .from('debts')
         .insert(payload)
+        .select()
+        .single()
       if (error) { setError('Error al crear: ' + error.message); setLoading(false); return }
+
+      if (tipo === 'debo' && creada?.id) {
+        await crearSubcategoriaDeuda(user.id, { id: creada.id, nombre })
+      }
     }
 
     onSuccess()
@@ -160,6 +193,75 @@ export default function FormDeuda({ deuda, onClose, onSuccess }: Props) {
                 step="0.01"
                 className="w-full py-3 pl-8 pr-4 text-ink transition-colors border bg-mist border-transparent placeholder-ash rounded-input focus:outline-none focus:border-obsidian focus:bg-snow"
               />
+            </div>
+          </div>
+
+          {/* Financiamiento (opcional) */}
+          <div className="pt-1 space-y-4 border-t border-fog">
+            <p className="pt-3 text-xs font-semibold tracking-wide uppercase text-ash">
+              Financiamiento <span className="font-normal normal-case text-steel">(opcional)</span>
+            </p>
+
+            {/* Fecha de inicio */}
+            <div>
+              <label className="block mb-2 text-sm font-medium text-graphite">
+                Fecha de inicio
+              </label>
+              <input
+                type="date"
+                value={fechaInicio}
+                onChange={(e) => setFechaInicio(e.target.value)}
+                className="w-full px-4 py-3 text-ink transition-colors border bg-mist border-transparent rounded-input focus:outline-none focus:border-obsidian focus:bg-snow"
+              />
+            </div>
+
+            {/* Tasa de interés + periodo */}
+            <div>
+              <label className="block mb-2 text-sm font-medium text-graphite">
+                Tasa de interés
+              </label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="number"
+                    value={tasaInteres}
+                    onChange={(e) => setTasaInteres(e.target.value)}
+                    placeholder="0.0"
+                    min="0"
+                    step="0.01"
+                    className="w-full py-3 pl-4 pr-8 text-ink transition-colors border bg-mist border-transparent placeholder-ash rounded-input focus:outline-none focus:border-obsidian focus:bg-snow"
+                  />
+                  <span className="absolute -translate-y-1/2 right-4 top-1/2 text-ash">%</span>
+                </div>
+                <select
+                  value={tasaPeriodo}
+                  onChange={(e) => setTasaPeriodo(e.target.value as 'anual' | 'mensual' | 'semanal')}
+                  className="px-4 py-3 text-ink transition-colors border bg-mist border-transparent rounded-input focus:outline-none focus:border-obsidian focus:bg-snow"
+                >
+                  <option value="anual">Anual</option>
+                  <option value="mensual">Mensual</option>
+                  <option value="semanal">Semanal</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Plazo de pago */}
+            <div>
+              <label className="block mb-2 text-sm font-medium text-graphite">
+                Plazo de pago
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={plazoMeses}
+                  onChange={(e) => setPlazoMeses(e.target.value)}
+                  placeholder="Ej: 12"
+                  min="1"
+                  step="1"
+                  className="w-full py-3 pl-4 pr-16 text-ink transition-colors border bg-mist border-transparent placeholder-ash rounded-input focus:outline-none focus:border-obsidian focus:bg-snow"
+                />
+                <span className="absolute -translate-y-1/2 right-4 top-1/2 text-ash">meses</span>
+              </div>
             </div>
           </div>
 

@@ -121,21 +121,22 @@ export default function Presupuesto() {
     // Movimientos del mes agrupados por tipo y categoría (una sola consulta).
     const { data: transMes } = await supabase
       .from('transactions')
-      .select('monto, category_id, tipo')
+      .select('monto, category_id, tipo, wallet_destino_id')
       .eq('user_id', user.id)
       .gte('fecha', inicio)
       .lte('fecha', fin)
 
     const movPorCat: Record<string, Record<string, number>> = { gasto: {}, ingreso: {} }
     ;(transMes || []).forEach((t: any) => {
-      if (!t.category_id || !movPorCat[t.tipo]) return
+      // Las transferencias entre carteras no cuentan como gasto ni ingreso.
+      if (t.wallet_destino_id || !t.category_id || !movPorCat[t.tipo]) return
       movPorCat[t.tipo][t.category_id] = (movPorCat[t.tipo][t.category_id] || 0) + Number(t.monto)
     })
 
     // Gastos del mes anterior (para detectar aumentos).
     const { data: transPrev } = await supabase
       .from('transactions')
-      .select('monto, category_id')
+      .select('monto, category_id, wallet_destino_id')
       .eq('user_id', user.id)
       .eq('tipo', 'gasto')
       .gte('fecha', inicioPrev)
@@ -143,7 +144,7 @@ export default function Presupuesto() {
 
     const prevPorCat: Record<string, number> = {}
     ;(transPrev || []).forEach(t => {
-      if (!t.category_id) return
+      if (t.wallet_destino_id || !t.category_id) return
       prevPorCat[t.category_id] = (prevPorCat[t.category_id] || 0) + Number(t.monto)
     })
 
@@ -172,13 +173,26 @@ export default function Presupuesto() {
 
     if (!prev || prev.length === 0) return false
 
-    const nuevos = prev.map(b => ({
-      user_id: userId,
-      category_id: b.category_id,
-      monto_limite: b.monto_limite,
-      mes,
-      año: anio,
-    }))
+    // No se traspasan presupuestos de subcategorías archivadas (deudas ya
+    // completadas): no tiene sentido seguir presupuestándolas.
+    const { data: archivadas } = await supabase
+      .from('categories')
+      .select('id')
+      .or(`user_id.eq.${userId},es_sistema.eq.true`)
+      .eq('archivada', true)
+    const idsArchivadas = new Set((archivadas || []).map((c: any) => c.id))
+
+    const nuevos = prev
+      .filter(b => !idsArchivadas.has(b.category_id))
+      .map(b => ({
+        user_id: userId,
+        category_id: b.category_id,
+        monto_limite: b.monto_limite,
+        mes,
+        año: anio,
+      }))
+
+    if (nuevos.length === 0) return false
 
     const { error } = await supabase.from('budgets').insert(nuevos)
     return !error

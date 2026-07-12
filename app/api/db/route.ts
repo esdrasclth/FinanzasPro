@@ -30,14 +30,16 @@ const TABLES: Record<
   metas: { user: 'user_id' },
   debts: { user: 'user_id' },
   debt_payments: { user: 'user_id' },
+  subscriptions: { user: 'user_id' },
 }
 
-const DATE_COLS = new Set(['fecha', 'fecha_limite'])
+const DATE_COLS = new Set(['fecha', 'fecha_limite', 'fecha_inicio', 'proximo_cobro'])
 const NUM_COLS = new Set([
   'monto', 'monto_limite', 'monto_total', 'monto_pagado', 'monto_objetivo', 'monto_actual',
   'saldo_inicial', 'credito_limite', 'mes', 'anio', 'fecha_corte', 'fecha_pago', 'posicion',
+  'monto_original', 'tasa_cambio',
 ])
-const BOOL_COLS = new Set(['activo', 'es_sistema', 'completada', 'onboarding_completado'])
+const BOOL_COLS = new Set(['activo', 'es_sistema', 'completada', 'onboarding_completado', 'protegida', 'archivada'])
 
 // La columna "año" del frontend se llama "anio" en Prisma
 const colIn = (c: string) => (c === 'año' ? 'anio' : c)

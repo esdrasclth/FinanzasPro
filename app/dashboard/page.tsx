@@ -60,8 +60,8 @@ export default function Dashboard() {
       .order('fecha', { ascending: false })
 
     setTransacciones(data || [])
-    // El "Saldo inicial" (apertura de cartera) no cuenta como ingreso/gasto del mes.
-    const movimientos = (data || []).filter(t => t.categories?.nombre !== 'Saldo inicial')
+    // El "Saldo inicial" (apertura) y las transferencias entre carteras no cuentan como ingreso/gasto del mes.
+    const movimientos = (data || []).filter(t => t.categories?.nombre !== 'Saldo inicial' && !t.wallet_destino_id)
     const ingresos = movimientos.filter(t => t.tipo === 'ingreso').reduce((sum, t) => sum + Number(t.monto), 0)
     const gastos = movimientos.filter(t => t.tipo === 'gasto').reduce((sum, t) => sum + Number(t.monto), 0)
     setResumen({ ingresos, gastos })
@@ -69,11 +69,11 @@ export default function Dashboard() {
     const prev = getMesRango(-1)
     const { data: dataPrev } = await supabase
       .from('transactions')
-      .select('monto, tipo, categories(nombre)')
+      .select('monto, tipo, wallet_destino_id, categories(nombre)')
       .eq('user_id', user.id)
       .gte('fecha', prev.inicio)
       .lte('fecha', prev.fin)
-    const movPrev = (dataPrev || []).filter(t => t.categories?.nombre !== 'Saldo inicial')
+    const movPrev = (dataPrev || []).filter(t => t.categories?.nombre !== 'Saldo inicial' && !t.wallet_destino_id)
     const ingresosPrev = movPrev.filter(t => t.tipo === 'ingreso').reduce((s, t) => s + Number(t.monto), 0)
     const gastosPrev = movPrev.filter(t => t.tipo === 'gasto').reduce((s, t) => s + Number(t.monto), 0)
     setResumenPrev({ ingresos: ingresosPrev, gastos: gastosPrev })

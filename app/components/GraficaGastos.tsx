@@ -24,7 +24,7 @@ export default function GraficaGastos({ transacciones, vista, onVistaChange }: P
     new Intl.NumberFormat('es-HN', { minimumFractionDigits: 2 }).format(n)
 
   const datos = transacciones
-    .filter(t => t.tipo === vista && t.categories?.nombre !== 'Transferencia' && t.categories?.nombre !== 'Saldo inicial')
+    .filter(t => t.tipo === vista && !t.wallet_destino_id && t.categories?.nombre !== 'Saldo inicial')
     .reduce((acc: any[], t) => {
       const nombre = t.categories?.nombre || 'Sin categoría'
       const icono = t.categories?.icono || '💸'

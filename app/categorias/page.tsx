@@ -35,11 +35,24 @@ export default function Categorias() {
       .or(`user_id.eq.${user.id},es_sistema.eq.true`)
       .order('nombre')
 
-    setCategorias(data || [])
+    // Las subcategorías de deudas completadas quedan archivadas: se gestionan
+    // desde la pantalla de Deudas, no aquí.
+    setCategorias((data || []).filter((c: any) => !c.archivada))
     setLoading(false)
   }
 
+  // La categoría raíz "Deudas" y sus subcategorías se administran desde la
+  // pantalla de Deudas; aquí son de solo lectura.
+  const deudasRoot = categorias.find(c => c.protegida)
+  const esGestionDeuda = (c: any) =>
+    c.protegida || (!!deudasRoot && c.parent_id === deudasRoot.id)
+
   const handleEliminar = async (id: string) => {
+    const cat = categorias.find(c => c.id === id)
+    if (cat && esGestionDeuda(cat)) {
+      alert('Esta categoría se administra desde la pantalla de Deudas.')
+      return
+    }
     // Verificar si tiene subcategorías
     const tieneHijos = categorias.some(c => c.parent_id === id)
     if (tieneHijos) {
@@ -133,40 +146,46 @@ export default function Categorias() {
                       <p className="text-ink font-medium">{cat.nombre}</p>
                       <p className="text-ash text-xs">
                         {subCategorias(cat.id).length} subcategorías
-                        {cat.es_sistema && ' · Sistema'}
+                        {cat.protegida ? ' · Deudas' : cat.es_sistema && ' · Sistema'}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {/* Agregar subcategoría */}
-                    <button
-                      onClick={() => {
-                        setCategoriaParent(cat)
-                        setCategoriaEditar(null)
-                        setShowForm(true)
-                      }}
-                      className="text-xs font-medium text-graphite border border-pebble hover:bg-fog px-2.5 py-1 rounded-full transition-all"
-                    >
-                      + Sub
-                    </button>
-                    <button
-                      onClick={() => {
-                        setCategoriaEditar(cat)
-                        setCategoriaParent(null)
-                        setShowForm(true)
-                      }}
-                      className="text-ash hover:text-ink transition-colors p-1"
-                      title="Editar"
-                    >
-                      <Pencil size={16} strokeWidth={2} />
-                    </button>
-                    <button
-                      onClick={() => handleEliminar(cat.id)}
-                      className="text-ash hover:text-red-600 hover:bg-red-50 rounded-full transition-colors p-1"
-                      title="Eliminar"
-                    >
-                      <Trash2 size={16} strokeWidth={2} />
-                    </button>
+                    {esGestionDeuda(cat) ? (
+                      <span className="text-xs text-ash">Gestionar en Deudas</span>
+                    ) : (
+                      <>
+                        {/* Agregar subcategoría */}
+                        <button
+                          onClick={() => {
+                            setCategoriaParent(cat)
+                            setCategoriaEditar(null)
+                            setShowForm(true)
+                          }}
+                          className="text-xs font-medium text-graphite border border-pebble hover:bg-fog px-2.5 py-1 rounded-full transition-all"
+                        >
+                          + Sub
+                        </button>
+                        <button
+                          onClick={() => {
+                            setCategoriaEditar(cat)
+                            setCategoriaParent(null)
+                            setShowForm(true)
+                          }}
+                          className="text-ash hover:text-ink transition-colors p-1"
+                          title="Editar"
+                        >
+                          <Pencil size={16} strokeWidth={2} />
+                        </button>
+                        <button
+                          onClick={() => handleEliminar(cat.id)}
+                          className="text-ash hover:text-red-600 hover:bg-red-50 rounded-full transition-colors p-1"
+                          title="Eliminar"
+                        >
+                          <Trash2 size={16} strokeWidth={2} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -191,26 +210,30 @@ export default function Categorias() {
                           </div>
                           <p className="text-graphite text-sm">{sub.nombre}</p>
                         </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => {
-                              setCategoriaEditar(sub)
-                              setCategoriaParent(null)
-                              setShowForm(true)
-                            }}
-                            className="text-ash hover:text-ink transition-colors p-1 text-sm"
-                            title="Editar"
-                          >
-                            <Pencil size={14} strokeWidth={2} />
-                          </button>
-                          <button
-                            onClick={() => handleEliminar(sub.id)}
-                            className="text-ash hover:text-red-600 hover:bg-red-50 rounded-full transition-colors p-1 text-sm"
-                            title="Eliminar"
-                          >
-                            <Trash2 size={14} strokeWidth={2} />
-                          </button>
-                        </div>
+                        {esGestionDeuda(sub) ? (
+                          <span className="text-xs text-ash">Deuda</span>
+                        ) : (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                setCategoriaEditar(sub)
+                                setCategoriaParent(null)
+                                setShowForm(true)
+                              }}
+                              className="text-ash hover:text-ink transition-colors p-1 text-sm"
+                              title="Editar"
+                            >
+                              <Pencil size={14} strokeWidth={2} />
+                            </button>
+                            <button
+                              onClick={() => handleEliminar(sub.id)}
+                              className="text-ash hover:text-red-600 hover:bg-red-50 rounded-full transition-colors p-1 text-sm"
+                              title="Eliminar"
+                            >
+                              <Trash2 size={14} strokeWidth={2} />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

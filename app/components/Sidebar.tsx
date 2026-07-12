@@ -6,7 +6,7 @@ import { useState } from 'react'
 import {
   LayoutDashboard, ArrowLeftRight, Target, Wallet, Users, Tag,
   Download, Handshake, BarChart3, Settings, Droplets, LogOut, Plus,
-  type LucideIcon,
+  RefreshCw, type LucideIcon,
 } from 'lucide-react'
 
 interface NavItem {
@@ -24,6 +24,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/categorias', Icon: Tag, label: 'Categorías' },
   { href: '/exportar', Icon: Download, label: 'Exportar' },
   { href: '/deudas', Icon: Handshake, label: 'Deudas' },
+  { href: '/suscripciones', Icon: RefreshCw, label: 'Suscripciones' },
   { href: '/reportes', Icon: BarChart3, label: 'Reportes' },
   { href: '/perfil', Icon: Settings, label: 'Configuración' },
 ]
@@ -35,6 +36,7 @@ function MasMenu({ pathname, router }: { pathname: string, router: any }) {
     { href: '/grupos', Icon: Users, label: 'Compartidos' },
     { href: '/categorias', Icon: Tag, label: 'Categorías' },
     { href: '/deudas', Icon: Handshake, label: 'Deudas' },
+    { href: '/suscripciones', Icon: RefreshCw, label: 'Suscripciones' },
     { href: '/reportes', Icon: BarChart3, label: 'Reportes' },
     { href: '/exportar', Icon: Download, label: 'Exportar' },
     { href: '/perfil', Icon: Settings, label: 'Configuración' },

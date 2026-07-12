@@ -7,6 +7,7 @@ export interface TransaccionExport {
   tipo: string
   monto: number | string
   descripcion?: string | null
+  wallet_destino_id?: string | null
   categories?: { nombre?: string | null } | null
   wallets?: { nombre?: string | null } | null
 }
@@ -46,10 +47,12 @@ interface Resumen {
 }
 
 function calcularResumen(trans: TransaccionExport[]): Resumen {
-  const ingresos = trans
+  // Las transferencias entre carteras no cuentan como ingreso ni gasto.
+  const movimientos = trans.filter(t => !t.wallet_destino_id)
+  const ingresos = movimientos
     .filter(t => t.tipo === 'ingreso')
     .reduce((s, t) => s + Number(t.monto), 0)
-  const gastos = trans
+  const gastos = movimientos
     .filter(t => t.tipo === 'gasto')
     .reduce((s, t) => s + Number(t.monto), 0)
   return { ingresos, gastos, balance: ingresos - gastos, cantidad: trans.length }

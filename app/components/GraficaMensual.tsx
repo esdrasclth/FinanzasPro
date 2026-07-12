@@ -40,7 +40,7 @@ export default function GraficaMensual({ transacciones }: Props) {
       if (!user) return
       const { data } = await supabase
         .from('transactions')
-        .select('monto, tipo, fecha, categories(nombre)')
+        .select('monto, tipo, fecha, wallet_destino_id, categories(nombre)')
         .eq('user_id', user.id)
         .gte('fecha', `${yearRef}-01-01`)
         .lte('fecha', `${yearRef}-12-31`)
@@ -53,8 +53,8 @@ export default function GraficaMensual({ transacciones }: Props) {
   const formatMonto = (n: number) =>
     new Intl.NumberFormat('es-HN', { minimumFractionDigits: 0 }).format(n)
 
-  // El "Saldo inicial" es una apertura de cartera, no un movimiento del mes: se excluye.
-  const esMovimiento = (t: any) => t.categories?.nombre !== 'Saldo inicial'
+  // El "Saldo inicial" (apertura) y las transferencias entre carteras no son movimientos del mes: se excluyen.
+  const esMovimiento = (t: any) => t.categories?.nombre !== 'Saldo inicial' && !t.wallet_destino_id
   const movimientos = transacciones.filter(esMovimiento)
 
   const ingresosTotal = movimientos

@@ -48,7 +48,9 @@ export default function FormPresupuesto({ presupuesto, tipo = 'gasto', mes, anio
       .eq('tipo', tipo)
       .order('nombre')
 
-    setCategorias(data || [])
+    // Las subcategorías de deudas completadas quedan archivadas: no se ofrecen
+    // para nuevos presupuestos, pero su historial se conserva.
+    setCategorias((data || []).filter((c: any) => !c.archivada))
   }
 
   const principales = categorias.filter(c => !c.parent_id)
