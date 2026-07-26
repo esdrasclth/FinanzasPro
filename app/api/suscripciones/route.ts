@@ -76,3 +76,58 @@ export async function DELETE(req: Request) {
   }
   return NextResponse.json({ ok: true })
 }
+
+function leerSub(body: any) {
+  const nombre = String(body?.nombre || '').trim()
+  const monto = Number(body?.monto)
+  const fecha = String(body?.fecha_inicio || '').slice(0, 10)
+  if (!nombre) return { error: 'El nombre es obligatorio' }
+  if (!(monto > 0)) return { error: 'El monto debe ser mayor a 0' }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return { error: 'Fecha de inicio inválida' }
+  const frecuencias = ['semanal', 'mensual', 'trimestral', 'anual']
+  return {
+    datos: {
+      nombre,
+      plan: body?.plan || null,
+      tipo: body?.tipo === 'ingreso' ? 'ingreso' : 'gasto',
+      monto,
+      moneda: body?.moneda || 'HNL',
+      frecuencia: frecuencias.includes(body?.frecuencia) ? body.frecuencia : 'mensual',
+      category_id: body?.category_id || null,
+      wallet_id: body?.wallet_id || null,
+      fecha_inicio: new Date(`${fecha}T00:00:00.000Z`),
+      color: body?.color || null,
+      notas: body?.notas || null,
+      estado: ['activa', 'pausada', 'cancelada'].includes(body?.estado) ? body.estado : 'activa',
+    },
+  }
+}
+
+export async function POST(req: Request) {
+  const s = await getSessionUser()
+  if (!s) return NextResponse.json({ error: { message: 'No autenticado' } }, { status: 401 })
+
+  const r = leerSub(await req.json().catch(() => null))
+  if (r.error) return NextResponse.json({ error: { message: r.error } }, { status: 400 })
+
+  const sub = await prisma.subscriptions.create({ data: { user_id: s.id, ...r.datos! } })
+  return NextResponse.json({ suscripcion: serializar(sub) })
+}
+
+export async function PUT(req: Request) {
+  const s = await getSessionUser()
+  if (!s) return NextResponse.json({ error: { message: 'No autenticado' } }, { status: 401 })
+
+  const body = await req.json().catch(() => null)
+  const id = body?.id
+  if (!id) return NextResponse.json({ error: { message: 'Falta el identificador' } }, { status: 400 })
+
+  const r = leerSub(body)
+  if (r.error) return NextResponse.json({ error: { message: r.error } }, { status: 400 })
+
+  const existe = await prisma.subscriptions.findFirst({ where: { id, user_id: s.id }, select: { id: true } })
+  if (!existe) return NextResponse.json({ error: { message: 'Recurrente no encontrado' } }, { status: 404 })
+
+  const sub = await prisma.subscriptions.update({ where: { id }, data: r.datos! })
+  return NextResponse.json({ suscripcion: serializar(sub) })
+}

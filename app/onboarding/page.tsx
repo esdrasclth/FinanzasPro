@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '../lib/supabase'
 
 const PASOS = [
   {
@@ -68,26 +67,27 @@ export default function Onboarding() {
     if (paso < total - 1) {
       setPaso(paso + 1)
     } else {
-      // Marcar onboarding como completado
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        await supabase
-          .from('profiles')
-          .update({ onboarding_completado: true })
-          .eq('id', user.id)
-      }
+      await completar()
       router.push('/carteras')
     }
   }
 
+  // Marca el onboarding como completado conservando nombre y moneda actuales.
+  const completar = async () => {
+    const res = await fetch('/api/perfil')
+    const perfil = res.ok ? (await res.json()).perfil : null
+    await fetch('/api/perfil', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre: perfil?.nombre || 'Usuario',
+        moneda_default: perfil?.moneda_default || 'HNL',
+      }),
+    })
+  }
+
   const saltar = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      await supabase
-        .from('profiles')
-        .update({ onboarding_completado: true })
-        .eq('id', user.id)
-    }
+    await completar()
     router.push('/dashboard')
   }
 

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '../lib/supabase'
 import { fechaHoyLocal } from '../lib/fecha'
 import { abonarDeuda } from '../lib/deudas'
 import { obtenerTipoCambio, fijarTasaManual, convertir, type TipoCambio } from '../lib/tipoCambio'
@@ -89,42 +88,31 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
   }, [walletId, wallets])
 
   const cargarDatos = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    const [rc, rw] = await Promise.all([
+      fetch('/api/categorias').then(r => (r.ok ? r.json() : null)).catch(() => null),
+      fetch('/api/carteras/lista').then(r => (r.ok ? r.json() : null)).catch(() => null),
+    ])
 
-    const { data: cats } = await supabase
-      .from('categories')
-      .select('*')
-      .or(`user_id.eq.${user.id},es_sistema.eq.true`)
-      .order('nombre')
-    // Las subcategorías de deudas completadas quedan archivadas: no se ofrecen
-    // en el selector, pero su historial se conserva.
-    setCategorias((cats || []).filter((c: any) => !c.archivada))
+    // Las subcategorías de deudas saldadas quedan archivadas: no se ofrecen en
+    // el selector, pero su historial se conserva.
+    setCategorias((rc?.categorias || []).filter((c: any) => !c.archivada))
 
-    let { data: walls } = await supabase
-      .from('wallets')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('activo', true)
-
-    if (!walls || walls.length === 0) {
-      const { data: nuevaWallet } = await supabase
-        .from('wallets')
-        .insert({
-          user_id: user.id,
-          nombre: 'Efectivo',
-          tipo: 'efectivo',
-          saldo_inicial: 0,
-          moneda: 'HNL',
-          color: '#0D9488'
-        })
-        .select()
-        .single()
-      walls = nuevaWallet ? [nuevaWallet] : []
+    let walls = rw?.carteras || []
+    if (walls.length === 0) {
+      // Sin ninguna cartera no se puede registrar nada: se crea una por defecto.
+      const res = await fetch('/api/carteras', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: 'Efectivo', tipo: 'efectivo', moneda: 'HNL', color: '#0D9488' }),
+      })
+      if (res.ok) {
+        const { cartera } = await res.json()
+        walls = cartera ? [cartera] : []
+      }
     }
 
-    setWallets(walls || [])
-    if (walls && walls.length > 0) {
+    setWallets(walls)
+    if (walls.length > 0) {
       setWalletId(walls[0].id)
       setWalletDestinoId(walls.length > 1 ? walls[1].id : '')
     }
@@ -197,9 +185,6 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
     setLoading(true)
     setError('')
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setLoading(false); return }
-
     if (tipo === 'transferencia') {
       if (!walletDestinoId) {
         setError('Selecciona una cuenta destino')
@@ -255,16 +240,11 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
       // 'debo'), el gasto manual se registra como un abono real: descuenta la
       // deuda, crea el pago y la transacción ligada (debt_id).
       if (tipo === 'gasto') {
-        const { data: deudaMatch } = await supabase
-          .from('debts')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('category_id', categoryFinal)
-          .eq('tipo', 'debo')
-          .eq('completada', false)
-          .limit(1)
-
-        const deuda = deudaMatch?.[0]
+        const rd = await fetch('/api/deudas')
+        const listaDeudas = rd.ok ? (await rd.json()).deudas || [] : []
+        const deuda = listaDeudas.find(
+          (x: any) => x.category_id === categoryFinal && x.tipo === 'debo' && !x.completada
+        )
         if (deuda) {
           const montoAbono = parseFloat(monto)
           const pendiente = Number(deuda.monto_total) - Number(deuda.monto_pagado)
@@ -303,20 +283,24 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
       // en que se consulten.
       const tcSello = tc || (await obtenerTipoCambio())
 
-      const { error } = await supabase.from('transactions').insert({
-        user_id: user.id,
-        wallet_id: walletId,
-        category_id: categoryFinal,
-        monto: parseFloat(monto),
-        moneda: monedaMovimiento,
-        tasa_cambio: tcSello?.tasa || null,
-        tipo,
-        descripcion,
-        fecha
+      const res = await fetch('/api/transacciones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          wallet_id: walletId,
+          category_id: categoryFinal,
+          monto: parseFloat(monto),
+          moneda: monedaMovimiento,
+          tasa_cambio: tcSello?.tasa ?? null,
+          tipo,
+          descripcion,
+          fecha,
+        }),
       })
 
-      if (error) {
-        setError('Error al guardar: ' + error.message)
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        setError(json?.error?.message || 'No se pudo guardar el movimiento')
         setLoading(false)
         return
       }

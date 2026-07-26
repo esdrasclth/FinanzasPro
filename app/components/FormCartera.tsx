@@ -1,9 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
-import { fechaHoyLocal } from '../lib/fecha'
-import { obtenerTipoCambio } from '../lib/tipoCambio'
 import { X, Wallet, Landmark, CreditCard, PiggyBank } from 'lucide-react'
 
 interface Props {
@@ -61,114 +58,37 @@ export default function FormCartera({ cartera, onClose, onSuccess }: Props) {
     setLoading(true)
     setError('')
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const payload: any = {
-      user_id: user.id,
-      nombre,
-      tipo,
-      color,
-      activo: true,
-      // Las TC son de doble moneda (HNL + USD); su moneda primaria es HNL.
-      moneda: esTarjeta ? 'HNL' : moneda,
-    }
-
-    if (esTarjeta) {
-      payload.credito_limite = parseFloat(creditoLimite) || 0
-      payload.fecha_corte = parseInt(fechaCorte) || 1
-      payload.fecha_pago = parseInt(fechaPago) || 15
-      payload.numero_tarjeta = numeroTarjeta.trim() || null
-    }
-
-    if (esBanco) {
-      payload.numero_cuenta = numeroCuenta.trim() || null
-    }
-
-    if (esEdicion) {
-      const { error } = await supabase
-        .from('wallets')
-        .upsert({ id: cartera.id, saldo_inicial: cartera.saldo_inicial, ...payload })
-      if (error) { setError('Error al actualizar: ' + error.message); setLoading(false); return }
-    } else {
-      // El saldo inicial se registra como una transacción con su propia categoría
-      // ("Saldo inicial"), excluida de las gráficas, en vez de contarse como ingreso/gasto del mes.
-      payload.saldo_inicial = 0
-      // Colocar la nueva cartera al final del orden manual.
-      const { data: existentes } = await supabase
-        .from('wallets')
-        .select('posicion')
-        .eq('user_id', user.id)
-        .eq('activo', true)
-      payload.posicion = (existentes || []).reduce((max, w) => Math.max(max, Number(w.posicion) || 0), 0) + 1
-      const { data: nuevaCartera, error } = await supabase
-        .from('wallets')
-        .insert(payload)
-        .select()
-        .single()
-      if (error) { setError('Error al crear: ' + error.message); setLoading(false); return }
-      if (nuevaCartera) {
-        if (esTarjeta) {
-          // Doble saldo inicial: uno por moneda (normalmente en negativo por ser deuda).
-          const inicialHnl = parseFloat(saldoInicial) || 0
-          const inicialUsd = parseFloat(saldoInicialUsd) || 0
-          if (inicialHnl !== 0) await registrarSaldoInicial(user.id, nuevaCartera.id, inicialHnl, 'HNL')
-          if (inicialUsd !== 0) await registrarSaldoInicial(user.id, nuevaCartera.id, inicialUsd, 'USD')
-        } else {
-          const inicial = parseFloat(saldoInicial) || 0
-          if (inicial !== 0) await registrarSaldoInicial(user.id, nuevaCartera.id, inicial, moneda)
-        }
-      }
+    // El servidor crea la cartera y su saldo de apertura en una sola
+    // transacción: eran dos escrituras sueltas, así que si fallaba la segunda
+    // quedaba una cartera en cero sin rastro del dinero que ya tenía.
+    const res = await fetch('/api/carteras', {
+      method: esEdicion ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: cartera?.id,
+        nombre,
+        tipo,
+        color,
+        moneda,
+        credito_limite: parseFloat(creditoLimite) || 0,
+        fecha_corte: parseInt(fechaCorte) || 1,
+        fecha_pago: parseInt(fechaPago) || 15,
+        numero_tarjeta: numeroTarjeta.trim() || null,
+        numero_cuenta: numeroCuenta.trim() || null,
+        // Solo cuentan al crear: la apertura no se reescribe al editar.
+        saldo_inicial: esEdicion ? 0 : parseFloat(saldoInicial) || 0,
+        saldo_inicial_usd: esEdicion ? 0 : parseFloat(saldoInicialUsd) || 0,
+      }),
+    })
+    if (!res.ok) {
+      const json = await res.json().catch(() => null)
+      setError(json?.error?.message || 'No se pudo guardar la cartera')
+      setLoading(false)
+      return
     }
 
     onSuccess()
     onClose()
-  }
-
-  const registrarSaldoInicial = async (userId: string, walletId: string, monto: number, monedaMov: string) => {
-    const esIngreso = monto > 0
-    const tipoCat = esIngreso ? 'ingreso' : 'gasto'
-
-    const { data: cats } = await supabase
-      .from('categories')
-      .select('id')
-      .eq('nombre', 'Saldo inicial')
-      .eq('tipo', tipoCat)
-      .eq('es_sistema', true)
-      .limit(1)
-
-    let categoriaId = cats?.[0]?.id
-    if (!categoriaId) {
-      const { data: newCat } = await supabase
-        .from('categories')
-        .insert({
-          nombre: 'Saldo inicial',
-          tipo: tipoCat,
-          icono: '🏦',
-          color: '#64748B',
-          es_sistema: true,
-          user_id: userId,
-        })
-        .select()
-        .single()
-      categoriaId = newCat?.id
-    }
-
-    // Se sella la tasa de referencia vigente para que este saldo de apertura
-    // se normalice siempre con la tasa del día en que se abrió la cartera.
-    const tc = await obtenerTipoCambio()
-
-    await supabase.from('transactions').insert({
-      user_id: userId,
-      wallet_id: walletId,
-      category_id: categoriaId,
-      monto: Math.abs(monto),
-      tipo: tipoCat,
-      moneda: monedaMov,
-      tasa_cambio: tc?.tasa || null,
-      descripcion: 'Saldo inicial',
-      fecha: fechaHoyLocal(),
-    })
   }
 
   const dias = Array.from({ length: 31 }, (_, i) => i + 1)

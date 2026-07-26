@@ -56,3 +56,61 @@ export async function DELETE(req: Request) {
   }
   return NextResponse.json({ ok: true })
 }
+
+// POST /api/presupuesto -> crea | PUT -> { id, monto_limite } edita
+// La unicidad por (usuario, categoría, mes, año) la garantiza la base; aquí se
+// traduce el choque a un mensaje entendible en vez de un error de Prisma.
+export async function POST(req: Request) {
+  const s = await getSessionUser()
+  if (!s) return NextResponse.json({ error: { message: 'No autenticado' } }, { status: 401 })
+
+  const body = await req.json().catch(() => null)
+  const categoryId = body?.category_id
+  const limite = Number(body?.monto_limite)
+  const mes = Number(body?.mes)
+  const anio = Number(body?.anio ?? body?.['año'])
+
+  if (!categoryId) return NextResponse.json({ error: { message: 'Selecciona una categoría' } }, { status: 400 })
+  if (!(limite > 0)) return NextResponse.json({ error: { message: 'El límite debe ser mayor a 0' } }, { status: 400 })
+  if (!(mes >= 1 && mes <= 12) || !(anio > 2000)) {
+    return NextResponse.json({ error: { message: 'Mes o año inválido' } }, { status: 400 })
+  }
+
+  const cat = await prisma.categories.findFirst({
+    where: { id: categoryId, OR: [{ user_id: s.id }, { es_sistema: true }] },
+    select: { id: true },
+  })
+  if (!cat) return NextResponse.json({ error: { message: 'Categoría no válida' } }, { status: 400 })
+
+  try {
+    const b = await prisma.budgets.create({
+      data: { user_id: s.id, category_id: categoryId, monto_limite: limite, mes, anio },
+    })
+    return NextResponse.json({ presupuesto: { ...b, created_at: b.created_at.toISOString() } })
+  } catch {
+    return NextResponse.json(
+      { error: { message: 'Ya tienes un presupuesto para esa categoría en ese mes' } },
+      { status: 409 }
+    )
+  }
+}
+
+export async function PUT(req: Request) {
+  const s = await getSessionUser()
+  if (!s) return NextResponse.json({ error: { message: 'No autenticado' } }, { status: 401 })
+
+  const body = await req.json().catch(() => null)
+  const id = body?.id
+  const limite = Number(body?.monto_limite)
+  if (!id) return NextResponse.json({ error: { message: 'Falta el identificador' } }, { status: 400 })
+  if (!(limite > 0)) return NextResponse.json({ error: { message: 'El límite debe ser mayor a 0' } }, { status: 400 })
+
+  const { count } = await prisma.budgets.updateMany({
+    where: { id, user_id: s.id },
+    data: { monto_limite: limite },
+  })
+  if (count === 0) {
+    return NextResponse.json({ error: { message: 'Presupuesto no encontrado' } }, { status: 404 })
+  }
+  return NextResponse.json({ ok: true })
+}

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
 import Link from 'next/link'
 import { CheckCircle2, Mail, Lock, User, Eye, EyeOff, Droplets, TrendingUp, PieChart, Wallet, ArrowRight } from 'lucide-react'
 
@@ -25,26 +24,26 @@ export default function Registro() {
       return
     }
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { nombre } }
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, nombre }),
     })
+    const json = await res.json().catch(() => null)
 
-    if (error) {
-      setError(error.message)
+    if (!res.ok) {
+      setError(json?.error?.message || 'No se pudo crear la cuenta')
       setLoading(false)
       return
     }
 
-    if (data.user) {
-      await supabase.from('profiles').insert({
-        id: data.user.id,
-        nombre,
-        moneda_default: 'HNL'
-      })
-      setSuccess(true)
-    }
+    // El perfil se crea aquí para que el onboarding arranque con el nombre.
+    await fetch('/api/perfil', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre, moneda_default: 'HNL' }),
+    })
+    setSuccess(true)
 
     setLoading(false)
   }

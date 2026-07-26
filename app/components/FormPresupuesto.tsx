@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
 import { X } from 'lucide-react'
 
 interface Props {
@@ -38,15 +37,10 @@ export default function FormPresupuesto({ presupuesto, tipo = 'gasto', mes, anio
   }, [tipo])
 
   const cargarCategorias = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const { data } = await supabase
-      .from('categories')
-      .select('*')
-      .or(`user_id.eq.${user.id},es_sistema.eq.true`)
-      .eq('tipo', tipo)
-      .order('nombre')
+    const res = await fetch('/api/categorias')
+    if (!res.ok) return
+    const { categorias: todas } = await res.json()
+    const data = (todas || []).filter((c: any) => c.tipo === tipo)
 
     // Las subcategorías de deudas completadas quedan archivadas: no se ofrecen
     // para nuevos presupuestos, pero su historial se conserva.
@@ -67,44 +61,24 @@ export default function FormPresupuesto({ presupuesto, tipo = 'gasto', mes, anio
       return
     }
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    if (esEdicion) {
-      const { error } = await supabase
-        .from('budgets')
-        .update({ monto_limite: parseFloat(montoLimite) })
-        .eq('id', presupuesto.id)
-      if (error) { setError('Error al actualizar'); setLoading(false); return }
-    } else {
-      // Verificar si ya existe presupuesto para esa categoría este mes
-      const { data: existing } = await supabase
-        .from('budgets')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('category_id', categoriaId)
-        .eq('mes', mesActual)
-        .eq('año', añoActual)
-        .single()
-
-      if (existing) {
-        setError(esIngreso
-          ? 'Ya tienes una meta para esta categoría este mes'
-          : 'Ya tienes un presupuesto para esta categoría este mes')
-        setLoading(false)
-        return
-      }
-
-      const { error } = await supabase
-        .from('budgets')
-        .insert({
-          user_id: user.id,
-          category_id: categoriaId,
-          monto_limite: parseFloat(montoLimite),
-          mes: mesActual,
-          año: añoActual
-        })
-      if (error) { setError('Error al crear'); setLoading(false); return }
+    // El servidor valida el límite y traduce el choque de unicidad a un
+    // mensaje entendible.
+    const res = await fetch('/api/presupuesto', {
+      method: esEdicion ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: presupuesto?.id,
+        category_id: categoriaId,
+        monto_limite: parseFloat(montoLimite),
+        mes: mesActual,
+        anio: añoActual,
+      }),
+    })
+    if (!res.ok) {
+      const json = await res.json().catch(() => null)
+      setError(json?.error?.message || 'No se pudo guardar')
+      setLoading(false)
+      return
     }
 
     onSuccess()

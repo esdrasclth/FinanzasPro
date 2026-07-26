@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
 import { fechaHoyLocal } from '../lib/fecha'
 import { simboloMoneda } from '../lib/dinero'
 
@@ -37,52 +36,23 @@ export default function AjusteSaldo({ cartera, onClose, onSuccess }: Props) {
     setLoading(true)
     setError('')
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    // Buscar categoría de ajuste
-    const { data: cats } = await supabase
-      .from('categories')
-      .select('id')
-      .eq('nombre', 'Ajuste de saldo')
-      .eq('tipo', esIngreso ? 'ingreso' : 'gasto')
-      .eq('es_sistema', true)
-      .limit(1)
-
-    let categoriaId = cats?.[0]?.id
-
-    // Si no existe la categoría, crearla
-    if (!categoriaId) {
-      const { data: newCat } = await supabase
-        .from('categories')
-        .insert({
-          nombre: 'Ajuste de saldo',
-          tipo: esIngreso ? 'ingreso' : 'gasto',
-          icono: '⚖️',
-          color: '#64748B',
-          es_sistema: true,
-          user_id: user.id
-        })
-        .select()
-        .single()
-      categoriaId = newCat?.id
-    }
-
-    // Registrar la transacción de ajuste
-    const { error: transError } = await supabase
-      .from('transactions')
-      .insert({
-        user_id: user.id,
+    // El endpoint resuelve (y crea si falta) la categoría de sistema
+    // "Ajuste de saldo": antes eran hasta tres llamadas sueltas desde aquí.
+    const res = await fetch('/api/transacciones', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         wallet_id: cartera.id,
-        category_id: categoriaId,
         monto: Math.abs(diferencia),
         tipo: esIngreso ? 'ingreso' : 'gasto',
+        categoria_sistema: 'Ajuste de saldo',
         descripcion: `Ajuste de saldo — ${cartera.nombre}`,
-        fecha: fechaHoyLocal()
-      })
-
-    if (transError) {
-      setError('Error al registrar ajuste: ' + transError.message)
+        fecha: fechaHoyLocal(),
+      }),
+    })
+    if (!res.ok) {
+      const json = await res.json().catch(() => null)
+      setError(json?.error?.message || 'No se pudo registrar el ajuste')
       setLoading(false)
       return
     }

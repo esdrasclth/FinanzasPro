@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
 import { X, TrendingUp, TrendingDown } from 'lucide-react'
 
 interface Props {
@@ -48,15 +47,10 @@ export default function FormSuscripcion({ suscripcion, onClose, onSuccess }: Pro
 
   useEffect(() => {
     const cargar = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { data } = await supabase
-        .from('categories')
-        .select('*')
-        .or(`user_id.eq.${user.id},es_sistema.eq.true`)
-        .eq('tipo', tipo)
-        .order('nombre')
-      setCategorias((data || []).filter((c: any) => !c.archivada && !c.parent_id))
+      const res = await fetch('/api/categorias')
+      if (!res.ok) return
+      const { categorias: todas } = await res.json()
+      setCategorias((todas || []).filter((c: any) => c.tipo === tipo && !c.archivada && !c.parent_id))
     }
     cargar()
   }, [tipo])
@@ -66,32 +60,29 @@ export default function FormSuscripcion({ suscripcion, onClose, onSuccess }: Pro
     setLoading(true)
     setError('')
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const payload = {
-      user_id: user.id,
-      nombre,
-      plan: plan || null,
-      tipo,
-      monto: parseFloat(monto),
-      moneda: 'HNL',
-      frecuencia,
-      category_id: categoriaId || null,
-      fecha_inicio: fechaInicio,
-      color,
-      notas: notas || null,
-      estado: suscripcion?.estado || 'activa',
-    }
-
-    if (esEdicion) {
-      const { error } = await supabase
-        .from('subscriptions')
-        .upsert({ id: suscripcion.id, ...payload })
-      if (error) { setError('Error al actualizar'); setLoading(false); return }
-    } else {
-      const { error } = await supabase.from('subscriptions').insert(payload)
-      if (error) { setError('Error al crear: ' + error.message); setLoading(false); return }
+    const res = await fetch('/api/suscripciones', {
+      method: esEdicion ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: suscripcion?.id,
+        nombre,
+        plan: plan || null,
+        tipo,
+        monto: parseFloat(monto),
+        moneda: 'HNL',
+        frecuencia,
+        category_id: categoriaId || null,
+        fecha_inicio: fechaInicio,
+        color,
+        notas: notas || null,
+        estado: suscripcion?.estado || 'activa',
+      }),
+    })
+    if (!res.ok) {
+      const json = await res.json().catch(() => null)
+      setError(json?.error?.message || 'No se pudo guardar')
+      setLoading(false)
+      return
     }
 
     onSuccess()

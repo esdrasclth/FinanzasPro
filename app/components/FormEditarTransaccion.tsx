@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
 import { eliminarTransaccion, tipoCompuesto, avisoBorrado } from '../lib/transacciones'
 import { Trash2, Info } from 'lucide-react'
 
@@ -31,31 +30,21 @@ export default function FormEditarTransaccion({ transaccion, onClose, onSuccess 
   }, [])
 
   const cargarDatos = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    const [rc, rw] = await Promise.all([
+      fetch('/api/categorias').then(r => (r.ok ? r.json() : null)).catch(() => null),
+      fetch('/api/carteras/lista').then(r => (r.ok ? r.json() : null)).catch(() => null),
+    ])
+    const cats = rc?.categorias || []
+    setCategorias(cats)
 
-    const { data: cats } = await supabase
-      .from('categories')
-      .select('*')
-      .or(`user_id.eq.${user.id},es_sistema.eq.true`)
-      .order('nombre')
-
-    setCategorias(cats || [])
-
-    // Detectar si la categoría actual es subcategoría
-    const catActual = cats?.find(c => c.id === transaccion.category_id)
+    // Si la categoría actual es una subcategoría, se preselecciona su padre.
+    const catActual = cats.find((c: any) => c.id === transaccion.category_id)
     if (catActual?.parent_id) {
       setCategoriaId(catActual.parent_id)
       setSubcategoriaId(catActual.id)
     }
 
-    const { data: walls } = await supabase
-      .from('wallets')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('activo', true)
-
-    setWallets(walls || [])
+    setWallets(rw?.carteras || [])
   }
 
   const categoriasPrincipales = categorias.filter(
@@ -75,21 +64,21 @@ export default function FormEditarTransaccion({ transaccion, onClose, onSuccess 
 
     const categoryFinal = subcategoriaId || categoriaId
 
-    const { error } = await supabase
-      .from('transactions')
-      .upsert({
+    const res = await fetch('/api/transacciones', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         id: transaccion.id,
-        user_id: transaccion.user_id,
         wallet_id: walletId,
         category_id: categoryFinal,
         monto: parseFloat(monto),
-        tipo: transaccion.tipo,
         descripcion,
-        fecha
-      })
-
-    if (error) {
-      setError('Error al actualizar: ' + error.message)
+        fecha,
+      }),
+    })
+    if (!res.ok) {
+      const json = await res.json().catch(() => null)
+      setError(json?.error?.message || 'No se pudo actualizar')
       setLoading(false)
       return
     }
