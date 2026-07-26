@@ -91,3 +91,124 @@ export async function DELETE(req: Request) {
 
   return NextResponse.json({ ok: true })
 }
+
+const aFechaOpt = (x?: string | null) =>
+  x ? new Date(`${String(x).slice(0, 10)}T00:00:00.000Z`) : null
+
+function leerDeuda(body: any) {
+  const nombre = String(body?.nombre || '').trim()
+  const total = Number(body?.monto_total)
+  if (!nombre) return { error: 'El nombre es obligatorio' }
+  if (!(total > 0)) return { error: 'El monto debe ser mayor a 0' }
+  return {
+    datos: {
+      nombre,
+      descripcion: body?.descripcion || null,
+      tipo: body?.tipo === 'me_deben' ? 'me_deben' : 'debo',
+      monto_total: total,
+      fecha_limite: aFechaOpt(body?.fecha_limite),
+      fecha_inicio: aFechaOpt(body?.fecha_inicio),
+      tasa_interes: body?.tasa_interes != null ? Number(body.tasa_interes) : null,
+      tasa_periodo: body?.tasa_periodo || null,
+      plazo_meses: body?.plazo_meses != null ? Number(body.plazo_meses) : null,
+    },
+  }
+}
+
+export async function POST(req: Request) {
+  const s = await getSessionUser()
+  if (!s) return NextResponse.json({ error: { message: 'No autenticado' } }, { status: 401 })
+
+  const body = await req.json().catch(() => null)
+  const r = leerDeuda(body)
+  if (r.error) return NextResponse.json({ error: { message: r.error } }, { status: 400 })
+
+  // La deuda y su subcategoría se crean juntas: eran dos escrituras sueltas
+  // desde el navegador, así que un fallo dejaba la deuda sin categoría y sin
+  // forma de presupuestarla.
+  const deuda = await prisma.$transaction(async (tx) => {
+    const d = await tx.debts.create({ data: { user_id: s.id, monto_pagado: 0, ...r.datos! } })
+    if (d.tipo === 'debo') {
+      const cat = await crearSubcategoria(tx, s.id, d.nombre)
+      return tx.debts.update({ where: { id: d.id }, data: { category_id: cat } })
+    }
+    return d
+  })
+  return NextResponse.json({ deuda: serializarDeuda(deuda) })
+}
+
+export async function PUT(req: Request) {
+  const s = await getSessionUser()
+  if (!s) return NextResponse.json({ error: { message: 'No autenticado' } }, { status: 401 })
+
+  const body = await req.json().catch(() => null)
+  const id = body?.id
+  if (!id) return NextResponse.json({ error: { message: 'Falta el identificador' } }, { status: 400 })
+
+  const r = leerDeuda(body)
+  if (r.error) return NextResponse.json({ error: { message: r.error } }, { status: 400 })
+
+  const actual = await prisma.debts.findFirst({ where: { id, user_id: s.id } })
+  if (!actual) return NextResponse.json({ error: { message: 'Deuda no encontrada' } }, { status: 404 })
+
+  // El total no puede quedar por debajo de lo ya abonado.
+  if (r.datos!.monto_total < Number(actual.monto_pagado)) {
+    return NextResponse.json(
+      { error: { message: `El total no puede ser menor a lo ya abonado (${Number(actual.monto_pagado).toFixed(2)})` } },
+      { status: 400 }
+    )
+  }
+
+  const deuda = await prisma.$transaction(async (tx) => {
+    const d = await tx.debts.update({
+      where: { id },
+      data: { ...r.datos!, completada: Number(actual.monto_pagado) >= r.datos!.monto_total },
+    })
+    // La subcategoría sigue al tipo y al nombre de la deuda.
+    if (d.tipo === 'debo') {
+      if (actual.category_id) {
+        if (d.nombre !== actual.nombre) {
+          await tx.categories.updateMany({
+            where: { id: actual.category_id, user_id: s.id },
+            data: { nombre: d.nombre },
+          })
+        }
+      } else {
+        const cat = await crearSubcategoria(tx, s.id, d.nombre)
+        return tx.debts.update({ where: { id }, data: { category_id: cat } })
+      }
+    } else if (actual.category_id) {
+      // Pasó de "debo" a "me_deben": ya no aplica una subcategoría de gasto.
+      await tx.categories.deleteMany({ where: { id: actual.category_id, user_id: s.id } })
+      return tx.debts.update({ where: { id }, data: { category_id: null } })
+    }
+    return d
+  })
+  return NextResponse.json({ deuda: serializarDeuda(deuda) })
+}
+
+// Cada deuda de tipo 'debo' se refleja como subcategoría bajo la raíz "Deudas",
+// para poder asignarle presupuesto mensual.
+async function crearSubcategoria(tx: any, userId: string, nombre: string): Promise<string> {
+  let raiz = await tx.categories.findFirst({
+    where: { user_id: userId, protegida: true, nombre: 'Deudas' },
+    select: { id: true },
+  })
+  if (!raiz) {
+    raiz = await tx.categories.create({
+      data: {
+        user_id: userId, nombre: 'Deudas', tipo: 'gasto', icono: '🤝',
+        color: '#0EA5E9', protegida: true, es_sistema: false,
+      },
+      select: { id: true },
+    })
+  }
+  const sub = await tx.categories.create({
+    data: {
+      user_id: userId, nombre, tipo: 'gasto', icono: '💸',
+      color: '#EF4444', parent_id: raiz.id,
+    },
+    select: { id: true },
+  })
+  return sub.id
+}

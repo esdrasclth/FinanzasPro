@@ -1,12 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
-import {
-  crearSubcategoriaDeuda,
-  renombrarSubcategoriaDeuda,
-  eliminarSubcategoriaDeuda,
-} from '../lib/deudas'
 
 interface Props {
   deuda?: any
@@ -35,54 +29,29 @@ export default function FormDeuda({ deuda, onClose, onSuccess }: Props) {
     setLoading(true)
     setError('')
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const payload = {
-      user_id: user.id,
-      nombre,
-      descripcion,
-      tipo,
-      monto_total: parseFloat(montoTotal),
-      monto_pagado: parseFloat(montoPagado) || 0,
-      fecha_limite: fechaLimite || null,
-      fecha_inicio: fechaInicio || null,
-      tasa_interes: tasaInteres ? parseFloat(tasaInteres) : null,
-      tasa_periodo: tasaInteres ? tasaPeriodo : null,
-      plazo_meses: plazoMeses ? parseInt(plazoMeses, 10) : null,
-      completada: deuda?.completada || false
-    }
-
-    if (esEdicion) {
-      const { error } = await supabase
-        .from('debts')
-        .upsert({ id: deuda.id, ...payload })
-      if (error) { setError('Error al actualizar'); setLoading(false); return }
-
-      // Sincroniza la subcategoría de la deuda con su tipo/nombre.
-      if (tipo === 'debo') {
-        if (deuda.category_id) {
-          if (nombre !== deuda.nombre) {
-            await renombrarSubcategoriaDeuda(deuda.category_id, nombre)
-          }
-        } else {
-          await crearSubcategoriaDeuda(user.id, { id: deuda.id, nombre })
-        }
-      } else if (deuda.category_id) {
-        // Pasó de "debo" a "me_deben": ya no aplica subcategoría de gasto.
-        await eliminarSubcategoriaDeuda(deuda.category_id)
-      }
-    } else {
-      const { data: creada, error } = await supabase
-        .from('debts')
-        .insert(payload)
-        .select()
-        .single()
-      if (error) { setError('Error al crear: ' + error.message); setLoading(false); return }
-
-      if (tipo === 'debo' && creada?.id) {
-        await crearSubcategoriaDeuda(user.id, { id: creada.id, nombre })
-      }
+    // El servidor crea o actualiza la deuda y sincroniza su subcategoría
+    // dentro de una sola transacción.
+    const res = await fetch('/api/deudas', {
+      method: esEdicion ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: deuda?.id,
+        nombre,
+        descripcion,
+        tipo,
+        monto_total: parseFloat(montoTotal),
+        fecha_limite: fechaLimite || null,
+        fecha_inicio: fechaInicio || null,
+        tasa_interes: tasaInteres ? parseFloat(tasaInteres) : null,
+        tasa_periodo: tasaInteres ? tasaPeriodo : null,
+        plazo_meses: plazoMeses ? parseInt(plazoMeses, 10) : null,
+      }),
+    })
+    if (!res.ok) {
+      const json = await res.json().catch(() => null)
+      setError(json?.error?.message || 'No se pudo guardar la deuda')
+      setLoading(false)
+      return
     }
 
     onSuccess()

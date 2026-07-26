@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
 import { X } from 'lucide-react'
 
 interface Props {
@@ -45,26 +44,18 @@ export default function FormMeta({ meta, onClose, onSuccess }: Props) {
     if (!objetivo || objetivo <= 0) { setError('Ingresa un objetivo válido'); setLoading(false); return }
     if (actual > objetivo) { setError('Lo ahorrado no puede superar el objetivo'); setLoading(false); return }
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const payload = {
-      user_id: user.id,
-      nombre,
-      icono,
-      color,
-      monto_objetivo: objetivo,
-      monto_actual: actual,
-      fecha_limite: fechaLimite || null,
-      completada: actual >= objetivo,
-    }
-
-    if (esEdicion) {
-      const { error } = await supabase.from('metas').upsert({ id: meta.id, ...payload })
-      if (error) { setError('Error al actualizar'); setLoading(false); return }
-    } else {
-      const { error } = await supabase.from('metas').insert(payload)
-      if (error) { setError('Error al crear: ' + error.message); setLoading(false); return }
+    const res = await fetch('/api/metas', {
+      method: esEdicion ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: meta?.id, nombre, icono, color,
+        monto_objetivo: objetivo,
+        fecha_limite: fechaLimite || null }),
+    })
+    if (!res.ok) {
+      const json = await res.json().catch(() => null)
+      setError(json?.error?.message || 'No se pudo guardar')
+      setLoading(false)
+      return
     }
 
     onSuccess()

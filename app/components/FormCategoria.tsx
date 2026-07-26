@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
 
 interface Props {
   categoria?: any
@@ -41,28 +40,18 @@ export default function FormCategoria({
     setLoading(true)
     setError('')
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    if (esEdicion) {
-      const { error } = await supabase
-        .from('categories')
-        .update({ nombre, icono, color })
-        .eq('id', categoria.id)
-      if (error) { setError('Error al actualizar'); setLoading(false); return }
-    } else {
-      const { error } = await supabase
-        .from('categories')
-        .insert({
-          user_id: user.id,
-          nombre,
-          icono,
-          color,
-          tipo: esSubcategoria ? categoriaParent.tipo : tipo,
-          parent_id: esSubcategoria ? categoriaParent.id : null,
-          es_sistema: false
-        })
-      if (error) { setError('Error al crear'); setLoading(false); return }
+    const res = await fetch('/api/categorias', {
+      method: esEdicion ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: categoria?.id, nombre, icono, color,
+        tipo: esSubcategoria ? categoriaParent.tipo : tipo,
+        parent_id: esSubcategoria ? categoriaParent.id : null }),
+    })
+    if (!res.ok) {
+      const json = await res.json().catch(() => null)
+      setError(json?.error?.message || 'No se pudo guardar')
+      setLoading(false)
+      return
     }
 
     onSuccess()
