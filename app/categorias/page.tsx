@@ -1,276 +1,33 @@
-'use client'
+import { redirect } from 'next/navigation'
+import { getSessionUser } from '../lib/auth-server'
+import { prisma } from '../lib/prisma'
+import CategoriasCliente from './CategoriasCliente'
 
-import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
-import { useRouter } from 'next/navigation'
-import AppLayout from '../components/AppLayout'
-import FormCategoria from '../components/FormCategoria'
-import { Pencil, Trash2 } from 'lucide-react'
+// Server Component: las categorías llegan con el HTML.
+export default async function CategoriasPage() {
+  const session = await getSessionUser()
+  if (!session) redirect('/login')
 
-export default function Categorias() {
-  const router = useRouter()
-  const [categorias, setCategorias] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [categoriaEditar, setCategoriaEditar] = useState<any>(null)
-  const [categoriaParent, setCategoriaParent] = useState<any>(null)
-  const [filtroTipo, setFiltroTipo] = useState<'gasto' | 'ingreso'>('gasto')
+  const perfil = await prisma.profiles.findUnique({ where: { id: session.id } })
+  if (!perfil || !perfil.onboarding_completado) redirect('/onboarding')
 
-  useEffect(() => {
-    const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
-      cargarCategorias()
-    }
-    checkUser()
-  }, [router])
-
-  const cargarCategorias = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const { data } = await supabase
-      .from('categories')
-      .select('*')
-      .or(`user_id.eq.${user.id},es_sistema.eq.true`)
-      .order('nombre')
-
-    // Las subcategorías de deudas completadas quedan archivadas: se gestionan
-    // desde la pantalla de Deudas, no aquí.
-    setCategorias((data || []).filter((c: any) => !c.archivada))
-    setLoading(false)
-  }
-
-  // La categoría raíz "Deudas" y sus subcategorías se administran desde la
-  // pantalla de Deudas; aquí son de solo lectura.
-  const deudasRoot = categorias.find(c => c.protegida)
-  const esGestionDeuda = (c: any) =>
-    c.protegida || (!!deudasRoot && c.parent_id === deudasRoot.id)
-
-  const handleEliminar = async (id: string) => {
-    const cat = categorias.find(c => c.id === id)
-    if (cat && esGestionDeuda(cat)) {
-      alert('Esta categoría se administra desde la pantalla de Deudas.')
-      return
-    }
-    // Verificar si tiene subcategorías
-    const tieneHijos = categorias.some(c => c.parent_id === id)
-    if (tieneHijos) {
-      alert('Esta categoría tiene subcategorías. Elimínalas primero.')
-      return
-    }
-    if (!confirm('¿Eliminar esta categoría?')) return
-    await supabase.from('categories').delete().eq('id', id)
-    cargarCategorias()
-  }
-
-  // Categorías principales (sin parent)
-  const principales = categorias.filter(
-    c => !c.parent_id && c.tipo === filtroTipo
-  )
-
-  // Subcategorías de una categoría
-  const subCategorias = (parentId: string) =>
-    categorias.filter(c => c.parent_id === parentId)
-
-  if (loading) {
-    return (
-      <AppLayout>
-        <div className="flex items-center justify-center h-96">
-          <p className="text-steel animate-pulse">Cargando...</p>
-        </div>
-      </AppLayout>
-    )
-  }
+  const filas = await prisma.categories.findMany({
+    where: { OR: [{ user_id: session.id }, { es_sistema: true }] },
+    orderBy: { nombre: 'asc' },
+  })
 
   return (
-    <AppLayout>
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1728px] mx-auto">
-
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-obsidian">Categorías</h1>
-          <p className="text-steel mt-1 text-sm">
-            Organiza tus transacciones con categorías y subcategorías personalizadas
-          </p>
-        </div>
-
-        {/* Tabs Gasto / Ingreso */}
-        <div className="flex bg-snow border border-fog rounded-full p-1 mb-6 w-fit">
-          <button
-            onClick={() => setFiltroTipo('gasto')}
-            className={`px-6 py-2.5 rounded-full text-sm font-medium sm:py-2 transition-all ${
-              filtroTipo === 'gasto'
-                ? 'bg-obsidian text-snow'
-                : 'text-steel hover:text-ink'
-            }`}
-          >
-            💸 Gastos
-          </button>
-          <button
-            onClick={() => setFiltroTipo('ingreso')}
-            className={`px-6 py-2.5 rounded-full text-sm font-medium sm:py-2 transition-all ${
-              filtroTipo === 'ingreso'
-                ? 'bg-obsidian text-snow'
-                : 'text-steel hover:text-ink'
-            }`}
-          >
-            💰 Ingresos
-          </button>
-        </div>
-
-        {/* Lista de categorías */}
-        {principales.length === 0 ? (
-          <div className="bg-snow border border-fog rounded-card p-12 text-center">
-            <span className="text-5xl block mb-4">🏷️</span>
-            <p className="text-steel">No hay categorías de {filtroTipo}s aún</p>
-            <p className="text-ash text-sm mt-1">
-              Crea tu primera categoría con el botón +
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {principales.map(cat => (
-              <div key={cat.id} className="bg-snow border border-fog hover:border-pebble transition-colors rounded-card overflow-hidden">
-
-                {/* Categoría principal */}
-                <div className="flex items-center justify-between p-4">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl"
-                      style={{ backgroundColor: cat.color + '15' }}
-                    >
-                      {cat.icono || '📦'}
-                    </div>
-                    <div>
-                      <p className="text-ink font-medium">{cat.nombre}</p>
-                      <p className="text-ash text-xs">
-                        {subCategorias(cat.id).length} subcategorías
-                        {cat.protegida ? ' · Deudas' : cat.es_sistema && ' · Sistema'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {esGestionDeuda(cat) ? (
-                      <span className="text-xs text-ash">Gestionar en Deudas</span>
-                    ) : (
-                      <>
-                        {/* Agregar subcategoría */}
-                        <button
-                          onClick={() => {
-                            setCategoriaParent(cat)
-                            setCategoriaEditar(null)
-                            setShowForm(true)
-                          }}
-                          className="py-2.5 sm:py-1 text-xs font-medium text-graphite border border-pebble hover:bg-fog px-2.5 py-1 rounded-full transition-all"
-                        >
-                          + Sub
-                        </button>
-                        <button
-                          onClick={() => {
-                            setCategoriaEditar(cat)
-                            setCategoriaParent(null)
-                            setShowForm(true)
-                          }}
-                          className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1 text-ash hover:text-ink transition-colors"
-                          title="Editar"
-                        >
-                          <Pencil size={16} strokeWidth={2} />
-                        </button>
-                        <button
-                          onClick={() => handleEliminar(cat.id)}
-                          className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1 text-ash hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                          title="Eliminar"
-                        >
-                          <Trash2 size={16} strokeWidth={2} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Subcategorías */}
-                {subCategorias(cat.id).length > 0 && (
-                  <div className="border-t border-fog">
-                    {subCategorias(cat.id).map((sub, idx) => (
-                      <div
-                        key={sub.id}
-                        className={`flex items-center justify-between px-4 py-3 ${
-                          idx < subCategorias(cat.id).length - 1
-                            ? 'border-b border-fog' : ''
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 ml-6">
-                          <div className="w-1 h-1 bg-pebble rounded-full" />
-                          <div
-                            className="w-8 h-8 rounded-badge flex items-center justify-center text-base"
-                            style={{ backgroundColor: sub.color + '15' }}
-                          >
-                            {sub.icono || '📦'}
-                          </div>
-                          <p className="text-graphite text-sm">{sub.nombre}</p>
-                        </div>
-                        {esGestionDeuda(sub) ? (
-                          <span className="text-xs text-ash">Deuda</span>
-                        ) : (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                setCategoriaEditar(sub)
-                                setCategoriaParent(null)
-                                setShowForm(true)
-                              }}
-                              className="text-ash hover:text-ink transition-colors p-1 text-sm"
-                              title="Editar"
-                            >
-                              <Pencil size={14} strokeWidth={2} />
-                            </button>
-                            <button
-                              onClick={() => handleEliminar(sub.id)}
-                              className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1 text-sm text-ash hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                              title="Eliminar"
-                            >
-                              <Trash2 size={14} strokeWidth={2} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-              </div>
-            ))}
-          </div>
-        )}
-
-      </div>
-
-      {/* Botón flotante */}
-      <button
-        onClick={() => {
-          setCategoriaEditar(null)
-          setCategoriaParent(null)
-          setShowForm(true)
-        }}
-        className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] lg:bottom-8 right-6 lg:right-8 w-14 h-14 bg-obsidian hover:bg-graphite text-snow rounded-full text-2xl shadow-pill transition-all hover:scale-110 flex items-center justify-center z-40"
-      >
-        +
-      </button>
-
-      {showForm && (
-        <FormCategoria
-          categoria={categoriaEditar}
-          categoriaParent={categoriaParent}
-          tipo={filtroTipo}
-          onClose={() => {
-            setShowForm(false)
-            setCategoriaEditar(null)
-            setCategoriaParent(null)
-          }}
-          onSuccess={cargarCategorias}
-        />
-      )}
-    </AppLayout>
+    <CategoriasCliente
+      usuario={{
+        id: perfil.id,
+        nombre: perfil.nombre,
+        moneda_default: perfil.moneda_default,
+        onboarding_completado: perfil.onboarding_completado,
+      }}
+      // Las archivadas (subcategorías de deudas saldadas) se gestionan en Deudas.
+      categoriasIniciales={filas
+        .filter(c => !c.archivada)
+        .map(c => ({ ...c, created_at: c.created_at.toISOString() }))}
+    />
   )
 }
