@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { supabase } from '../../lib/supabase'
 import AppLayout from '../../components/AppLayout'
 import FormGastoCompartido from '../../components/FormGastoCompartido'
 import FormLiquidar from '../../components/FormLiquidar'
@@ -72,12 +71,8 @@ export default function GrupoDetalle() {
   }, [grupoId, mes, anio])
 
   useEffect(() => {
-    const check = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
-      await cargarBase()
-    }
-    check()
+    // El proxy ya valida la sesión antes de renderizar.
+    cargarBase()
   }, [router, cargarBase])
 
   useEffect(() => { if (grupo) cargarMes() }, [grupo, cargarMes])

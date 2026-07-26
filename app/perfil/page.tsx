@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
 import { useRouter } from 'next/navigation'
 import AppLayout from '../components/AppLayout'
 import { Trash2, ArrowLeftRight, Wallet, Tag, Target, Handshake } from 'lucide-react'
@@ -21,25 +20,22 @@ export default function Perfil() {
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [guardandoPassword, setGuardandoPassword] = useState(false)
   const [mensajePassword, setMensajePassword] = useState('')
+  const [statsCuenta, setStatsCuenta] = useState<any>(null)
 
   useEffect(() => {
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
-      setUsuario(user)
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-
-      if (profile) {
-        setPerfil(profile)
-        setNombre(profile.nombre || '')
-        setMoneda(profile.moneda_default || 'HNL')
+      const [ses, res] = await Promise.all([
+        fetch('/api/auth/session').then(r => r.json()).catch(() => null),
+        fetch('/api/perfil').then(r => (r.ok ? r.json() : null)).catch(() => null),
+      ])
+      if (!ses?.user) { router.push('/login'); return }
+      setUsuario(ses.user)
+      if (res?.perfil) {
+        setPerfil(res.perfil)
+        setNombre(res.perfil.nombre || '')
+        setMoneda(res.perfil.moneda_default || 'HNL')
       }
-
+      if (res?.stats) setStatsCuenta(res.stats)
       setLoading(false)
     }
     init()
@@ -50,16 +46,14 @@ export default function Perfil() {
     setGuardando(true)
     setMensaje('')
 
-    const { error } = await supabase
-      .from('profiles')
-      .upsert({
-        id: usuario.id,
-        nombre,
-        moneda_default: moneda
-      })
-
-    if (error) {
-      setMensaje('❌ Error al guardar: ' + error.message)
+    const res = await fetch('/api/perfil', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre, moneda_default: moneda }),
+    })
+    const json = await res.json().catch(() => null)
+    if (!res.ok) {
+      setMensaje('❌ ' + (json?.error?.message || 'Error al guardar'))
     } else {
       setMensaje('✅ Perfil actualizado correctamente')
     }
@@ -83,12 +77,15 @@ export default function Perfil() {
       return
     }
 
-    const { error } = await supabase.auth.updateUser({
-      password: passwordNuevo
+    const res = await fetch('/api/auth/update-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: passwordNuevo }),
     })
 
-    if (error) {
-      setMensajePassword('❌ Error: ' + error.message)
+    if (!res.ok) {
+      const json = await res.json().catch(() => null)
+      setMensajePassword('❌ ' + (json?.error?.message || 'No se pudo actualizar'))
     } else {
       setMensajePassword('✅ Contraseña actualizada correctamente')
       setPasswordActual('')
@@ -102,7 +99,7 @@ export default function Perfil() {
   const handleEliminarCuenta = async () => {
     if (!confirm('¿Estás seguro? Esta acción eliminará TODOS tus datos y no se puede deshacer.')) return
     if (!confirm('¿Confirmas que quieres eliminar tu cuenta permanentemente?')) return
-    await supabase.auth.signOut()
+    await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/')
   }
 
@@ -294,7 +291,7 @@ export default function Perfil() {
         {/* Estadísticas de la cuenta */}
         <div className="p-6 mb-6 border bg-snow border-fog rounded-card">
           <h2 className="mb-4 font-semibold text-ink">Tu cuenta en números</h2>
-          <EstadisticasCuenta userId={usuario?.id} />
+          <EstadisticasCuenta stats={statsCuenta} />
         </div>
 
         {/* Zona de peligro */}
@@ -318,42 +315,15 @@ export default function Perfil() {
 }
 
 // Componente separado para estadísticas
-function EstadisticasCuenta({ userId }: { userId: string }) {
-  const [stats, setStats] = useState({
-    transacciones: 0,
-    carteras: 0,
-    categorias: 0,
-    presupuestos: 0,
-    deudas: 0
-  })
-
-  useEffect(() => {
-    if (!userId) return
-    const cargar = async () => {
-      const [trans, wallets, cats, budgets, debts] = await Promise.all([
-        supabase.from('transactions').select('id', { count: 'exact' }).eq('user_id', userId),
-        supabase.from('wallets').select('id', { count: 'exact' }).eq('user_id', userId).eq('activo', true),
-        supabase.from('categories').select('id', { count: 'exact' }).eq('user_id', userId),
-        supabase.from('budgets').select('id', { count: 'exact' }).eq('user_id', userId),
-        supabase.from('debts').select('id', { count: 'exact' }).eq('user_id', userId),
-      ])
-      setStats({
-        transacciones: trans.count || 0,
-        carteras: wallets.count || 0,
-        categorias: cats.count || 0,
-        presupuestos: budgets.count || 0,
-        deudas: debts.count || 0,
-      })
-    }
-    cargar()
-  }, [userId])
-
+// Los conteos llegan ya calculados junto con el perfil desde /api/perfil.
+function EstadisticasCuenta({ stats }: { stats: any }) {
+  const s = stats || { transacciones: 0, carteras: 0, categorias: 0, presupuestos: 0, deudas: 0 }
   const items = [
-    { label: 'Transacciones', valor: stats.transacciones, Icon: ArrowLeftRight },
-    { label: 'Carteras', valor: stats.carteras, Icon: Wallet },
-    { label: 'Categorías', valor: stats.categorias, Icon: Tag },
-    { label: 'Presupuestos', valor: stats.presupuestos, Icon: Target },
-    { label: 'Deudas', valor: stats.deudas, Icon: Handshake },
+    { label: 'Transacciones', valor: s.transacciones, Icon: ArrowLeftRight },
+    { label: 'Carteras', valor: s.carteras, Icon: Wallet },
+    { label: 'Categorías', valor: s.categorias, Icon: Tag },
+    { label: 'Presupuestos', valor: s.presupuestos, Icon: Target },
+    { label: 'Deudas', valor: s.deudas, Icon: Handshake },
   ]
 
   return (

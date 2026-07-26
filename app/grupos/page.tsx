@@ -2,7 +2,6 @@
 
 import { useEffect, useState, Suspense, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { supabase } from '../lib/supabase'
 import AppLayout from '../components/AppLayout'
 import FormReparto from '../components/FormReparto'
 import Notificaciones from '../components/Notificaciones'
@@ -185,10 +184,11 @@ function GruposPanel({ router, accion, setAccion, tab, cambiarTab }: {
 
   useEffect(() => {
     const check = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
-      const { data: profile } = await supabase.from('profiles').select('moneda_default').eq('id', user.id).single()
-      if (profile?.moneda_default) setMonedaDefault(profile.moneda_default)
+      // El proxy ya bloquea la ruta sin sesión; aquí solo hace falta la moneda.
+      const res = await fetch('/api/perfil')
+      if (!res.ok) { router.push('/login'); return }
+      const json = await res.json()
+      if (json?.perfil?.moneda_default) setMonedaDefault(json.perfil.moneda_default)
       cargar()
     }
     check()
@@ -501,10 +501,11 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
 
   useEffect(() => {
     const check = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
-      const { data: profile } = await supabase.from('profiles').select('moneda_default').eq('id', user.id).single()
-      if (profile?.moneda_default) setMonedaDefault(profile.moneda_default)
+      // El proxy ya bloquea la ruta sin sesión; aquí solo hace falta la moneda.
+      const res = await fetch('/api/perfil')
+      if (!res.ok) { router.push('/login'); return }
+      const json = await res.json()
+      if (json?.perfil?.moneda_default) setMonedaDefault(json.perfil.moneda_default)
       cargar()
     }
     check()

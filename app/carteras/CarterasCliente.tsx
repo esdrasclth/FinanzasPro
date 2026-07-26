@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, type ReactNode, type CSSProperties } from 'react'
-import { supabase } from '../lib/supabase'
 import { useRouter } from 'next/navigation'
 import FormCartera from '../components/FormCartera'
 import AppLayout from '../components/AppLayout'
@@ -72,52 +71,33 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
       : `¿Archivar "${cartera.nombre}"?`
     if (!confirm(mensaje)) return
 
-    const { error } = await supabase
-      .from('wallets')
-      .update({ activo: false })
-      .eq('id', cartera.id)
-
-    if (error) {
-      alert('Error: ' + error.message)
-      return
-    }
+    const res = await fetch('/api/carteras', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: cartera.id, activo: false }),
+    })
+    if (!res.ok) { alert('No se pudo archivar la cartera'); return }
     cargarCarteras()
   }
 
   const handleRestaurar = async (cartera: any) => {
-    const { error } = await supabase
-      .from('wallets')
-      .update({ activo: true })
-      .eq('id', cartera.id)
-
-    if (error) {
-      alert('Error: ' + error.message)
-      return
-    }
+    const res = await fetch('/api/carteras', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: cartera.id, activo: true }),
+    })
+    if (!res.ok) { alert('No se pudo restaurar la cartera'); return }
     cargarCarteras()
   }
 
-  // El borrado definitivo solo se permite cuando no hay historial que perder.
+  // El borrado definitivo solo se permite cuando no hay historial que perder;
+  // el servidor lo revalida antes de tocar nada.
   const handleEliminarDefinitivo = async (cartera: any) => {
-    const { count } = await supabase
-      .from('transactions')
-      .select('id', { count: 'exact' })
-      .eq('wallet_id', cartera.id)
-
-    const movs = count || 0
-    if (movs > 0) {
-      alert(
-        `No se puede eliminar "${cartera.nombre}": tiene ${movs} ${movs === 1 ? 'movimiento asociado' : 'movimientos asociados'} ` +
-        `que se perderían junto con la cartera.\n\nDéjala archivada para conservar el histórico.`
-      )
-      return
-    }
-
-    if (!confirm(`¿Eliminar "${cartera.nombre}" definitivamente?\n\nNo tiene movimientos, así que no se pierde historial.`)) return
-
-    const { error } = await supabase.from('wallets').delete().eq('id', cartera.id)
-    if (error) {
-      alert('Error: ' + error.message)
+    if (!confirm(`¿Eliminar "${cartera.nombre}" definitivamente?`)) return
+    const res = await fetch(`/api/carteras?id=${cartera.id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const json = await res.json().catch(() => null)
+      alert(json?.error?.message || 'No se pudo eliminar la cartera')
       return
     }
     cargarCarteras()
@@ -280,9 +260,11 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
     if (oldIndex === -1 || newIndex === -1) return
     const nuevo = arrayMove(carteras, oldIndex, newIndex)
     setCarteras(nuevo)
-    await Promise.all(
-      nuevo.map((c, i) => supabase.from('wallets').update({ posicion: i }).eq('id', c.id))
-    )
+    await fetch('/api/carteras', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orden: nuevo.map(c => c.id) }),
+    })
   }
 
   const carterasFiltradas = carteras.filter(c => {

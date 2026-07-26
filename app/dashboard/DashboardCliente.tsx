@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { supabase } from '../lib/supabase'
 import { useRouter } from 'next/navigation'
 import AppLayout from '../components/AppLayout'
 import GraficaGastos from '../components/GraficaGastos'
@@ -11,8 +10,7 @@ import { SkeletonStats, SkeletonChart, SkeletonList } from '../components/Skelet
 import CalendarioFinanciero from '../components/CalendarioFinanciero'
 import Notificaciones from '../components/Notificaciones'
 import { useMoneda } from '../lib/moneda-context'
-import { obtenerTipoCambio } from '../lib/tipoCambio'
-import { totales, type Totales } from '../lib/finanzas'
+import { type Totales } from '../lib/finanzas'
 import { simboloMoneda } from '../lib/dinero'
 import { TrendingUp, TrendingDown, Wallet, ChevronLeft, ChevronRight, Calendar, ArrowLeftRight, PieChart, BarChart3, Download, Plus } from 'lucide-react'
 
@@ -57,37 +55,19 @@ export default function DashboardCliente({
     cargarTransacciones()
   }, [mesOffset])
 
+  // El mes lo resuelve el servidor: movimientos, resumen del mes y del anterior.
   const cargarTransacciones = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const { inicio, fin } = getMesRango()
-
-    const tc = await obtenerTipoCambio()
-    const tasaLocal = tc?.tasa ?? null
-    setTasa(tasaLocal)
-
-    const { data } = await supabase
-      .from('transactions')
-      .select('*, categories(nombre, icono, color)')
-      .eq('user_id', user.id)
-      .gte('fecha', inicio)
-      .lte('fecha', fin)
-      .order('fecha', { ascending: false })
-
-    setTransacciones(data || [])
-    // totales() ya descarta transferencias y aperturas de cartera, y normaliza
-    // cada monto a la moneda principal. Misma regla en todas las pantallas.
-    setResumen(totales(data || [], moneda, tasaLocal))
-
-    const prev = getMesRango(-1)
-    const { data: dataPrev } = await supabase
-      .from('transactions')
-      .select('monto, moneda, tasa_cambio, tipo, wallet_destino_id, categories(nombre)')
-      .eq('user_id', user.id)
-      .gte('fecha', prev.inicio)
-      .lte('fecha', prev.fin)
-    setResumenPrev(totales(dataPrev || [], moneda, tasaLocal))
+    try {
+      const res = await fetch(`/api/dashboard?offset=${mesOffset}`)
+      if (!res.ok) return
+      const json = await res.json()
+      setTransacciones(json.transacciones || [])
+      setResumen(json.resumen)
+      setResumenPrev(json.resumenPrev)
+      setTasa(json.tasa ?? null)
+    } catch {
+      // Se conserva lo que ya está en pantalla.
+    }
   }
 
   const { simbolo, moneda } = useMoneda()

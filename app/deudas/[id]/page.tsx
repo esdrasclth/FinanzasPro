@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { supabase } from '../../lib/supabase'
 import AppLayout from '../../components/AppLayout'
 import FormDeuda from '../../components/FormDeuda'
 import FormAbono from '../../components/FormAbono'
@@ -33,37 +32,20 @@ export default function DeudaDetalle() {
 
   useEffect(() => { cargar() }, [deudaId])
 
+  // La deuda, sus abonos y las carteras en una sola llamada.
   const cargar = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/login'); return }
-
-    const { data: d } = await supabase
-      .from('debts')
-      .select('*')
-      .eq('id', deudaId)
-      .eq('user_id', user.id)
-      .single()
-
-    if (!d) { router.push('/deudas'); return }
-    setDeuda(d)
-
-    const { data: ps } = await supabase
-      .from('debt_payments')
-      .select('*')
-      .eq('debt_id', deudaId)
-      .order('fecha', { ascending: false })
-      .order('created_at', { ascending: false })
-    setPagos(ps || [])
-
-    const { data: ws } = await supabase
-      .from('wallets')
-      .select('id, nombre')
-      .eq('user_id', user.id)
-    const mapa: Record<string, string> = {}
-    ;(ws || []).forEach((w: any) => { mapa[w.id] = w.nombre })
-    setWallets(mapa)
-
-    setLoading(false)
+    try {
+      const res = await fetch(`/api/deudas/${deudaId}`)
+      if (!res.ok) { router.push('/deudas'); return }
+      const json = await res.json()
+      setDeuda(json.deuda)
+      setPagos(json.pagos || [])
+      const mapa: Record<string, string> = {}
+      ;(json.carteras || []).forEach((w: any) => { mapa[w.id] = w.nombre })
+      setWallets(mapa)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const { simbolo } = useMoneda()
@@ -81,19 +63,20 @@ export default function DeudaDetalle() {
   }
 
   const handleEliminar = async () => {
-    if (!confirm('¿Eliminar esta deuda?')) return
-    await supabase.from('debts').delete().eq('id', deudaId)
-    if (deuda?.category_id) await eliminarSubcategoriaDeuda(deuda.category_id)
+    if (!confirm('¿Eliminar esta deuda?\n\nLos abonos que registraste se conservan como movimientos.')) return
+    // El servidor borra la deuda y su subcategoría en una sola transacción.
+    const res = await fetch(`/api/deudas?id=${deudaId}`, { method: 'DELETE' })
+    if (!res.ok) { alert('No se pudo eliminar la deuda'); return }
     router.push('/deudas')
   }
 
   const handleCompletar = async () => {
-    const nuevaCompletada = !deuda.completada
-    await supabase.from('debts').upsert({ id: deuda.id, completada: nuevaCompletada, user_id: deuda.user_id })
-    if (deuda.tipo === 'debo') {
-      if (deuda.category_id) await archivarSubcategoriaDeuda(deuda.category_id, nuevaCompletada)
-      else if (!nuevaCompletada) await crearSubcategoriaDeuda(deuda.user_id, { id: deuda.id, nombre: deuda.nombre })
-    }
+    const res = await fetch('/api/deudas', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: deuda.id, completada: !deuda.completada }),
+    })
+    if (!res.ok) { alert('No se pudo actualizar la deuda'); return }
     cargar()
   }
 

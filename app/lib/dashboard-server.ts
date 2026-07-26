@@ -39,9 +39,9 @@ function serializar(t: any) {
   }
 }
 
-export async function datosDashboard(userId: string) {
-  const actual = rangoMes(0)
-  const previo = rangoMes(-1)
+export async function datosDashboard(userId: string, offset = 0) {
+  const actual = rangoMes(offset)
+  const previo = rangoMes(offset - 1)
 
   const [transacciones, previas, tasa] = await Promise.all([
     prisma.transactions.findMany({

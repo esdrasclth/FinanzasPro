@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { supabase } from '../../lib/supabase'
 import AppLayout from '../../components/AppLayout'
 import FormReparto from '../../components/FormReparto'
 import { formatoMoneda } from '../../lib/dinero'
@@ -61,10 +60,10 @@ export default function RepartoDetalle() {
 
   useEffect(() => {
     const check = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
-      const { data } = await supabase.from('wallets').select('id, nombre, moneda').eq('user_id', user.id).eq('activo', true).order('posicion', { ascending: true })
-      setWallets(data || [])
+      const res = await fetch('/api/carteras/lista')
+      if (!res.ok) { router.push('/login'); return }
+      const json = await res.json()
+      setWallets(json.carteras || [])
       cargar()
     }
     check()
