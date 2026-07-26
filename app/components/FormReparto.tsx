@@ -202,7 +202,7 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', descripcio
             <div className="grid grid-cols-2 gap-2 p-1 bg-mist rounded-full">
               {([['igual', 'Partes iguales'], ['manual', 'Ajustar a mano']] as [Metodo, string][]).map(([val, lbl]) => (
                 <button key={val} type="button" onClick={() => setMetodo(val)}
-                  className={`py-2 rounded-full text-sm font-medium transition-all ${metodo === val ? 'bg-obsidian text-snow' : 'text-steel hover:text-ink'}`}>
+                  className={`py-2.5 rounded-full text-sm font-medium sm:py-2 transition-all ${metodo === val ? 'bg-obsidian text-snow' : 'text-steel hover:text-ink'}`}>
                   {lbl}
                 </button>
               ))}
@@ -230,7 +230,7 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', descripcio
                     </div>
                   )}
                   <button type="button" onClick={() => marcarYo(p.key)} title={p.esYo ? 'Soy yo (mi parte no se cobra)' : 'Marcar como yo'}
-                    className={`flex items-center justify-center w-8 h-8 rounded-full shrink-0 transition-colors border ${p.esYo ? 'bg-obsidian text-snow border-obsidian' : 'border-fog text-ash hover:text-ink hover:bg-mist'}`}>
+                    className={`flex items-center justify-center w-10 h-10 sm:w-8 sm:h-8 rounded-full shrink-0 transition-colors border ${p.esYo ? 'bg-obsidian text-snow border-obsidian' : 'border-fog text-ash hover:text-ink hover:bg-mist'}`}>
                     <User size={15} strokeWidth={2} />
                   </button>
                   <button type="button" onClick={() => quitar(p.key)} className="flex items-center justify-center w-8 h-8 transition-colors rounded-full text-ash hover:text-red-500 hover:bg-red-50 shrink-0">

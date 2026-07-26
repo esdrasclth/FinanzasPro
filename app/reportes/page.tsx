@@ -189,7 +189,7 @@ export default function Reportes() {
               <button
                 key={op.valor}
                 onClick={() => setPeriodo(op.valor)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${periodo === op.valor
+                className={`px-4 py-2.5 rounded-full text-sm font-medium sm:py-2 transition-all ${periodo === op.valor
                   ? 'bg-obsidian text-snow shadow-pill'
                   : 'text-steel hover:text-ink'
                   }`}

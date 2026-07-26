@@ -29,8 +29,9 @@ export const viewport: Viewport = {
   themeColor: '#09090b',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // Sin maximumScale ni userScalable: bloquear el pinch-zoom impide ampliar a
+  // quien lo necesita para leer (WCAG 1.4.4). El zoom accidental que se quería
+  // evitar ya no ocurre porque los campos usan tamaños de fuente >= 16px.
   viewportFit: 'cover',
 }
 

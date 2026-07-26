@@ -151,7 +151,7 @@ export default function FormCategoria({
                   key={c}
                   type="button"
                   onClick={() => setColor(c)}
-                  className={`w-8 h-8 rounded-full transition-all ${
+                  className={`w-10 h-10 sm:w-8 sm:h-8 rounded-full transition-all ${
                     color === c
                       ? 'ring-2 ring-obsidian ring-offset-2 ring-offset-snow scale-110'
                       : 'hover:scale-105'

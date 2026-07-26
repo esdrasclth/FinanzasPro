@@ -99,7 +99,7 @@ export default function Categorias() {
         <div className="flex bg-snow border border-fog rounded-full p-1 mb-6 w-fit">
           <button
             onClick={() => setFiltroTipo('gasto')}
-            className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
+            className={`px-6 py-2.5 rounded-full text-sm font-medium sm:py-2 transition-all ${
               filtroTipo === 'gasto'
                 ? 'bg-obsidian text-snow'
                 : 'text-steel hover:text-ink'
@@ -109,7 +109,7 @@ export default function Categorias() {
           </button>
           <button
             onClick={() => setFiltroTipo('ingreso')}
-            className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
+            className={`px-6 py-2.5 rounded-full text-sm font-medium sm:py-2 transition-all ${
               filtroTipo === 'ingreso'
                 ? 'bg-obsidian text-snow'
                 : 'text-steel hover:text-ink'
@@ -162,7 +162,7 @@ export default function Categorias() {
                             setCategoriaEditar(null)
                             setShowForm(true)
                           }}
-                          className="text-xs font-medium text-graphite border border-pebble hover:bg-fog px-2.5 py-1 rounded-full transition-all"
+                          className="py-2.5 sm:py-1 text-xs font-medium text-graphite border border-pebble hover:bg-fog px-2.5 py-1 rounded-full transition-all"
                         >
                           + Sub
                         </button>
@@ -172,14 +172,14 @@ export default function Categorias() {
                             setCategoriaParent(null)
                             setShowForm(true)
                           }}
-                          className="text-ash hover:text-ink transition-colors p-1"
+                          className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1 text-ash hover:text-ink transition-colors"
                           title="Editar"
                         >
                           <Pencil size={16} strokeWidth={2} />
                         </button>
                         <button
                           onClick={() => handleEliminar(cat.id)}
-                          className="text-ash hover:text-red-600 hover:bg-red-50 rounded-full transition-colors p-1"
+                          className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1 text-ash hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
                           title="Eliminar"
                         >
                           <Trash2 size={16} strokeWidth={2} />
@@ -227,7 +227,7 @@ export default function Categorias() {
                             </button>
                             <button
                               onClick={() => handleEliminar(sub.id)}
-                              className="text-ash hover:text-red-600 hover:bg-red-50 rounded-full transition-colors p-1 text-sm"
+                              className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1 text-sm text-ash hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
                               title="Eliminar"
                             >
                               <Trash2 size={14} strokeWidth={2} />

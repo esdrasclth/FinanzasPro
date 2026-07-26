@@ -337,12 +337,12 @@ export default function Deudas() {
                         <div className="flex items-center flex-shrink-0 gap-1">
                           <button
                             onClick={() => { setDeudaEditar(deuda); setShowForm(true) }}
-                            className="p-1.5 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist"
+                            className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1.5 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist"
                             title="Editar"
                           ><Pencil size={15} strokeWidth={2} /></button>
                           <button
                             onClick={() => handleEliminar(deuda.id)}
-                            className="p-1.5 transition-colors rounded-full text-ash hover:text-red-600 hover:bg-red-50"
+                            className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1.5 transition-colors rounded-full text-ash hover:text-red-600 hover:bg-red-50"
                             title="Eliminar"
                           ><Trash2 size={15} strokeWidth={2} /></button>
                         </div>
@@ -573,7 +573,7 @@ export default function Deudas() {
             {/* Consejo */}
             <div className="p-5 border rounded-card border-fog" style={{ background: 'linear-gradient(135deg, #f4f9f6 0%, #eef5f0 100%)' }}>
               <div className="flex items-center gap-2 mb-3">
-                <div className="flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-full bg-emerald-100">
+                <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 sm:w-8 sm:h-8 rounded-full bg-emerald-100">
                   <Lightbulb size={16} strokeWidth={2} className="text-emerald-700" />
                 </div>
                 <h3 className="text-sm font-semibold text-steel">Consejo financiero</h3>

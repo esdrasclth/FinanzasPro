@@ -249,7 +249,7 @@ export default function DashboardCliente({
           <div className="flex items-center justify-between h-16 px-3 border bg-snow border-fog rounded-2xl">
             <button
               onClick={() => setMesOffset(mesOffset - 1)}
-              className="flex items-center justify-center transition-all border rounded-full w-9 h-9 bg-snow border-fog text-graphite hover:bg-mist hover:text-ink"
+              className="flex items-center justify-center transition-all border rounded-full w-10 h-10 sm:w-9 sm:h-9 bg-snow border-fog text-graphite hover:bg-mist hover:text-ink"
               aria-label="Mes anterior"
             >
               <ChevronLeft size={18} strokeWidth={2} />
@@ -283,7 +283,7 @@ export default function DashboardCliente({
                 <div className="flex items-center justify-between mb-3">
                   <button
                     onClick={() => setPickerYear(y => y - 1)}
-                    className="flex items-center justify-center w-8 h-8 rounded-full text-graphite hover:bg-mist"
+                    className="flex items-center justify-center w-10 h-10 sm:w-8 sm:h-8 rounded-full text-graphite hover:bg-mist"
                     aria-label="Año anterior"
                   >
                     <ChevronLeft size={16} strokeWidth={2} />
@@ -394,7 +394,7 @@ export default function DashboardCliente({
             </div>
             <button
               onClick={() => router.push('/transacciones')}
-              className="inline-flex items-center gap-0.5 text-sm font-medium text-graphite transition-colors hover:text-ink"
+              className="inline-flex items-center gap-0.5 py-2 text-sm font-medium text-graphite transition-colors hover:text-ink"
             >
               Ver todas
               <ChevronRight size={16} strokeWidth={2} />

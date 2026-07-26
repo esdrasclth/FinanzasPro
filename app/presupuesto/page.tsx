@@ -566,7 +566,7 @@ export default function Presupuesto() {
                   <div className="fixed inset-0 z-20" onClick={() => setShowMesPicker(false)} />
                   <div className="absolute right-0 z-30 p-4 mt-2 border shadow-soft top-full w-72 bg-snow border-fog rounded-2xl">
                     <div className="flex items-center justify-between mb-3">
-                      <button onClick={() => setPickerYear(y => y - 1)} className="flex items-center justify-center w-8 h-8 rounded-full text-graphite hover:bg-mist" aria-label="Año anterior">
+                      <button onClick={() => setPickerYear(y => y - 1)} className="flex items-center justify-center w-10 h-10 sm:w-8 sm:h-8 rounded-full text-graphite hover:bg-mist" aria-label="Año anterior">
                         <ChevronLeft size={16} strokeWidth={2} />
                       </button>
                       <p className="font-semibold text-ink">{pickerYear}</p>
@@ -807,7 +807,7 @@ export default function Presupuesto() {
               {/* Consejo del mes */}
               <div className="p-5 border rounded-card border-fog" style={{ background: 'linear-gradient(135deg, #f4f9f6 0%, #eef5f0 100%)' }}>
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-full bg-emerald-100">
+                  <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 sm:w-8 sm:h-8 rounded-full bg-emerald-100">
                     <Lightbulb size={16} strokeWidth={2} className="text-emerald-700" />
                   </div>
                   <h3 className="text-sm font-semibold text-steel">Consejo del mes</h3>
@@ -1133,7 +1133,7 @@ function RowMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => voi
     <div className="relative">
       <button
         onClick={() => setOpen(v => !v)}
-        className="p-1.5 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist"
+        className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1.5 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist"
         title="Opciones"
       >
         <MoreHorizontal size={18} strokeWidth={2} />

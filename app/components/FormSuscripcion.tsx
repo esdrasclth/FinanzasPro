@@ -235,7 +235,7 @@ export default function FormSuscripcion({ suscripcion, onClose, onSuccess }: Pro
                   key={c}
                   type="button"
                   onClick={() => setColor(c)}
-                  className={`w-8 h-8 rounded-full transition-transform ${color === c ? 'ring-2 ring-offset-2 ring-obsidian scale-110' : 'hover:scale-110'}`}
+                  className={`w-10 h-10 sm:w-8 sm:h-8 rounded-full transition-transform ${color === c ? 'ring-2 ring-offset-2 ring-obsidian scale-110' : 'hover:scale-110'}`}
                   style={{ backgroundColor: c }}
                 />
               ))}

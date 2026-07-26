@@ -398,7 +398,7 @@ function GruposPanel({ router, accion, setAccion, tab, cambiarTab }: {
                 {actividad.map(a => (
                   <button key={a.id} onClick={() => router.push(`/grupos/${a.grupo_id}`)}
                     className="flex items-center w-full gap-3 px-2 py-2 -mx-2 text-left transition-colors rounded-xl hover:bg-mist">
-                    <span className="flex items-center justify-center flex-shrink-0 text-base rounded-full w-9 h-9" style={{ backgroundColor: a.grupo_color + '1a' }}>
+                    <span className="flex items-center justify-center flex-shrink-0 text-base rounded-full w-10 h-10 sm:w-9 sm:h-9" style={{ backgroundColor: a.grupo_color + '1a' }}>
                       {a.grupo_icono}
                     </span>
                     <div className="flex-1 min-w-0">
@@ -807,7 +807,7 @@ function ModalCrear({ onClose, onSuccess }: { onClose: () => void; onSuccess: (i
           <div className="flex flex-wrap gap-3">
             {COLORES.map(c => (
               <button key={c} type="button" onClick={() => setColor(c)}
-                className={`w-8 h-8 rounded-full transition-all ${color === c ? 'ring-2 ring-obsidian ring-offset-2 ring-offset-snow scale-110' : ''}`}
+                className={`w-10 h-10 sm:w-8 sm:h-8 rounded-full transition-all ${color === c ? 'ring-2 ring-obsidian ring-offset-2 ring-offset-snow scale-110' : ''}`}
                 style={{ backgroundColor: c }} />
             ))}
           </div>

@@ -9,9 +9,28 @@
 }
 
 html {
+  /* La app se diseñó a 80% para que quepa más en pantallas grandes. En un
+     teléfono eso deja el texto secundario en 9.6px, por debajo de lo legible,
+     así que la escala sube al acercarse al tamaño de un móvil. */
   font-size: 80%;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+}
+
+@media (max-width: 640px) {
+  html {
+    font-size: 93.75%; /* 15px de raíz: text-xs pasa de 9.6px a 11.25px */
+  }
+}
+
+/* Los campos por debajo de 16px hacen que iOS haga zoom automático al
+   enfocarlos y deje la pantalla descuadrada. */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
 html, body {

@@ -545,12 +545,12 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
                       )}
                       <button
                         onClick={() => setCarteraAjustar(cartera)}
-                        className="p-1.5 transition-colors rounded-full text-ash hover:text-amber-600 hover:bg-amber-50"
+                        className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1.5 transition-colors rounded-full text-ash hover:text-amber-600 hover:bg-amber-50"
                         title="Ajustar saldo"
                       ><Scale size={16} strokeWidth={2} /></button>
                       <button
                         onClick={() => handleArchivar(cartera)}
-                        className="p-1.5 transition-colors rounded-full text-ash hover:text-amber-600 hover:bg-amber-50"
+                        className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1.5 transition-colors rounded-full text-ash hover:text-amber-600 hover:bg-amber-50"
                         title="Archivar cartera"
                       ><Archive size={16} strokeWidth={2} /></button>
                     </div>
@@ -616,13 +616,13 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
                   <div className="flex items-center justify-between pt-3 mt-auto border-t border-fog">
                     <button
                       onClick={() => { setCarteraEditar(cartera); setShowForm(true) }}
-                      className="inline-flex items-center gap-1.5 text-sm font-medium transition-colors text-graphite hover:text-ink"
+                      className="inline-flex items-center gap-1.5 py-2 text-sm font-medium transition-colors text-graphite hover:text-ink"
                     >
                       <Pencil size={15} strokeWidth={2} /> Editar
                     </button>
                     <button
                       onClick={() => router.push(`/transacciones?cartera=${cartera.id}`)}
-                      className="inline-flex items-center gap-1 text-sm font-medium transition-colors text-graphite hover:text-ink"
+                      className="inline-flex items-center gap-1 py-2 text-sm font-medium transition-colors text-graphite hover:text-ink"
                     >
                       Ver movimientos <ChevronRight size={15} strokeWidth={2} />
                     </button>
@@ -689,7 +689,7 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
                       </button>
                       <button
                         onClick={() => handleEliminarDefinitivo(c)}
-                        className="p-1.5 transition-colors rounded-full text-ash hover:text-red-600 hover:bg-red-50"
+                        className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1.5 transition-colors rounded-full text-ash hover:text-red-600 hover:bg-red-50"
                         title="Eliminar definitivamente (solo si no tiene movimientos)"
                       >
                         <Trash2 size={15} strokeWidth={2} />
@@ -850,7 +850,7 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
           {/* Consejo financiero */}
           <div className="p-5 border rounded-card border-fog" style={{ background: 'linear-gradient(135deg, #f4f9f6 0%, #eef5f0 100%)' }}>
             <div className="flex items-center gap-2 mb-3">
-              <div className="flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-full bg-emerald-100">
+              <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 sm:w-8 sm:h-8 rounded-full bg-emerald-100">
                 <Lightbulb size={16} strokeWidth={2} className="text-emerald-700" />
               </div>
               <h3 className="text-sm font-semibold text-steel">Consejo financiero</h3>

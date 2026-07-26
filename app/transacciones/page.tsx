@@ -497,7 +497,7 @@ export default function Transacciones() {
               type="button"
               onClick={() => setBusquedaGlobal(v => !v)}
               title="Buscar en todos los meses, no solo en el seleccionado"
-              className={`inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors border rounded-full whitespace-nowrap ${
+              className={`inline-flex items-center justify-center gap-1.5 px-3 py-3 text-xs font-medium transition-colors border rounded-full whitespace-nowrap sm:py-2.5 ${
                 busquedaGlobal
                   ? 'bg-obsidian text-snow border-obsidian'
                   : 'bg-snow border-fog text-graphite hover:bg-mist'
@@ -541,14 +541,14 @@ export default function Transacciones() {
                 {filtradas.length > 0 && (
                   <button
                     onClick={seleccionarTodo}
-                    className="text-xs font-medium text-graphite hover:text-ink"
+                    className="py-2 text-xs font-medium text-graphite hover:text-ink"
                   >
                     {seleccion.size === filtradas.length ? 'Quitar selección' : 'Seleccionar todo'}
                   </button>
                 )}
               </div>
               {hayFiltros && (
-                <button onClick={limpiarFiltros} className="text-xs font-medium text-graphite hover:text-ink">
+                <button onClick={limpiarFiltros} className="py-2 text-xs font-medium text-graphite hover:text-ink">
                   Limpiar filtros
                 </button>
               )}
@@ -584,7 +584,7 @@ export default function Transacciones() {
                   </button>
                   <button
                     onClick={() => setSeleccion(new Set())}
-                    className="p-1.5 transition-colors rounded-full text-white/70 hover:text-snow hover:bg-white/10"
+                    className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1.5 transition-colors rounded-full text-white/70 hover:text-snow hover:bg-white/10"
                     aria-label="Cancelar selección"
                   >
                     <X size={15} strokeWidth={2} />
@@ -819,15 +819,18 @@ function FilaTransaccion({ t, formatMonto, seleccionada, onSeleccionar, onEdit, 
       }`}
     >
       {/* Selección para acciones en lote */}
-      <div className="flex-shrink-0 sm:col-span-1" onClick={e => e.stopPropagation()}>
+      <label
+        className="flex items-center justify-center flex-shrink-0 -my-2 cursor-pointer w-11 h-11 sm:col-span-1 sm:w-auto"
+        onClick={e => e.stopPropagation()}
+      >
         <input
           type="checkbox"
           checked={seleccionada}
           onChange={onSeleccionar}
           aria-label="Seleccionar movimiento"
-          className="w-4 h-4 cursor-pointer accent-obsidian"
+          className="w-5 h-5 cursor-pointer accent-obsidian"
         />
-      </div>
+      </label>
 
       {/* Fecha y hora */}
       <div className="hidden sm:block sm:col-span-2">
@@ -917,7 +920,7 @@ function MonthPicker({ value, onChange }: { value: string; onChange: (v: string)
     <div className="relative">
       <button
         onClick={abrir}
-        className="inline-flex items-center w-full gap-2 py-2.5 pl-3.5 pr-3 text-sm font-medium transition-colors border rounded-full lg:w-auto bg-snow border-fog text-graphite hover:bg-mist"
+        className="inline-flex items-center w-full gap-2 py-3 pl-3.5 pr-3 text-sm font-medium sm:py-2.5 transition-colors border rounded-full lg:w-auto bg-snow border-fog text-graphite hover:bg-mist"
       >
         <Calendar size={15} strokeWidth={2} className="text-steel" />
         <span className="capitalize">{label}</span>
@@ -928,7 +931,7 @@ function MonthPicker({ value, onChange }: { value: string; onChange: (v: string)
           <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
           <div className="absolute left-0 z-30 p-4 mt-2 border shadow-soft top-full w-72 bg-snow border-fog rounded-2xl">
             <div className="flex items-center justify-between mb-3">
-              <button onClick={() => setPickerYear(y => y - 1)} className="flex items-center justify-center w-8 h-8 rounded-full text-graphite hover:bg-mist" aria-label="Año anterior">
+              <button onClick={() => setPickerYear(y => y - 1)} className="flex items-center justify-center w-10 h-10 sm:w-8 sm:h-8 rounded-full text-graphite hover:bg-mist" aria-label="Año anterior">
                 <ChevronLeft size={16} strokeWidth={2} />
               </button>
               <p className="font-semibold text-ink">{pickerYear}</p>
@@ -973,7 +976,7 @@ function FiltroMenu({ icon: Icon, value, onChange, options }: {
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className="inline-flex items-center justify-between w-full gap-2 py-2.5 pl-3.5 pr-2.5 text-sm font-medium transition-colors border rounded-full lg:w-auto lg:justify-start bg-snow border-fog text-graphite hover:bg-mist"
+        className="inline-flex items-center justify-between w-full gap-2 py-3 pl-3.5 pr-2.5 text-sm font-medium sm:py-2.5 transition-colors border rounded-full lg:w-auto lg:justify-start bg-snow border-fog text-graphite hover:bg-mist"
       >
         {Icon && <Icon size={15} strokeWidth={2} className="flex-shrink-0 text-steel" />}
         <span className="truncate max-w-[12rem]">{label}</span>
@@ -988,7 +991,7 @@ function FiltroMenu({ icon: Icon, value, onChange, options }: {
                 key={o.value}
                 type="button"
                 onClick={() => { onChange(o.value); setOpen(false) }}
-                className={`block w-full px-3 py-1.5 text-sm text-left truncate transition-colors hover:bg-mist ${value === o.value ? 'text-ink font-medium' : 'text-steel'}`}
+                className={`block w-full px-3 py-2.5 text-sm text-left truncate transition-colors hover:bg-mist ${value === o.value ? 'text-ink font-medium' : 'text-steel'}`}
               >
                 {o.label}
               </button>
@@ -1010,7 +1013,7 @@ function RowMenu({ onEdit, onDelete, onDuplicate }: {
     <div className="relative">
       <button
         onClick={() => setOpen(v => !v)}
-        className="p-2 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist"
+        className="flex items-center justify-center w-11 h-11 -my-2 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist"
         title="Opciones"
         aria-label="Opciones del movimiento"
       >

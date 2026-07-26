@@ -257,7 +257,7 @@ export default function DeudaDetalle() {
                 <div key={p.id} className="relative flex items-start gap-4 pb-5 last:pb-0">
                   {/* Línea de tiempo */}
                   {i < pagos.length - 1 && <span className="absolute left-[15px] top-8 bottom-0 w-px bg-fog" />}
-                  <div className="flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-full" style={{ backgroundColor: acento + '15', color: acento }}>
+                  <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 sm:w-8 sm:h-8 rounded-full" style={{ backgroundColor: acento + '15', color: acento }}>
                     <CreditCard size={15} strokeWidth={2} />
                   </div>
                   <div className="flex items-start justify-between flex-1 min-w-0">

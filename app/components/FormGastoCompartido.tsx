@@ -199,7 +199,7 @@ export default function FormGastoCompartido({ grupoId, moneda, miembros, yo, gas
             <div className="grid grid-cols-3 gap-2 p-1 bg-mist rounded-full">
               {([['igual', 'Igual'], ['exacto', 'Exacto'], ['porcentaje', '%']] as [Metodo, string][]).map(([val, lbl]) => (
                 <button key={val} type="button" onClick={() => setMetodo(val)}
-                  className={`py-2 rounded-full text-sm font-medium transition-all ${metodo === val ? 'bg-obsidian text-snow' : 'text-steel hover:text-ink'}`}>
+                  className={`py-2.5 rounded-full text-sm font-medium sm:py-2 transition-all ${metodo === val ? 'bg-obsidian text-snow' : 'text-steel hover:text-ink'}`}>
                   {lbl}
                 </button>
               ))}
