@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import AppLayout from '../components/AppLayout'
+import { Encabezado, Hero } from '../components/Encabezado'
+import { Wallet as WalletIcon, Coins } from 'lucide-react'
 import { Trash2, ArrowLeftRight, Wallet, Tag, Target, Handshake } from 'lucide-react'
 
 export default function Perfil() {
@@ -114,7 +116,7 @@ export default function Perfil() {
 
   if (loading) {
     return (
-      <AppLayout>
+      <AppLayout usuario={perfil}>
         <div className="flex items-center justify-center h-96">
           <p className="text-steel animate-pulse">Cargando...</p>
         </div>
@@ -123,16 +125,36 @@ export default function Perfil() {
   }
 
   return (
-    <AppLayout>
+    <AppLayout usuario={perfil}>
       <div className="max-w-[1728px] p-4 mx-auto sm:p-6 lg:p-8">
 
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-obsidian">Perfil y Configuración</h1>
-          <p className="mt-1 text-sm text-steel">
-            Personaliza tu cuenta y preferencias
-          </p>
-        </div>
+        <Encabezado seccion="Configuración" titulo="Tu cuenta y preferencias" />
+
+        <Hero
+          titulo={perfil?.nombre || 'Tu cuenta'}
+          subtitulo={usuario?.email}
+          metricas={[
+            {
+              icon: ArrowLeftRight,
+              label: 'Movimientos',
+              valor: String(statsCuenta?.transacciones ?? 0),
+              nota: <span className="text-white/50">registrados</span>,
+            },
+            {
+              icon: WalletIcon,
+              label: 'Carteras',
+              valor: String(statsCuenta?.carteras ?? 0),
+              nota: <span className="text-white/50">activas</span>,
+            },
+            {
+              icon: Coins,
+              label: 'Moneda',
+              valor: moneda,
+              nota: <span className="text-white/50">principal</span>,
+            },
+          ]}
+        />
+
 
         {/* Avatar y email */}
         <div className="p-6 mb-6 border bg-snow border-fog rounded-card">

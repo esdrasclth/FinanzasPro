@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import AppLayout from '../components/AppLayout'
+import { Encabezado, Hero } from '../components/Encabezado'
+import { FileText, TrendingUp, TrendingDown } from 'lucide-react'
 import { useMoneda } from '../lib/moneda-context'
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -119,6 +121,17 @@ export default function ExportarCliente({ usuario, mesInicial, transaccionesInic
     return `${MESES[parseInt(m) - 1]} ${anio}`
   }
 
+  // Resumen de lo seleccionado, para saber qué se llevará el archivo.
+  const formatoSimple = (n: number) =>
+    new Intl.NumberFormat('es-HN', { minimumFractionDigits: 2 }).format(n)
+  const totalIngresosExp = filtradas
+    .filter((t: any) => t.tipo === 'ingreso')
+    .reduce((s: number, t: any) => s + Number(t.monto), 0)
+  const totalGastosExp = filtradas
+    .filter((t: any) => t.tipo === 'gasto')
+    .reduce((s: number, t: any) => s + Number(t.monto), 0)
+  const etiquetaMes = `${MESES[parseInt(mes.slice(5, 7)) - 1]} ${mes.slice(0, 4)}`
+
   const sinResultados = filtradas.length === 0
   const exportDisabled = loadingData || sinResultados
 
@@ -126,13 +139,32 @@ export default function ExportarCliente({ usuario, mesInicial, transaccionesInic
     <AppLayout usuario={usuario}>
       <div className="max-w-[1728px] p-4 mx-auto sm:p-6 lg:p-8">
 
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-obsidian">Exportar datos</h1>
-          <p className="mt-1 text-sm text-steel">
-            Descarga tus transacciones en Excel o PDF — gratis, sin límites
-          </p>
-        </div>
+        <Encabezado seccion="Exportar" titulo="Descarga tus datos" />
+
+        <Hero
+          titulo="Lo que se va a exportar"
+          subtitulo={etiquetaMes}
+          metricas={[
+            {
+              icon: FileText,
+              label: 'Movimientos',
+              valor: String(filtradas.length),
+              nota: <span className="text-white/50">{filtradas.length === 1 ? 'registro' : 'registros'}</span>,
+            },
+            {
+              icon: TrendingUp,
+              label: 'Ingresos',
+              valor: `${simbolo} ${formatoSimple(totalIngresosExp)}`,
+              nota: <span className="text-emerald-300">en la selección</span>,
+            },
+            {
+              icon: TrendingDown,
+              label: 'Gastos',
+              valor: `${simbolo} ${formatoSimple(totalGastosExp)}`,
+              nota: <span className="text-red-300">en la selección</span>,
+            },
+          ]}
+        />
 
         {/* Selector de mes */}
         <div className="p-6 mb-6 border bg-snow border-fog rounded-card">

@@ -4,6 +4,8 @@ import { useEffect, useState, useRef } from 'react'
 import AppLayout from '../components/AppLayout'
 import { SkeletonChart, SkeletonList } from '../components/Skeleton'
 import { useMoneda } from '../lib/moneda-context'
+import { Encabezado, Hero } from '../components/Encabezado'
+import { TrendingUp, TrendingDown, PiggyBank, Scale } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, PieChart, Pie, Cell, LineChart, Line, Legend
@@ -148,63 +150,66 @@ export default function ReportesCliente({ usuario, transaccionesIniciales }: Pro
     <AppLayout usuario={usuario}>
       <div className="max-w-[1728px] p-4 mx-auto sm:p-6 lg:p-8">
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-obsidian">Reportes</h1>
-            <p className="mt-1 text-sm text-steel">Análisis de tus finanzas</p>
-          </div>
+        <Encabezado
+          seccion="Reportes"
+          titulo="Análisis de tus finanzas"
+          acciones={
+            <div className="flex p-1 border bg-snow border-fog rounded-full">
+              {[
+                { valor: '1', label: '1M' },
+                { valor: '3', label: '3M' },
+                { valor: '6', label: '6M' },
+                { valor: '12', label: '1A' },
+              ].map(op => (
+                <button
+                  key={op.valor}
+                  onClick={() => setPeriodo(op.valor)}
+                  className={`px-3 sm:px-4 py-2.5 rounded-full text-sm font-medium sm:py-2 transition-all ${periodo === op.valor
+                    ? 'bg-obsidian text-snow shadow-pill'
+                    : 'text-steel hover:text-ink'
+                    }`}
+                >
+                  {op.label}
+                </button>
+              ))}
+            </div>
+          }
+        />
 
-          {/* Selector de período */}
-          <div className="flex p-1 border bg-snow border-fog rounded-full">
-            {[
-              { valor: '1', label: '1M' },
-              { valor: '3', label: '3M' },
-              { valor: '6', label: '6M' },
-              { valor: '12', label: '1A' },
-            ].map(op => (
-              <button
-                key={op.valor}
-                onClick={() => setPeriodo(op.valor)}
-                className={`px-4 py-2.5 rounded-full text-sm font-medium sm:py-2 transition-all ${periodo === op.valor
-                  ? 'bg-obsidian text-snow shadow-pill'
-                  : 'text-steel hover:text-ink'
-                  }`}
-              >
-                {op.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* KPIs */}
-        <div className="grid grid-cols-2 gap-4 mb-8 lg:grid-cols-4">
-          <div className="p-5 border bg-snow border-fog rounded-card">
-            <p className="mb-2 text-xs font-medium text-steel">Total ingresos</p>
-            <p className="text-xl font-bold text-emerald-600">
-              {simbolo} {formatMonto(totalIngresos)}
-            </p>
-          </div>
-          <div className="p-5 border bg-snow border-fog rounded-card">
-            <p className="mb-2 text-xs font-medium text-steel">Total gastos</p>
-            <p className="text-xl font-bold text-red-500">
-              {simbolo} {formatMonto(totalGastos)}
-            </p>
-          </div>
-          <div className="p-5 border bg-snow border-fog rounded-card">
-            <p className="mb-2 text-xs font-medium text-steel">Tasa de ahorro</p>
-            <p className={`text-xl font-bold ${parseFloat(tasaAhorro) >= 0 ? 'text-emerald-600' : 'text-red-500'
-              }`}>
-              {tasaAhorro}%
-            </p>
-          </div>
-          <div className="p-5 border bg-snow border-fog rounded-card">
-            <p className="mb-2 text-xs font-medium text-steel">Gasto promedio/mes</p>
-            <p className="text-xl font-bold text-obsidian">
-              {simbolo} {formatMonto(promedioGastoMensual)}
-            </p>
-          </div>
-        </div>
+        <Hero
+          titulo="Resumen del periodo"
+          subtitulo={`Últimos ${periodo === '12' ? '12' : periodo} ${periodo === '1' ? 'mes' : 'meses'}`}
+          metricas={[
+            {
+              icon: TrendingUp,
+              label: 'Total ingresos',
+              valor: `${simbolo} ${formatMonto(totalIngresos)}`,
+              nota: <span className="text-emerald-300">Recibido en el periodo</span>,
+            },
+            {
+              icon: TrendingDown,
+              label: 'Total gastos',
+              valor: `${simbolo} ${formatMonto(totalGastos)}`,
+              nota: <span className="text-red-300">Gastado en el periodo</span>,
+            },
+            {
+              icon: PiggyBank,
+              label: 'Tasa de ahorro',
+              valor: `${tasaAhorro}%`,
+              nota: (
+                <span className={parseFloat(tasaAhorro) >= 0 ? 'text-emerald-300' : 'text-red-300'}>
+                  {parseFloat(tasaAhorro) >= 0 ? 'Estás ahorrando' : 'Gastas más de lo que entra'}
+                </span>
+              ),
+            },
+            {
+              icon: Scale,
+              label: 'Gasto promedio',
+              valor: `${simbolo} ${formatMonto(promedioGastoMensual)}`,
+              nota: <span className="text-white/50">por mes</span>,
+            },
+          ]}
+        />
 
         {/* Evolución mensual */}
         <div className="p-6 mb-6 border bg-snow border-fog rounded-card-lg">

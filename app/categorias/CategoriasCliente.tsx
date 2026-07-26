@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import AppLayout from '../components/AppLayout'
+import { Encabezado, Hero } from '../components/Encabezado'
 import FormCategoria from '../components/FormCategoria'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2, Tag, TrendingUp, TrendingDown } from 'lucide-react'
 
 interface Props {
   usuario: any
@@ -62,6 +63,8 @@ export default function CategoriasCliente({ usuario, categoriasIniciales }: Prop
   }
 
   // Categorías principales (sin parent)
+  const principalesTodas = categorias.filter(c => !c.parent_id).length
+
   const principales = categorias.filter(
     c => !c.parent_id && c.tipo === filtroTipo
   )
@@ -84,13 +87,32 @@ export default function CategoriasCliente({ usuario, categoriasIniciales }: Prop
     <AppLayout usuario={usuario}>
       <div className="p-4 sm:p-6 lg:p-8 max-w-[1728px] mx-auto">
 
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-obsidian">Categorías</h1>
-          <p className="text-steel mt-1 text-sm">
-            Organiza tus transacciones con categorías y subcategorías personalizadas
-          </p>
-        </div>
+        <Encabezado seccion="Categorías" titulo="Organiza tus movimientos" />
+
+        <Hero
+          titulo="Tus categorías"
+          subtitulo="Gasto e ingreso, con sus subcategorías"
+          metricas={[
+            {
+              icon: Tag,
+              label: 'En total',
+              valor: String(categorias.length),
+              nota: <span className="text-white/50">{principalesTodas} principales</span>,
+            },
+            {
+              icon: TrendingDown,
+              label: 'De gasto',
+              valor: String(categorias.filter(c => c.tipo === 'gasto').length),
+              nota: <span className="text-red-300">para clasificar salidas</span>,
+            },
+            {
+              icon: TrendingUp,
+              label: 'De ingreso',
+              valor: String(categorias.filter(c => c.tipo === 'ingreso').length),
+              nota: <span className="text-emerald-300">para clasificar entradas</span>,
+            },
+          ]}
+        />
 
         {/* Tabs Gasto / Ingreso */}
         <div className="flex bg-snow border border-fog rounded-full p-1 mb-6 w-fit">
