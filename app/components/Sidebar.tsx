@@ -15,32 +15,40 @@ interface NavItem {
   label: string
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { href: '/dashboard', Icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/transacciones', Icon: ArrowLeftRight, label: 'Movimientos' },
-  { href: '/presupuesto', Icon: Target, label: 'Presupuestos' },
-  { href: '/carteras', Icon: Wallet, label: 'Carteras' },
+// Orden por frecuencia de uso: primero el día a día, luego lo que se planifica,
+// después el análisis y al final la configuración.
+// `enBarra` marca las cuatro que salen en la barra inferior del móvil; el resto
+// se agrupan bajo "Más". Antes eran dos listas sueltas que podían desincronizarse
+// y dejar una pantalla sin acceso desde el teléfono.
+const NAV_ITEMS: (NavItem & { enBarra?: boolean })[] = [
+  { href: '/dashboard', Icon: LayoutDashboard, label: 'Dashboard', enBarra: true },
+  { href: '/transacciones', Icon: ArrowLeftRight, label: 'Movimientos', enBarra: true },
+  { href: '/carteras', Icon: Wallet, label: 'Carteras', enBarra: true },
+  { href: '/presupuesto', Icon: Target, label: 'Presupuestos', enBarra: true },
+  { href: '/deudas', Icon: Handshake, label: 'Deudas' },
+  { href: '/suscripciones', Icon: RefreshCw, label: 'Recurrentes' },
   { href: '/grupos', Icon: Users, label: 'Compartidos' },
+  { href: '/reportes', Icon: BarChart3, label: 'Reportes' },
   { href: '/categorias', Icon: Tag, label: 'Categorías' },
   { href: '/exportar', Icon: Download, label: 'Exportar' },
-  { href: '/deudas', Icon: Handshake, label: 'Deudas' },
-  { href: '/suscripciones', Icon: RefreshCw, label: 'Suscripciones' },
-  { href: '/reportes', Icon: BarChart3, label: 'Reportes' },
   { href: '/perfil', Icon: Settings, label: 'Configuración' },
 ]
+
+// Etiquetas cortas para la barra inferior, donde no cabe el nombre completo.
+const LABEL_BARRA: Record<string, string> = {
+  '/dashboard': 'Inicio',
+  '/transacciones': 'Movimientos',
+  '/carteras': 'Carteras',
+  '/presupuesto': 'Presupuesto',
+}
+
+const ITEMS_BARRA = NAV_ITEMS.filter(i => i.enBarra)
+const ITEMS_MAS = NAV_ITEMS.filter(i => !i.enBarra)
 
 function MasMenu({ pathname, router }: { pathname: string, router: any }) {
   const [abierto, setAbierto] = useState(false)
 
-  const MAS_ITEMS: NavItem[] = [
-    { href: '/grupos', Icon: Users, label: 'Compartidos' },
-    { href: '/categorias', Icon: Tag, label: 'Categorías' },
-    { href: '/deudas', Icon: Handshake, label: 'Deudas' },
-    { href: '/suscripciones', Icon: RefreshCw, label: 'Suscripciones' },
-    { href: '/reportes', Icon: BarChart3, label: 'Reportes' },
-    { href: '/exportar', Icon: Download, label: 'Exportar' },
-    { href: '/perfil', Icon: Settings, label: 'Configuración' },
-  ]
+  const MAS_ITEMS = ITEMS_MAS
 
   const algunoActivo = MAS_ITEMS.some(i => i.href === pathname)
 
@@ -159,22 +167,18 @@ export default function Sidebar({ usuario }: { usuario: any }) {
       {/* Bottom Nav Mobile */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t lg:hidden bg-snow/90 backdrop-blur border-fog pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center">
-          {([
-            { href: '/dashboard', Icon: LayoutDashboard, label: 'Inicio' },
-            { href: '/transacciones', Icon: ArrowLeftRight, label: 'Movimientos' },
-            { href: '/presupuesto', Icon: Target, label: 'Presupuesto' },
-            { href: '/carteras', Icon: Wallet, label: 'Carteras' },
-          ] as NavItem[]).map(({ href, Icon, label }) => {
+          {ITEMS_BARRA.map(({ href, Icon }) => {
             const activo = pathname === href
             return (
               <button
                 key={href}
                 onClick={() => router.push(href)}
-                className={`flex-1 flex flex-col items-center gap-0.5 py-3 text-xs transition-all ${activo ? 'text-obsidian' : 'text-steel'
+                aria-label={LABEL_BARRA[href] || href}
+                className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs transition-all ${activo ? 'text-obsidian' : 'text-steel'
                   }`}
               >
                 <Icon size={22} strokeWidth={2} className={`transition-transform ${activo ? 'scale-110' : ''}`} />
-                <span className="text-[10px]">{label}</span>
+                <span className="text-[10px] leading-tight">{LABEL_BARRA[href]}</span>
                 {activo && <div className="w-1 h-1 bg-obsidian rounded-full" />}
               </button>
             )

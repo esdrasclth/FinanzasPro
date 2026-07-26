@@ -61,6 +61,8 @@ export default function Transacciones() {
   // Selección múltiple para acciones en lote.
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
   const [enLote, setEnLote] = useState(false)
+  // Pestaña visible en móvil: la lista o el panel de análisis.
+  const [vistaMovil, setVistaMovil] = useState<'lista' | 'analisis'>('lista')
 
   useEffect(() => {
     const checkUser = async () => {
@@ -527,10 +529,30 @@ export default function Transacciones() {
           </div>
         )}
 
+        {/* En móvil la columna de análisis caía debajo de toda la lista, así que
+            la pantalla medía más de tres pantallazos. Se separan en pestañas;
+            desde lg vuelven a convivir en dos columnas. */}
+        <div className="grid grid-cols-2 gap-1 p-1 mb-4 bg-mist rounded-full lg:hidden">
+          {([
+            { id: 'lista', label: `Movimientos (${filtradas.length})` },
+            { id: 'analisis', label: 'Análisis' },
+          ] as const).map(t => (
+            <button
+              key={t.id}
+              onClick={() => setVistaMovil(t.id)}
+              className={`py-2.5 rounded-full text-xs font-medium transition-all ${
+                vistaMovil === t.id ? 'bg-snow text-ink shadow-soft' : 'text-steel'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
 
           {/* Columna izquierda: tabla de movimientos */}
-          <div className="lg:col-span-2">
+          <div className={`lg:col-span-2 ${vistaMovil === "lista" ? "" : "hidden lg:block"}`}>
 
             {/* Contador + limpiar */}
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
@@ -633,7 +655,7 @@ export default function Transacciones() {
           </div>
 
           {/* Columna derecha: gráficos e información */}
-          <div className="space-y-6 lg:col-span-1">
+          <div className={`space-y-6 lg:col-span-1 ${vistaMovil === "analisis" ? "" : "hidden lg:block"}`}>
 
             {/* Balance del mes */}
             <div className="p-5 border bg-snow border-fog rounded-card">
