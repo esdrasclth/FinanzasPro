@@ -1,6 +1,7 @@
 // Lógica compartida de gastos compartidos: validación, reflejo en carteras y borrado.
 // Reutilizada por la creación (POST) y la edición (PUT) para mantener una sola fuente de verdad.
 import { calcularDivisiones, round2, DivisionCalculada, DivisionInput } from './dinero'
+import { montoParaCartera } from './tipoCambio-server'
 
 const toDate = (s: string) => new Date(`${String(s).slice(0, 10)}T00:00:00.000Z`)
 
@@ -89,9 +90,11 @@ export async function escribirPagosYDivisiones(
     pagos: PagoInput[]
     asignados: DivisionCalculada[]
     actingUserId: string
+    monedaGrupo: string
+    tasa: number | null
   }
 ) {
-  const { gastoId, grupoNombre, descripcion, categoryId, fecha, pagos, asignados, actingUserId } = opts
+  const { gastoId, grupoNombre, descripcion, categoryId, fecha, pagos, asignados, actingUserId, monedaGrupo, tasa } = opts
 
   for (const p of pagos) {
     const monto = round2(Number(p.monto) || 0)
@@ -105,12 +108,18 @@ export async function escribirPagosYDivisiones(
       wallet = await tx.wallets.findFirst({ where: { user_id: p.user_id, activo: true }, orderBy: { created_at: 'asc' } })
     }
     if (wallet) {
+      // El gasto está en la moneda del grupo, pero el dinero sale de la cartera
+      // en la moneda de la cartera.
+      const enCartera = montoParaCartera(monto, monedaGrupo, wallet.moneda, tasa)
       const trans = await tx.transactions.create({
         data: {
           user_id: p.user_id,
           wallet_id: wallet.id,
           category_id: categoryId,
-          monto,
+          monto: enCartera.monto,
+          moneda: enCartera.moneda,
+          monto_original: enCartera.monto_original,
+          tasa_cambio: enCartera.tasa_cambio,
           tipo: 'gasto',
           descripcion: `${grupoNombre}: ${descripcion}`,
           fecha,

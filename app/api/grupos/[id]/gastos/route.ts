@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '../../../../lib/prisma'
 import { requireMiembro, nombresDeUsuarios } from '../../../../lib/grupos-server'
 import { prepararGasto, escribirPagosYDivisiones } from '../../../../lib/gastos-server'
+import { tasaVigente } from '../../../../lib/tipoCambio-server'
 
 // GET /api/grupos/[id]/gastos?mes=&anio=
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -81,6 +82,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!prep.ok) return NextResponse.json({ error: prep.error }, { status: prep.status })
   const d = prep.data
 
+  // Una sola lectura de la tasa para todas las carteras que refleja el gasto.
+  const tasa = await tasaVigente(auth.ctx.user.id)
+
   const resultado = await prisma.$transaction(async (tx) => {
     const gasto = await tx.gastos_compartidos.create({
       data: {
@@ -105,6 +109,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       pagos: d.pagos,
       asignados: d.asignados,
       actingUserId: auth.ctx.user.id,
+      monedaGrupo: grupo.moneda,
+      tasa,
     })
 
     return gasto

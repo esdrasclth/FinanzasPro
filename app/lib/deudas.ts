@@ -1,19 +1,18 @@
 import { supabase } from './supabase'
 
-// Registra un abono a una deuda de forma consistente:
-//  1. inserta el pago en debt_payments
-//  2. actualiza monto_pagado / completada en la deuda
-//  3. crea la transacción de gasto ligada a la deuda (debt_id) con la
-//     categoría indicada (para que cuente en su presupuesto)
-// Usado tanto por la pantalla de Deudas (FormAbono) como por el flujo de
-// "Nueva transacción" (FormTransaccion).
+// Registra un abono a una deuda: el pago en debt_payments, el avance de la
+// deuda y la transacción de gasto ligada (debt_id) con la categoría indicada,
+// para que cuente en su presupuesto.
+//
+// La escritura vive en POST /api/deudas/[id]/abonos, envuelta en una
+// transacción de base de datos. Aquí solo se hace la llamada: orquestar los
+// tres pasos desde el navegador dejaba la deuda descuadrada si uno fallaba.
+//
+// Usado por la pantalla de Deudas (FormAbono) y por "Nueva transacción"
+// (FormTransaccion).
 
 export interface AbonoParams {
-  userId: string
   deudaId: string
-  nombreDeuda: string
-  montoPagadoActual: number
-  montoTotal: number
   walletId: string
   monto: number
   fecha: string
@@ -24,38 +23,28 @@ export interface AbonoParams {
 }
 
 export async function abonarDeuda(p: AbonoParams): Promise<{ error?: string }> {
-  const { error: e1 } = await supabase.from('debt_payments').insert({
-    debt_id: p.deudaId,
-    user_id: p.userId,
-    wallet_id: p.walletId,
-    monto: p.monto,
-    fecha: p.fecha,
-    nota: p.nota || '',
-  })
-  if (e1) return { error: 'Error al registrar el abono' }
-
-  const nuevoPagado = Number(p.montoPagadoActual) + p.monto
-  const completada = nuevoPagado >= Number(p.montoTotal)
-  await supabase.from('debts').update({
-    monto_pagado: nuevoPagado,
-    completada,
-  }).eq('id', p.deudaId)
-
-  const { error: e3 } = await supabase.from('transactions').insert({
-    user_id: p.userId,
-    wallet_id: p.walletId,
-    category_id: p.categoryId || null,
-    debt_id: p.deudaId,
-    monto: p.monto,
-    moneda: p.moneda,
-    tipo: 'gasto',
-    descripcion:
-      p.descripcion || `Abono: ${p.nombreDeuda}${p.nota ? ' — ' + p.nota : ''}`,
-    fecha: p.fecha,
-  })
-  if (e3) return { error: 'Error al registrar la transacción' }
-
-  return {}
+  try {
+    const res = await fetch(`/api/deudas/${p.deudaId}/abonos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        monto: p.monto,
+        wallet_id: p.walletId,
+        fecha: p.fecha,
+        nota: p.nota,
+        category_id: p.categoryId || null,
+        moneda: p.moneda,
+        descripcion: p.descripcion,
+      }),
+    })
+    const json = await res.json().catch(() => null)
+    if (!res.ok) {
+      return { error: json?.error?.message || 'Error al registrar el abono' }
+    }
+    return {}
+  } catch {
+    return { error: 'Error de red al registrar el abono' }
+  }
 }
 
 // ---- Categoría "Deudas" y subcategorías por deuda ----

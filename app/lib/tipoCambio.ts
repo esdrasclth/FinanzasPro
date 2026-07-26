@@ -59,3 +59,18 @@ export function convertir(
   if (origen === 'HNL' && destino === 'USD') return round2(monto / tasaHnlPorUsd)
   return round2(monto)
 }
+
+// Convierte un monto a la moneda principal para reportes/totales.
+// Sin tasa disponible (o par no soportado) devuelve el monto a valor nominal.
+// `monedaOrigen` nula se asume HNL (transacciones previas a multimoneda).
+export function aMonedaPrincipal(
+  monto: number,
+  monedaOrigen: string | null | undefined,
+  monedaPrincipal: string,
+  tasaHnlPorUsd: number | null
+): number {
+  const origen = monedaOrigen || 'HNL'
+  if (origen === monedaPrincipal) return monto
+  if (!tasaHnlPorUsd || tasaHnlPorUsd <= 0) return monto
+  return convertir(monto, origen, monedaPrincipal, tasaHnlPorUsd)
+}

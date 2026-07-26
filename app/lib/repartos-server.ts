@@ -74,11 +74,17 @@ export function prepararReparto(body: any): PrepOk | PrepErr {
   }
 }
 
-// Verifica que una cartera pertenezca al usuario. Devuelve el id si es válida, o null.
-export async function walletDeUsuario(userId: string, walletId: string | null | undefined): Promise<string | null> {
+// Verifica que una cartera pertenezca al usuario. Devuelve id y moneda (la
+// moneda hace falta para reflejar el reparto en la moneda de la cartera), o null.
+export async function walletDeUsuario(
+  userId: string,
+  walletId: string | null | undefined
+): Promise<{ id: string; moneda: string } | null> {
   if (!walletId) return null
-  const w = await prisma.wallets.findFirst({ where: { id: walletId, user_id: userId }, select: { id: true } })
-  return w ? w.id : null
+  return prisma.wallets.findFirst({
+    where: { id: walletId, user_id: userId },
+    select: { id: true, moneda: true },
+  })
 }
 
 type AuthOk = { ok: true; userId: string; reparto: { id: string; user_id: string } }

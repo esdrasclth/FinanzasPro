@@ -12,6 +12,7 @@ import {
   crearSubcategoriaDeuda,
 } from '../../lib/deudas'
 import { calcularDeuda, ESTADO_META, type EstadoDeuda } from '../../lib/deudaCalculos'
+import { useMoneda } from '../../lib/moneda-context'
 import {
   ArrowLeft, Pencil, Trash2, CreditCard, Check, RotateCcw,
   ArrowUpCircle, ArrowDownCircle, Percent, CalendarClock, Coins,
@@ -65,6 +66,7 @@ export default function DeudaDetalle() {
     setLoading(false)
   }
 
+  const { simbolo } = useMoneda()
   const formatMonto = (n: number) =>
     new Intl.NumberFormat('es-HN', { minimumFractionDigits: 2 }).format(n)
 
@@ -170,16 +172,16 @@ export default function DeudaDetalle() {
             </div>
 
             <p className="text-sm text-white/60">Saldo pendiente</p>
-            <p className="text-3xl font-bold">L {formatMonto(c.saldoPrincipal)}</p>
+            <p className="text-3xl font-bold">{simbolo} {formatMonto(c.saldoPrincipal)}</p>
             {c.interesAcumulado > 0 && (
-              <p className="mt-1 text-sm text-amber-200">+ L {formatMonto(c.interesAcumulado)} interés · saldo total L {formatMonto(c.saldoTotal)}</p>
+              <p className="mt-1 text-sm text-amber-200">+ {simbolo} {formatMonto(c.interesAcumulado)} interés · saldo total {simbolo} {formatMonto(c.saldoTotal)}</p>
             )}
 
             {/* Progreso */}
             <div className="w-full h-2 mt-4 rounded-full bg-white/15">
               <div className="h-2 transition-all duration-500 rounded-full bg-emerald-400" style={{ width: `${c.porcentajePagado}%` }} />
             </div>
-            <p className="mt-1.5 text-xs text-white/60">{Math.round(c.porcentajePagado)}% pagado · L {formatMonto(c.pagado)} de L {formatMonto(c.principal)}</p>
+            <p className="mt-1.5 text-xs text-white/60">{Math.round(c.porcentajePagado)}% pagado · {simbolo} {formatMonto(c.pagado)} de {simbolo} {formatMonto(c.principal)}</p>
 
             {/* Acciones */}
             <div className="flex flex-wrap gap-2 mt-6">
@@ -203,12 +205,12 @@ export default function DeudaDetalle() {
 
         {/* Métricas calculadas */}
         <div className="grid grid-cols-2 gap-4 mb-6 sm:grid-cols-4">
-          <Metrica icon={Coins} label="Saldo restante" valor={`L ${formatMonto(c.saldoPrincipal)}`} color={esDebo ? 'text-red-500' : 'text-emerald-600'} />
-          <Metrica icon={TrendingUp} label="Interés acumulado" valor={c.tasaMensual > 0 ? `L ${formatMonto(c.interesAcumulado)}` : '—'} color="text-amber-600" />
+          <Metrica icon={Coins} label="Saldo restante" valor={`${simbolo} ${formatMonto(c.saldoPrincipal)}`} color={esDebo ? 'text-red-500' : 'text-emerald-600'} />
+          <Metrica icon={TrendingUp} label="Interés acumulado" valor={c.tasaMensual > 0 ? `${simbolo} ${formatMonto(c.interesAcumulado)}` : '—'} color="text-amber-600" />
           <Metrica
             icon={CalendarClock}
             label="Próximo pago"
-            valor={c.proximoPagoMonto ? `L ${formatMonto(c.proximoPagoMonto)}` : '—'}
+            valor={c.proximoPagoMonto ? `${simbolo} ${formatMonto(c.proximoPagoMonto)}` : '—'}
             sub={c.proximoPagoFecha ? formatFecha(c.proximoPagoFecha) : undefined}
           />
           <Metrica
@@ -223,9 +225,9 @@ export default function DeudaDetalle() {
         <div className="p-6 mb-6 border bg-snow border-fog rounded-card">
           <h3 className="mb-4 text-sm font-semibold text-steel">Detalles</h3>
           <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
-            <Dato label="Monto principal" valor={`L ${formatMonto(c.principal)}`} />
-            <Dato label="Total pagado" valor={`L ${formatMonto(c.pagado)}`} />
-            <Dato label="Cuota estimada" valor={c.cuota ? `L ${formatMonto(c.cuota)}` : '—'} />
+            <Dato label="Monto principal" valor={`${simbolo} ${formatMonto(c.principal)}`} />
+            <Dato label="Total pagado" valor={`${simbolo} ${formatMonto(c.pagado)}`} />
+            <Dato label="Cuota estimada" valor={c.cuota ? `${simbolo} ${formatMonto(c.cuota)}` : '—'} />
             <Dato label="Fecha de inicio" valor={formatFecha(deuda.fecha_inicio)} />
             <Dato label="Fecha límite" valor={formatFecha(deuda.fecha_limite)} />
             <Dato label="Tasa de interés" valor={c.tasaMensual > 0 ? `${formatMonto(Number(deuda.tasa_interes))}% ${deuda.tasa_periodo}` : 'Sin interés'} />
@@ -260,7 +262,7 @@ export default function DeudaDetalle() {
                   </div>
                   <div className="flex items-start justify-between flex-1 min-w-0">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-ink">L {formatMonto(Number(p.monto))}</p>
+                      <p className="text-sm font-semibold text-ink">{simbolo} {formatMonto(Number(p.monto))}</p>
                       <p className="text-xs text-ash">{formatFechaHora(p.fecha, p.created_at)}</p>
                       {p.nota && <p className="mt-1 text-xs text-steel">{p.nota}</p>}
                     </div>

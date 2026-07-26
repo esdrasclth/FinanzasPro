@@ -9,6 +9,9 @@ import FormAporteMeta from '../components/FormAporteMeta'
 import AppLayout from '../components/AppLayout'
 import Notificaciones from '../components/Notificaciones'
 import { SkeletonList } from '../components/Skeleton'
+import { useMoneda } from '../lib/moneda-context'
+import { obtenerTipoCambio } from '../lib/tipoCambio'
+import { porCategoria } from '../lib/finanzas'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   Plus, ChevronLeft, ChevronRight, ChevronDown, Calendar, SlidersHorizontal,
@@ -102,9 +105,14 @@ export default function Presupuesto() {
         .eq('año', anio)
 
       if (!marca || marca.length === 0) {
+        // La marca solo se escribe si de verdad se copió algo. Antes se escribía
+        // siempre, así que un intento fallido bloqueaba el traspaso de ese mes
+        // para siempre aunque después aparecieran presupuestos que heredar.
         const copiados = await traspasarMesAnterior(user.id, mes, anio)
-        await supabase.from('budget_rollovers').insert({ mes, año: anio })
-        if (copiados) ({ data: budgets } = await selectBudgets())
+        if (copiados) {
+          await supabase.from('budget_rollovers').insert({ mes, año: anio })
+          ;({ data: budgets } = await selectBudgets())
+        }
       }
     }
 
@@ -118,35 +126,32 @@ export default function Presupuesto() {
     ;(cats || []).forEach(c => { map[c.id] = c })
     setCatMap(map)
 
+    // Tasa para llevar los gastos en otra moneda a la moneda principal: sin
+    // esto un gasto de $50 contaba como 50 lempiras contra el presupuesto.
+    const tc = await obtenerTipoCambio()
+    const tasaLocal = tc?.tasa ?? null
+
     // Movimientos del mes agrupados por tipo y categoría (una sola consulta).
+    // porCategoria() descarta transferencias y aperturas, y normaliza montos.
     const { data: transMes } = await supabase
       .from('transactions')
-      .select('monto, category_id, tipo, wallet_destino_id')
+      .select('monto, moneda, tasa_cambio, category_id, tipo, wallet_destino_id, categories(nombre)')
       .eq('user_id', user.id)
       .gte('fecha', inicio)
       .lte('fecha', fin)
 
-    const movPorCat: Record<string, Record<string, number>> = { gasto: {}, ingreso: {} }
-    ;(transMes || []).forEach((t: any) => {
-      // Las transferencias entre carteras no cuentan como gasto ni ingreso.
-      if (t.wallet_destino_id || !t.category_id || !movPorCat[t.tipo]) return
-      movPorCat[t.tipo][t.category_id] = (movPorCat[t.tipo][t.category_id] || 0) + Number(t.monto)
-    })
+    const movPorCat = porCategoria(transMes || [], moneda, tasaLocal)
 
     // Gastos del mes anterior (para detectar aumentos).
     const { data: transPrev } = await supabase
       .from('transactions')
-      .select('monto, category_id, wallet_destino_id')
+      .select('monto, moneda, tasa_cambio, category_id, tipo, wallet_destino_id, categories(nombre)')
       .eq('user_id', user.id)
       .eq('tipo', 'gasto')
       .gte('fecha', inicioPrev)
       .lte('fecha', finPrev)
 
-    const prevPorCat: Record<string, number> = {}
-    ;(transPrev || []).forEach(t => {
-      if (t.wallet_destino_id || !t.category_id) return
-      prevPorCat[t.category_id] = (prevPorCat[t.category_id] || 0) + Number(t.monto)
-    })
+    const prevPorCat = porCategoria(transPrev || [], moneda, tasaLocal).gasto
 
     const conGasto = (budgets || []).map(b => {
       const tipo = b.categories?.tipo || 'gasto'
@@ -160,18 +165,29 @@ export default function Presupuesto() {
     setLoading(false)
   }
 
+  // Hereda los presupuestos del mes más reciente que tenga alguno, no solo del
+  // mes inmediatamente anterior: como el traspaso únicamente corre al abrir esta
+  // pantalla, saltarse un mes rompía la cadena de forma permanente (en septiembre
+  // copiaba de agosto, que quedó vacío, en vez de julio).
   const traspasarMesAnterior = async (userId: string, mes: number, anio: number) => {
-    const prevMes = mes === 1 ? 12 : mes - 1
-    const prevAnio = mes === 1 ? anio - 1 : anio
-
-    const { data: prev } = await supabase
+    const { data: previos } = await supabase
       .from('budgets')
-      .select('category_id, monto_limite')
+      .select('category_id, monto_limite, mes, año')
       .eq('user_id', userId)
-      .eq('mes', prevMes)
-      .eq('año', prevAnio)
+      .order('año', { ascending: false })
+      .order('mes', { ascending: false })
 
-    if (!prev || prev.length === 0) return false
+    // Los meses se comparan como un solo número (anio*12+mes) para no enredarse
+    // con el cambio de año.
+    const actual = anio * 12 + mes
+    const origen = (previos || []).find(b => Number(b.año) * 12 + Number(b.mes) < actual)
+    if (!origen) return false
+
+    const prev = (previos || []).filter(
+      b => Number(b.año) === Number(origen.año) && Number(b.mes) === Number(origen.mes)
+    )
+
+    if (prev.length === 0) return false
 
     // No se traspasan presupuestos de subcategorías archivadas (deudas ya
     // completadas): no tiene sentido seguir presupuestándolas.
@@ -226,6 +242,7 @@ export default function Presupuesto() {
     else { setPresupuestoEditar(null); setShowForm(true) }
   }
 
+  const { simbolo, moneda } = useMoneda()
   const formatMonto = (n: number) =>
     new Intl.NumberFormat('es-HN', { minimumFractionDigits: 2 }).format(n)
 
@@ -339,7 +356,7 @@ export default function Presupuesto() {
       const nombre = p.categories?.nombre || 'Categoría'
       if (p.gastado >= p.monto_limite) {
         alertas.push({ id: `${p.id}-ok`, icon: CheckCircle2, tono: 'ok',
-          titulo: `${nombre} alcanzó su meta`, detalle: `Recibiste L ${formatMonto(p.gastado)} de L ${formatMonto(p.monto_limite)}` })
+          titulo: `${nombre} alcanzó su meta`, detalle: `Recibiste ${simbolo} ${formatMonto(p.gastado)} de ${simbolo} ${formatMonto(p.monto_limite)}` })
       } else if (p.porcentaje < 40) {
         alertas.push({ id: `${p.id}-low`, icon: AlertTriangle, tono: 'alerta',
           titulo: `${nombre} va por debajo de la meta`, detalle: `Llevas el ${Math.round(p.porcentaje)}% de lo esperado` })
@@ -350,7 +367,7 @@ export default function Presupuesto() {
       const nombre = p.categories?.nombre || 'Categoría'
       if (p.gastado > p.monto_limite) {
         alertas.push({ id: `${p.id}-over`, icon: AlertTriangle, tono: 'alerta',
-          titulo: `${nombre} sobrepasó el presupuesto`, detalle: `L ${formatMonto(p.gastado - p.monto_limite)} por encima del límite` })
+          titulo: `${nombre} sobrepasó el presupuesto`, detalle: `${simbolo} ${formatMonto(p.gastado - p.monto_limite)} por encima del límite` })
       } else if (p.porcentaje >= 90) {
         alertas.push({ id: `${p.id}-near`, icon: AlertTriangle, tono: 'alerta',
           titulo: `${nombre} está por exceder el presupuesto`, detalle: `Llevas el ${Math.round(p.porcentaje)}% del presupuesto` })
@@ -414,7 +431,7 @@ export default function Presupuesto() {
   if (loading) {
     return (
       <AppLayout>
-        <div className="max-w-[1728px] p-6 mx-auto space-y-6 lg:p-8">
+        <div className="max-w-[1728px] p-4 mx-auto space-y-6 sm:p-6 lg:p-8">
           <div className="w-48 h-8 rounded-badge bg-fog animate-pulse" />
           <div className="h-40 rounded-2xl bg-fog animate-pulse" />
           <SkeletonList items={5} />
@@ -425,7 +442,7 @@ export default function Presupuesto() {
 
   return (
     <AppLayout>
-      <div className="max-w-[1728px] p-6 mx-auto lg:p-8">
+      <div className="max-w-[1728px] p-4 mx-auto sm:p-6 lg:p-8">
 
         {/* Encabezado */}
         <div className="flex items-start justify-between mb-8">
@@ -462,26 +479,26 @@ export default function Presupuesto() {
             <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4 sm:gap-6 lg:divide-x lg:divide-white/10">
               <HeroMetrica icon={esIngreso ? Target : Wallet}
                 label={esIngreso ? 'Meta de ingresos' : 'Presupuesto total'}
-                valor={`L ${formatMonto(totalPresupuestado)}`} />
+                valor={`${simbolo} ${formatMonto(totalPresupuestado)}`} />
               <HeroMetrica icon={esIngreso ? TrendingUp : TrendingDown}
                 label={esIngreso ? 'Recibido' : 'Gastado'}
-                valor={`L ${formatMonto(totalGastado)}`}
+                valor={`${simbolo} ${formatMonto(totalGastado)}`}
                 nota={<span className="text-white/50">{Math.round(gastadoPct)}% de la meta</span>} className="lg:px-6" />
               <HeroMetrica icon={PiggyBank}
                 label={esIngreso ? 'Falta por recibir' : 'Disponible'}
-                valor={`L ${formatMonto(Math.max(0, disponible))}`}
+                valor={`${simbolo} ${formatMonto(Math.max(0, disponible))}`}
                 nota={<span className="text-emerald-300">
                   {esIngreso ? `${Math.round(gastadoPct)}% completado` : `${Math.round(restantePct)}% restante`}
                 </span>} className="lg:px-6" />
               <HeroMetrica icon={TrendingUp} label="Proyección de fin de mes"
-                valor={`L ${formatMonto(proyeccion)}`}
+                valor={`${simbolo} ${formatMonto(proyeccion)}`}
                 nota={esIngreso ? (
                   <span className={proyeccion >= totalPresupuestado ? 'text-emerald-300' : 'text-amber-300'}>
-                    {proyeccion >= totalPresupuestado ? 'Alcanzarás la meta' : `Faltarían L ${formatMonto(totalPresupuestado - proyeccion)}`}
+                    {proyeccion >= totalPresupuestado ? 'Alcanzarás la meta' : `Faltarían ${simbolo} ${formatMonto(totalPresupuestado - proyeccion)}`}
                   </span>
                 ) : (
                   <span className={proyeccionDentro ? 'text-emerald-300' : 'text-red-300'}>
-                    {proyeccionDentro ? 'Dentro del presupuesto' : `Excede por L ${formatMonto(proyeccion - totalPresupuestado)}`}
+                    {proyeccionDentro ? 'Dentro del presupuesto' : `Excede por ${simbolo} ${formatMonto(proyeccion - totalPresupuestado)}`}
                   </span>
                 )} className="lg:pl-6" />
             </div>
@@ -760,7 +777,7 @@ export default function Presupuesto() {
                             {distribucion.map((d, i) => <Cell key={i} fill={d.color} />)}
                           </Pie>
                           <Tooltip
-                            formatter={(value) => [`L ${formatMonto(Number(value) || 0)}`, 'Presupuesto']}
+                            formatter={(value) => [`${simbolo} ${formatMonto(Number(value) || 0)}`, 'Presupuesto']}
                             contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #ececee', borderRadius: 16, color: '#18181b' }}
                             labelStyle={{ color: '#71717a' }}
                           />
@@ -768,7 +785,7 @@ export default function Presupuesto() {
                       </ResponsiveContainer>
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                         <span className="text-[10px] font-medium text-steel">Total</span>
-                        <span className="text-sm font-bold leading-tight text-ink">L {formatMonto(totalPresupuestado)}</span>
+                        <span className="text-sm font-bold leading-tight text-ink">{simbolo} {formatMonto(totalPresupuestado)}</span>
                       </div>
                     </div>
                     <div className="flex-1 min-w-0 space-y-2.5">
@@ -808,7 +825,7 @@ export default function Presupuesto() {
       <button
         onClick={abrirNuevo}
         style={{ background: 'linear-gradient(135deg, #2c6e49 0%, #14361f 55%, #000000 100%)' }}
-        className="fixed z-40 flex items-center justify-center transition-transform rounded-full text-snow bottom-24 lg:bottom-8 right-6 lg:right-8 w-14 h-14 hover:scale-105 hover:brightness-110 sm:hidden"
+        className="fixed z-40 flex items-center justify-center transition-transform rounded-full text-snow bottom-[calc(6rem+env(safe-area-inset-bottom))] lg:bottom-8 right-6 lg:right-8 w-14 h-14 hover:scale-105 hover:brightness-110 sm:hidden"
       >
         <Plus size={24} strokeWidth={2.5} />
       </button>
@@ -850,6 +867,7 @@ function MetasHero({ totalObjetivo, totalAhorrado, completadas, activas, formatM
   activas: number
   formatMonto: (n: number) => string
 }) {
+  const { simbolo } = useMoneda()
   const pct = totalObjetivo > 0 ? (totalAhorrado / totalObjetivo) * 100 : 0
   const falta = Math.max(0, totalObjetivo - totalAhorrado)
   return (
@@ -865,10 +883,10 @@ function MetasHero({ totalObjetivo, totalAhorrado, completadas, activas, formatM
           <p className="text-base text-white/60">Tu progreso de ahorro</p>
         </div>
         <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4 sm:gap-6 lg:divide-x lg:divide-white/10">
-          <HeroMetrica icon={Target} label="Objetivo total" valor={`L ${formatMonto(totalObjetivo)}`} />
-          <HeroMetrica icon={PiggyBank} label="Ahorrado" valor={`L ${formatMonto(totalAhorrado)}`}
+          <HeroMetrica icon={Target} label="Objetivo total" valor={`${simbolo} ${formatMonto(totalObjetivo)}`} />
+          <HeroMetrica icon={PiggyBank} label="Ahorrado" valor={`${simbolo} ${formatMonto(totalAhorrado)}`}
             nota={<span className="text-emerald-300">{Math.round(pct)}% del objetivo</span>} className="lg:px-6" />
-          <HeroMetrica icon={TrendingUp} label="Falta por ahorrar" valor={`L ${formatMonto(falta)}`} className="lg:px-6" />
+          <HeroMetrica icon={TrendingUp} label="Falta por ahorrar" valor={`${simbolo} ${formatMonto(falta)}`} className="lg:px-6" />
           <HeroMetrica icon={CheckCircle2} label="Metas completadas" valor={`${completadas} / ${activas}`} className="lg:pl-6" />
         </div>
       </div>
@@ -923,6 +941,7 @@ function MetaCard({ m, formatMonto, onAportar, onEditar, onEliminar }: {
   onEditar: () => void
   onEliminar: () => void
 }) {
+  const { simbolo } = useMoneda()
   const objetivo = Number(m.monto_objetivo)
   const actual = Number(m.monto_actual)
   const restante = Math.max(0, objetivo - actual)
@@ -936,7 +955,7 @@ function MetaCard({ m, formatMonto, onAportar, onEditar, onEliminar }: {
     const limite = new Date(`${String(m.fecha_limite).slice(0, 10)}T00:00:00`)
     const meses = (limite.getFullYear() - hoy.getFullYear()) * 12 + (limite.getMonth() - hoy.getMonth())
     const fechaTxt = limite.toLocaleDateString('es-HN', { day: 'numeric', month: 'short', year: 'numeric' })
-    if (meses > 0) meta_info = `Ahorra L ${formatMonto(restante / meses)}/mes · límite ${fechaTxt}`
+    if (meses > 0) meta_info = `Ahorra ${simbolo} ${formatMonto(restante / meses)}/mes · límite ${fechaTxt}`
     else meta_info = `Fecha límite: ${fechaTxt}`
   }
 
@@ -959,8 +978,8 @@ function MetaCard({ m, formatMonto, onAportar, onEditar, onEliminar }: {
 
       <div className="mb-2">
         <div className="flex items-end justify-between mb-2">
-          <span className="text-lg font-bold text-ink">L {formatMonto(actual)}</span>
-          <span className="text-xs text-steel">de L {formatMonto(objetivo)}</span>
+          <span className="text-lg font-bold text-ink">{simbolo} {formatMonto(actual)}</span>
+          <span className="text-xs text-steel">de {simbolo} {formatMonto(objetivo)}</span>
         </div>
         <div className="w-full h-2 rounded-full bg-fog">
           <div className="h-2 rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
@@ -970,7 +989,7 @@ function MetaCard({ m, formatMonto, onAportar, onEditar, onEliminar }: {
       <div className="flex-1 mt-2">
         {completada
           ? <p className="text-xs font-medium text-emerald-600">Objetivo alcanzado 🎉</p>
-          : <p className="text-xs text-steel">{meta_info || `Faltan L ${formatMonto(restante)}`}</p>}
+          : <p className="text-xs text-steel">{meta_info || `Faltan ${simbolo} ${formatMonto(restante)}`}</p>}
       </div>
 
       {!completada && (
@@ -1016,6 +1035,7 @@ function FilaPresupuesto({ p, est, esSub, esPadre = false, esIngreso, formatMont
   onEdit: () => void
   onDelete: () => void
 }) {
+  const { simbolo } = useMoneda()
   const color = p.categories?.color || '#71717a'
   return (
     <div className={`grid items-center grid-cols-1 gap-3 px-6 py-4 transition-colors border-b sm:grid-cols-12 border-fog last:border-b-0 ${esPadre ? 'bg-indigo-50/60 hover:bg-indigo-100/50' : 'hover:bg-mist/50'}`}>
@@ -1033,12 +1053,12 @@ function FilaPresupuesto({ p, est, esSub, esPadre = false, esIngreso, formatMont
       {/* Presupuesto / Meta */}
       <div className="sm:col-span-2">
         <p className="text-xs text-ash sm:hidden">{esIngreso ? 'Meta' : 'Presupuesto'}</p>
-        <p className="text-sm font-medium text-ink">L {formatMonto(p.monto_limite)}</p>
+        <p className="text-sm font-medium text-ink">{simbolo} {formatMonto(p.monto_limite)}</p>
       </div>
       {/* Gastado / Recibido */}
       <div className="sm:col-span-2">
         <p className="text-xs text-ash sm:hidden">{esIngreso ? 'Recibido' : 'Gastado'}</p>
-        <p className="text-sm font-medium text-ink">L {formatMonto(p.gastado)}</p>
+        <p className="text-sm font-medium text-ink">{simbolo} {formatMonto(p.gastado)}</p>
       </div>
       {/* Progreso */}
       <div className="flex items-center gap-2 sm:col-span-2">
@@ -1064,6 +1084,7 @@ function FilaGrupoPadre({ g, esIngreso, formatMonto }: {
   esIngreso: boolean
   formatMonto: (n: number) => string
 }) {
+  const { simbolo } = useMoneda()
   const color = g.info.color || '#71717a'
   const barra = esIngreso
     ? (g.subGastado >= g.subTotal ? 'bg-emerald-500' : g.subPct >= 60 ? 'bg-blue-500' : 'bg-amber-500')
@@ -1083,12 +1104,12 @@ function FilaGrupoPadre({ g, esIngreso, formatMonto }: {
       {/* Presupuesto / Meta total */}
       <div className="sm:col-span-2">
         <p className="text-xs text-ash sm:hidden">{esIngreso ? 'Meta' : 'Presupuesto'}</p>
-        <p className="text-sm font-medium text-ink">L {formatMonto(g.subTotal)}</p>
+        <p className="text-sm font-medium text-ink">{simbolo} {formatMonto(g.subTotal)}</p>
       </div>
       {/* Gastado / Recibido total */}
       <div className="sm:col-span-2">
         <p className="text-xs text-ash sm:hidden">{esIngreso ? 'Recibido' : 'Gastado'}</p>
-        <p className="text-sm font-medium text-ink">L {formatMonto(g.subGastado)}</p>
+        <p className="text-sm font-medium text-ink">{simbolo} {formatMonto(g.subGastado)}</p>
       </div>
       {/* Progreso */}
       <div className="flex items-center gap-2 sm:col-span-2">

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '../../../lib/prisma'
 import { round2 } from '../../../lib/dinero'
 import { prepararReparto, requireReparto, walletDeUsuario } from '../../../lib/repartos-server'
+import { tasaVigente, montoParaCartera } from '../../../lib/tipoCambio-server'
 
 // GET /api/repartos/[id] -> detalle con participantes
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -55,8 +56,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   if (!prep.ok) return NextResponse.json({ error: prep.error }, { status: prep.status })
   const d = prep.data
 
-  const walletId = await walletDeUsuario(auth.userId, d.walletId)
-  if (!walletId) return NextResponse.json({ error: 'Selecciona la cartera de la que salió el gasto' }, { status: 400 })
+  const wallet = await walletDeUsuario(auth.userId, d.walletId)
+  if (!wallet) return NextResponse.json({ error: 'Selecciona la cartera de la que salió el gasto' }, { status: 400 })
+  const walletId = wallet.id
 
   const repartoPrev = await prisma.repartos.findUnique({ where: { id }, select: { transaction_id: true } })
   const previos = await prisma.reparto_participantes.findMany({ where: { reparto_id: id } })
@@ -65,6 +67,21 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     previos.filter(p => p.pagado && !p.es_yo).map(p => [p.nombre.toLowerCase(), { fecha_pago: p.fecha_pago, wallet_id: p.wallet_id }])
   )
   const txIdsRecuperacion = previos.map(p => p.transaction_id).filter((x): x is string => !!x)
+
+  // Monedas de las carteras donde ya se habían cobrado partes, para recrear
+  // cada ingreso en la moneda de su propia cartera.
+  const idsCobro = [...new Set(
+    [...cobroPorNombre.values()].map(c => c.wallet_id).filter((x): x is string => !!x)
+  )]
+  const carterasCobro = idsCobro.length > 0
+    ? await prisma.wallets.findMany({
+        where: { id: { in: idsCobro }, user_id: auth.userId },
+        select: { id: true, moneda: true },
+      })
+    : []
+  const monedaDeCartera = new Map(carterasCobro.map(w => [w.id, w.moneda]))
+  const tasa = await tasaVigente(auth.userId)
+  const enCarteraGasto = montoParaCartera(d.montoTotal, d.moneda, wallet.moneda, tasa)
 
   await prisma.$transaction(async (tx) => {
     // Rehacer el gasto: borra las transacciones viejas y crea una nueva por el nuevo total.
@@ -75,10 +92,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       data: {
         user_id: auth.userId,
         wallet_id: walletId,
-        monto: d.montoTotal,
+        monto: enCarteraGasto.monto,
+        moneda: enCarteraGasto.moneda,
+        monto_original: enCarteraGasto.monto_original,
+        tasa_cambio: enCarteraGasto.tasa_cambio,
         tipo: 'gasto',
         descripcion: `Reparto: ${d.descripcion}`,
-        moneda: d.moneda,
         fecha: d.fecha,
       },
     })
@@ -104,14 +123,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       let txId: string | null = null
       let walletCobro: string | null = null
       if (cobro && cobro.wallet_id && p.monto_asignado > 0) {
+        const enCartera = montoParaCartera(
+          p.monto_asignado, d.moneda, monedaDeCartera.get(cobro.wallet_id), tasa
+        )
         const ingreso = await tx.transactions.create({
           data: {
             user_id: auth.userId,
             wallet_id: cobro.wallet_id,
-            monto: p.monto_asignado,
+            monto: enCartera.monto,
+            moneda: enCartera.moneda,
+            monto_original: enCartera.monto_original,
+            tasa_cambio: enCartera.tasa_cambio,
             tipo: 'ingreso',
             descripcion: `Cobro reparto: ${d.descripcion} — ${p.nombre}`,
-            moneda: d.moneda,
             fecha: cobro.fecha_pago ?? new Date(),
           },
         })

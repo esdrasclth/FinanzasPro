@@ -14,6 +14,7 @@ import {
   crearSubcategoriaDeuda,
 } from '../lib/deudas'
 import { calcularDeuda, ESTADO_META, type EstadoDeuda } from '../lib/deudaCalculos'
+import { useMoneda } from '../lib/moneda-context'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   Plus, Pencil, Trash2, CreditCard, HandCoins, ArrowDownCircle, ArrowUpCircle,
@@ -87,6 +88,7 @@ export default function Deudas() {
     cargarDeudas()
   }
 
+  const { simbolo } = useMoneda()
   const formatMonto = (n: number) =>
     new Intl.NumberFormat('es-HN', { minimumFractionDigits: 2 }).format(n)
 
@@ -130,7 +132,7 @@ export default function Deudas() {
 
   const consejo = (() => {
     if (enMora > 0) return `Tienes ${enMora} ${enMora === 1 ? 'deuda' : 'deudas'} en mora. Priorízalas para evitar más intereses y recargos.`
-    if (interesTotal > 0) return `Tus deudas han acumulado L ${formatMonto(interesTotal)} en intereses. Abonar al capital reduce lo que pagas a futuro.`
+    if (interesTotal > 0) return `Tus deudas han acumulado ${simbolo} ${formatMonto(interesTotal)} en intereses. Abonar al capital reduce lo que pagas a futuro.`
     if (totalDebo > 0 && totalDebo > totalMeDeben) return 'Debes más de lo que te deben. Considera un plan de pagos para equilibrar tus finanzas.'
     if (totalDebo === 0 && deudas.length > 0) return '¡Excelente! No tienes deudas pendientes. Mantén el hábito de registrar tus compromisos.'
     return 'Registra tus deudas con su tasa y plazo para proyectar pagos e intereses automáticamente.'
@@ -146,7 +148,7 @@ export default function Deudas() {
   if (loading) {
     return (
       <AppLayout>
-        <div className="max-w-[1728px] p-6 mx-auto space-y-6 lg:p-8">
+        <div className="max-w-[1728px] p-4 mx-auto space-y-6 sm:p-6 lg:p-8">
           <div className="w-48 h-8 rounded-badge bg-fog animate-pulse" />
           <div className="p-8 rounded-2xl bg-fog animate-pulse h-44" />
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -159,7 +161,7 @@ export default function Deudas() {
 
   return (
     <AppLayout>
-      <div className="max-w-[1728px] p-6 mx-auto lg:p-8">
+      <div className="max-w-[1728px] p-4 mx-auto sm:p-6 lg:p-8">
 
         {/* Encabezado */}
         <div className="flex items-start justify-between mb-8">
@@ -203,11 +205,11 @@ export default function Deudas() {
                 <div className="min-w-0">
                   <p className="text-base text-white/60">Lo que debo</p>
                   <p className="text-2xl font-bold break-words sm:text-3xl text-red-200">
-                    L {formatMonto(totalDebo)}
+                    {simbolo} {formatMonto(totalDebo)}
                   </p>
                   <p className="mt-1.5 text-sm font-medium text-white/50">
                     {debosActivos.length} {debosActivos.length === 1 ? 'deuda' : 'deudas'}
-                    {interesTotal > 0 && ` · +L ${formatMonto(interesTotal)} interés`}
+                    {interesTotal > 0 && ` · +${simbolo} ${formatMonto(interesTotal)} interés`}
                   </p>
                 </div>
               </div>
@@ -219,7 +221,7 @@ export default function Deudas() {
                 <div className="min-w-0">
                   <p className="text-base text-white/60">Lo que me deben</p>
                   <p className="text-2xl font-bold break-words sm:text-3xl text-emerald-200">
-                    L {formatMonto(totalMeDeben)}
+                    {simbolo} {formatMonto(totalMeDeben)}
                   </p>
                   <p className="mt-1.5 text-sm font-medium text-white/50">
                     {meDebenActivos.length} {meDebenActivos.length === 1 ? 'préstamo' : 'préstamos'}
@@ -236,7 +238,7 @@ export default function Deudas() {
                   {proximoPagoGlobal ? (
                     <>
                       <p className="text-2xl font-bold break-words sm:text-3xl">
-                        L {formatMonto(proximoPagoGlobal.monto)}
+                        {simbolo} {formatMonto(proximoPagoGlobal.monto)}
                       </p>
                       <p className="mt-1.5 text-sm font-medium text-white/50 truncate">
                         {proximoPagoGlobal.nombre} · {formatFecha(proximoPagoGlobal.fecha)}
@@ -369,22 +371,22 @@ export default function Deudas() {
                       <div className="grid grid-cols-3 gap-2 mb-3">
                         <div>
                           <p className="mb-0.5 text-xs font-medium text-steel">Total</p>
-                          <p className="text-sm font-semibold break-words text-obsidian">L {formatMonto(c.principal)}</p>
+                          <p className="text-sm font-semibold break-words text-obsidian">{simbolo} {formatMonto(c.principal)}</p>
                         </div>
                         <div>
                           <p className="mb-0.5 text-xs font-medium text-steel">Pagado</p>
-                          <p className="text-sm font-semibold break-words text-emerald-600">L {formatMonto(c.pagado)}</p>
+                          <p className="text-sm font-semibold break-words text-emerald-600">{simbolo} {formatMonto(c.pagado)}</p>
                         </div>
                         <div>
                           <p className="mb-0.5 text-xs font-medium text-steel">Pendiente</p>
-                          <p className={`text-sm font-semibold break-words ${esDebo ? 'text-red-500' : 'text-emerald-600'}`}>L {formatMonto(c.saldoPrincipal)}</p>
+                          <p className={`text-sm font-semibold break-words ${esDebo ? 'text-red-500' : 'text-emerald-600'}`}>{simbolo} {formatMonto(c.saldoPrincipal)}</p>
                         </div>
                       </div>
 
                       {c.interesAcumulado > 0 && (
                         <p className="mb-3 text-xs text-amber-600">
-                          + L {formatMonto(c.interesAcumulado)} de interés acumulado
-                          <span className="text-ash"> · saldo L {formatMonto(c.saldoTotal)}</span>
+                          + {simbolo} {formatMonto(c.interesAcumulado)} de interés acumulado
+                          <span className="text-ash"> · saldo {simbolo} {formatMonto(c.saldoTotal)}</span>
                         </p>
                       )}
 
@@ -467,7 +469,7 @@ export default function Deudas() {
                           {distribucion.map((_, i) => <Cell key={i} fill={COLORES[i % COLORES.length]} />)}
                         </Pie>
                         <Tooltip
-                          formatter={(value) => [`L ${formatMonto(Number(value) || 0)}`, 'Saldo']}
+                          formatter={(value) => [`${simbolo} ${formatMonto(Number(value) || 0)}`, 'Saldo']}
                           contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #ececee', borderRadius: 16, color: '#18181b' }}
                           labelStyle={{ color: '#71717a' }}
                         />
@@ -475,7 +477,7 @@ export default function Deudas() {
                     </ResponsiveContainer>
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                       <span className="text-[10px] font-medium text-steel">Total</span>
-                      <span className="text-sm font-bold leading-tight text-ink">L {formatMonto(totalDistribucion)}</span>
+                      <span className="text-sm font-bold leading-tight text-ink">{simbolo} {formatMonto(totalDistribucion)}</span>
                     </div>
                   </div>
                   <div className="flex-1 min-w-0 space-y-2.5">
@@ -537,7 +539,7 @@ export default function Deudas() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-steel">Próximos pagos</h3>
                 {proximosPagos.length > 0 && (
-                  <span className="text-xs font-medium text-ash">L {formatMonto(proximosPagos.reduce((s, p) => s + p.monto, 0))}</span>
+                  <span className="text-xs font-medium text-ash">{simbolo} {formatMonto(proximosPagos.reduce((s, p) => s + p.monto, 0))}</span>
                 )}
               </div>
               {proximosPagos.length === 0 ? (
@@ -560,7 +562,7 @@ export default function Deudas() {
                           <p className="text-sm font-medium truncate text-ink">{p.nombre}</p>
                           <p className="text-xs text-ash">{formatFecha(p.fecha)}</p>
                         </div>
-                        <p className={`text-sm font-semibold whitespace-nowrap ${urgente ? 'text-red-500' : 'text-ink'}`}>L {formatMonto(p.monto)}</p>
+                        <p className={`text-sm font-semibold whitespace-nowrap ${urgente ? 'text-red-500' : 'text-ink'}`}>{simbolo} {formatMonto(p.monto)}</p>
                       </div>
                     )
                   })}
@@ -586,7 +588,7 @@ export default function Deudas() {
       <button
         onClick={() => { setDeudaEditar(null); setShowForm(true) }}
         style={{ background: 'linear-gradient(135deg, #2c6e49 0%, #14361f 55%, #000000 100%)' }}
-        className="fixed z-40 flex items-center justify-center transition-transform rounded-full text-snow bottom-24 lg:bottom-8 right-6 lg:right-8 w-14 h-14 hover:scale-105 hover:brightness-110 sm:hidden"
+        className="fixed z-40 flex items-center justify-center transition-transform rounded-full text-snow bottom-[calc(6rem+env(safe-area-inset-bottom))] lg:bottom-8 right-6 lg:right-8 w-14 h-14 hover:scale-105 hover:brightness-110 sm:hidden"
       >
         <Plus size={24} strokeWidth={2.5} />
       </button>

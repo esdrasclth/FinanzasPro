@@ -2,7 +2,7 @@
 
 export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
-const SIMBOLOS: Record<string, string> = { USD: '$', HNL: 'L', EUR: '€', MXN: '$' }
+const SIMBOLOS: Record<string, string> = { USD: '$', HNL: 'L', EUR: '€', MXN: '$', GTQ: 'Q', CRC: '₡' }
 
 export const simboloMoneda = (moneda: string) => SIMBOLOS[moneda] || (moneda ? moneda + ' ' : '$')
 

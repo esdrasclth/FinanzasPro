@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '../../lib/prisma'
 import { getSessionUser } from '../../lib/auth-server'
 import { prepararReparto, walletDeUsuario } from '../../lib/repartos-server'
+import { tasaVigente, montoParaCartera } from '../../lib/tipoCambio-server'
 
 // GET /api/repartos -> repartos del usuario con resumen de pago
 export async function GET() {
@@ -45,8 +46,13 @@ export async function POST(req: Request) {
   if (!prep.ok) return NextResponse.json({ error: prep.error }, { status: prep.status })
   const d = prep.data
 
-  const walletId = await walletDeUsuario(user.id, d.walletId)
-  if (!walletId) return NextResponse.json({ error: 'Selecciona la cartera de la que salió el gasto' }, { status: 400 })
+  const wallet = await walletDeUsuario(user.id, d.walletId)
+  if (!wallet) return NextResponse.json({ error: 'Selecciona la cartera de la que salió el gasto' }, { status: 400 })
+  const walletId = wallet.id
+
+  // El reparto puede llevarse en otra moneda que la cartera; el dinero sale en
+  // la moneda de la cartera.
+  const enCartera = montoParaCartera(d.montoTotal, d.moneda, wallet.moneda, await tasaVigente(user.id))
 
   const reparto = await prisma.$transaction(async (tx) => {
     // Gasto real: sale el monto total de la cartera elegida.
@@ -54,10 +60,12 @@ export async function POST(req: Request) {
       data: {
         user_id: user.id,
         wallet_id: walletId,
-        monto: d.montoTotal,
+        monto: enCartera.monto,
+        moneda: enCartera.moneda,
+        monto_original: enCartera.monto_original,
+        tasa_cambio: enCartera.tasa_cambio,
         tipo: 'gasto',
         descripcion: `Reparto: ${d.descripcion}`,
-        moneda: d.moneda,
         fecha: d.fecha,
       },
     })

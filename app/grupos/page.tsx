@@ -53,7 +53,7 @@ function Compartidos() {
 
   return (
     <AppLayout>
-      <div className="max-w-[1728px] p-6 mx-auto lg:p-8">
+      <div className="max-w-[1728px] p-4 mx-auto sm:p-6 lg:p-8">
 
         {/* Encabezado */}
         <div className="flex items-start justify-between mb-8">
@@ -82,7 +82,7 @@ function Compartidos() {
       <button
         onClick={nuevo}
         style={{ background: gradiente }}
-        className="fixed z-40 flex items-center justify-center transition-transform rounded-full text-snow bottom-24 lg:bottom-8 right-6 lg:right-8 w-14 h-14 hover:scale-105 hover:brightness-110 sm:hidden"
+        className="fixed z-40 flex items-center justify-center transition-transform rounded-full text-snow bottom-[calc(6rem+env(safe-area-inset-bottom))] lg:bottom-8 right-6 lg:right-8 w-14 h-14 hover:scale-105 hover:brightness-110 sm:hidden"
         aria-label={labelNuevo}
       >
         <Plus size={24} strokeWidth={2.5} />

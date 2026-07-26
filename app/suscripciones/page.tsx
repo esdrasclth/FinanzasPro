@@ -7,6 +7,8 @@ import AppLayout from '../components/AppLayout'
 import FormSuscripcion from '../components/FormSuscripcion'
 import Notificaciones from '../components/Notificaciones'
 import { SkeletonCard } from '../components/Skeleton'
+import { useMoneda } from '../lib/moneda-context'
+import { simboloMoneda } from '../lib/dinero'
 import {
   calcularSuscripcion, ESTADO_META, FRECUENCIA_META,
   type EstadoSuscripcion, type Frecuencia,
@@ -14,7 +16,7 @@ import {
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   Plus, Pencil, Trash2, RefreshCw, CalendarClock, Search, Filter,
-  ChevronDown, Play, Pause, PieChart as PieIcon, Lightbulb,
+  ChevronDown, Play, Pause, PieChart as PieIcon, Lightbulb, CheckCircle2,
   TrendingUp, type LucideIcon,
 } from 'lucide-react'
 
@@ -32,6 +34,7 @@ export default function Suscripciones() {
   const [filtroEstado, setFiltroEstado] = useState<'todas' | EstadoSuscripcion>('todas')
   const [filtroFrecuencia, setFiltroFrecuencia] = useState<'todas' | Frecuencia>('todas')
   const [busqueda, setBusqueda] = useState('')
+  const [cobrando, setCobrando] = useState<string | null>(null)
 
   useEffect(() => {
     const checkUser = async () => {
@@ -68,6 +71,37 @@ export default function Suscripciones() {
     cargarSubs()
   }
 
+  // Confirmar el cobro crea el gasto real en la cartera y adelanta el ciclo.
+  // Es manual a propósito: se registra cuando el cobro de verdad ocurrió.
+  const handleCobrar = async (sub: any) => {
+    const fecha = sub.calc.proximoCobro
+    if (!fecha) return
+    const ok = confirm(
+      `¿Confirmar el cobro de "${sub.nombre}" del ${formatFecha(fecha)}?\n\n` +
+      `Se registrará un gasto de ${simboloMoneda(sub.moneda)} ${formatMonto(Number(sub.monto))} ` +
+      `y el próximo cobro pasará al siguiente ciclo.`
+    )
+    if (!ok) return
+
+    setCobrando(sub.id)
+    try {
+      const res = await fetch(`/api/suscripciones/${sub.id}/cobros`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fecha }),
+      })
+      const json = await res.json().catch(() => null)
+      if (!res.ok) { alert(json?.error?.message || 'No se pudo registrar el cobro'); return }
+    } catch {
+      alert('Error de red al registrar el cobro')
+      return
+    } finally {
+      setCobrando(null)
+    }
+    cargarSubs()
+  }
+
+  const { simbolo } = useMoneda()
   const formatMonto = (n: number) =>
     new Intl.NumberFormat('es-HN', { minimumFractionDigits: 2 }).format(n)
 
@@ -75,9 +109,13 @@ export default function Suscripciones() {
     s ? new Date(s + 'T12:00:00').toLocaleDateString('es-HN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
 
   // --- Totales (solo activas) ---
+  // Los recurrentes de ingreso (sueldo, renta) no son gasto: se suman aparte.
   const activas = subs.filter(s => s.calc.estado === 'activa')
-  const gastoMensual = activas.reduce((s, x) => s + x.calc.montoMensual, 0)
-  const proyeccionAnual = activas.reduce((s, x) => s + x.calc.montoAnual, 0)
+  const activasGasto = activas.filter(s => s.tipo !== 'ingreso')
+  const activasIngreso = activas.filter(s => s.tipo === 'ingreso')
+  const gastoMensual = activasGasto.reduce((s, x) => s + x.calc.montoMensual, 0)
+  const proyeccionAnual = activasGasto.reduce((s, x) => s + x.calc.montoAnual, 0)
+  const ingresoMensual = activasIngreso.reduce((s, x) => s + x.calc.montoMensual, 0)
 
   // Próximos cobros ordenados por fecha
   const proximosCobros = activas
@@ -88,16 +126,21 @@ export default function Suscripciones() {
   const proximoCobroGlobal = proximosCobros[0] || null
 
   // Distribución de gasto mensual por suscripción
-  const distribucion = activas
+  const distribucion = activasGasto
     .map(s => ({ nombre: s.nombre, valor: s.calc.montoMensual, color: s.color }))
     .filter(s => s.valor > 0)
     .sort((a, b) => b.valor - a.valor)
   const totalDistribucion = distribucion.reduce((s, d) => s + d.valor, 0)
 
   const consejo = (() => {
-    if (activas.length === 0 && subs.length > 0) return 'No tienes suscripciones activas. Reactiva las que sigas usando o elimina las que ya no necesites.'
-    if (gastoMensual > 0) return `Tus suscripciones suman L ${formatMonto(gastoMensual)} al mes (L ${formatMonto(proyeccionAnual)} al año). Revisa cuáles usas de verdad para recortar gastos hormiga.`
-    return 'Registra tus suscripciones para ver cuánto gastas al mes y no olvidar ningún cobro recurrente.'
+    if (activas.length === 0 && subs.length > 0) return 'No tienes recurrentes activos. Reactiva los que sigas usando o elimina los que ya no necesites.'
+    if (gastoMensual > 0 && ingresoMensual > 0) {
+      const neto = ingresoMensual - gastoMensual
+      return `Tus recurrentes dejan un neto de ${simbolo} ${formatMonto(neto)} al mes: ${simbolo} ${formatMonto(ingresoMensual)} de ingresos contra ${simbolo} ${formatMonto(gastoMensual)} de pagos.`
+    }
+    if (gastoMensual > 0) return `Tus suscripciones suman ${simbolo} ${formatMonto(gastoMensual)} al mes (${simbolo} ${formatMonto(proyeccionAnual)} al año). Revisa cuáles usas de verdad para recortar gastos hormiga.`
+    if (ingresoMensual > 0) return `Tienes ${simbolo} ${formatMonto(ingresoMensual)} al mes en ingresos recurrentes registrados.`
+    return 'Registra tus pagos e ingresos recurrentes para ver cuánto entra y sale cada mes sin sorpresas.'
   })()
 
   const subsFiltradas = subs.filter(s => {
@@ -110,7 +153,7 @@ export default function Suscripciones() {
   if (loading) {
     return (
       <AppLayout>
-        <div className="max-w-[1728px] p-6 mx-auto space-y-6 lg:p-8">
+        <div className="max-w-[1728px] p-4 mx-auto space-y-6 sm:p-6 lg:p-8">
           <div className="w-48 h-8 rounded-badge bg-fog animate-pulse" />
           <div className="p-8 rounded-2xl bg-fog animate-pulse h-44" />
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -123,7 +166,7 @@ export default function Suscripciones() {
 
   return (
     <AppLayout>
-      <div className="max-w-[1728px] p-6 mx-auto lg:p-8">
+      <div className="max-w-[1728px] p-4 mx-auto sm:p-6 lg:p-8">
 
         {/* Encabezado */}
         <div className="flex items-start justify-between mb-8">
@@ -166,7 +209,7 @@ export default function Suscripciones() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-base text-white/60">Gasto mensual</p>
-                  <p className="text-2xl font-bold break-words sm:text-3xl">L {formatMonto(gastoMensual)}</p>
+                  <p className="text-2xl font-bold break-words sm:text-3xl">{simbolo} {formatMonto(gastoMensual)}</p>
                   <p className="mt-1.5 text-sm font-medium text-white/50">
                     {activas.length} {activas.length === 1 ? 'servicio' : 'servicios'}
                   </p>
@@ -181,7 +224,7 @@ export default function Suscripciones() {
                   <p className="text-base text-white/60">Próximo cobro</p>
                   {proximoCobroGlobal ? (
                     <>
-                      <p className="text-2xl font-bold break-words sm:text-3xl">L {formatMonto(proximoCobroGlobal.monto)}</p>
+                      <p className="text-2xl font-bold break-words sm:text-3xl">{simbolo} {formatMonto(proximoCobroGlobal.monto)}</p>
                       <p className="mt-1.5 text-sm font-medium text-white/50 truncate">
                         {proximoCobroGlobal.nombre} · {formatFecha(proximoCobroGlobal.fecha)}
                       </p>
@@ -201,7 +244,7 @@ export default function Suscripciones() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-base text-white/60">Proyección anual</p>
-                  <p className="text-2xl font-bold break-words sm:text-3xl text-emerald-200">L {formatMonto(proyeccionAnual)}</p>
+                  <p className="text-2xl font-bold break-words sm:text-3xl text-emerald-200">{simbolo} {formatMonto(proyeccionAnual)}</p>
                   <p className="mt-1.5 text-sm font-medium text-white/50">Estimado a 12 meses</p>
                 </div>
               </div>
@@ -316,10 +359,10 @@ export default function Suscripciones() {
 
                       {/* Monto */}
                       <div className="mb-4">
-                        <p className="text-2xl font-bold text-obsidian">L {formatMonto(c.monto)}</p>
+                        <p className="text-2xl font-bold text-obsidian">{simbolo} {formatMonto(c.monto)}</p>
                         <p className="text-xs text-steel">
                           {frecMeta.adverbio}
-                          {sub.frecuencia !== 'mensual' && ` · ≈ L ${formatMonto(c.montoMensual)}/mes`}
+                          {sub.frecuencia !== 'mensual' && ` · ≈ ${simbolo} ${formatMonto(c.montoMensual)}/mes`}
                         </p>
                       </div>
 
@@ -344,6 +387,19 @@ export default function Suscripciones() {
                           {pausada ? <><Play size={12} strokeWidth={2} /> Activar</> : <><Pause size={12} strokeWidth={2} /> Pausar</>}
                         </button>
                       </div>
+
+                      {/* Confirmar el cobro convierte el ciclo vencido en un
+                          gasto real. Solo aparece cuando ya toca pagar. */}
+                      {!pausada && c.proximoCobro && c.diasParaCobro !== null && c.diasParaCobro <= 0 && (
+                        <button
+                          onClick={() => handleCobrar(sub)}
+                          disabled={cobrando === sub.id}
+                          className="inline-flex items-center justify-center w-full gap-1.5 px-3 py-2 mt-3 text-xs font-medium transition-colors border rounded-full text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100 disabled:opacity-50"
+                        >
+                          <CheckCircle2 size={14} strokeWidth={2} />
+                          {cobrando === sub.id ? 'Registrando…' : `Confirmar cobro del ${formatFecha(c.proximoCobro)}`}
+                        </button>
+                      )}
                     </div>
                   )
                 })}
@@ -372,7 +428,7 @@ export default function Suscripciones() {
                           {distribucion.map((d, i) => <Cell key={i} fill={d.color || COLORES[i % COLORES.length]} />)}
                         </Pie>
                         <Tooltip
-                          formatter={(value) => [`L ${formatMonto(Number(value) || 0)}`, 'Al mes']}
+                          formatter={(value) => [`${simbolo} ${formatMonto(Number(value) || 0)}`, 'Al mes']}
                           contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #ececee', borderRadius: 16, color: '#18181b' }}
                           labelStyle={{ color: '#71717a' }}
                         />
@@ -380,7 +436,7 @@ export default function Suscripciones() {
                     </ResponsiveContainer>
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                       <span className="text-[10px] font-medium text-steel">Al mes</span>
-                      <span className="text-sm font-bold leading-tight text-ink">L {formatMonto(totalDistribucion)}</span>
+                      <span className="text-sm font-bold leading-tight text-ink">{simbolo} {formatMonto(totalDistribucion)}</span>
                     </div>
                   </div>
                   <div className="flex-1 min-w-0 space-y-2.5">
@@ -404,7 +460,7 @@ export default function Suscripciones() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-steel">Próximos cobros</h3>
                 {proximosCobros.length > 0 && (
-                  <span className="text-xs font-medium text-ash">L {formatMonto(proximosCobros.reduce((s, p) => s + p.monto, 0))}</span>
+                  <span className="text-xs font-medium text-ash">{simbolo} {formatMonto(proximosCobros.reduce((s, p) => s + p.monto, 0))}</span>
                 )}
               </div>
               {proximosCobros.length === 0 ? (
@@ -427,7 +483,7 @@ export default function Suscripciones() {
                           <p className="text-sm font-medium truncate text-ink">{p.nombre}</p>
                           <p className="text-xs text-ash">{formatFecha(p.fecha)}</p>
                         </div>
-                        <p className={`text-sm font-semibold whitespace-nowrap ${urgente ? 'text-red-500' : 'text-ink'}`}>L {formatMonto(p.monto)}</p>
+                        <p className={`text-sm font-semibold whitespace-nowrap ${urgente ? 'text-red-500' : 'text-ink'}`}>{simbolo} {formatMonto(p.monto)}</p>
                       </div>
                     )
                   })}
@@ -453,7 +509,7 @@ export default function Suscripciones() {
       <button
         onClick={() => { setSubEditar(null); setShowForm(true) }}
         style={{ background: 'linear-gradient(135deg, #2c6e49 0%, #14361f 55%, #000000 100%)' }}
-        className="fixed z-40 flex items-center justify-center transition-transform rounded-full text-snow bottom-24 lg:bottom-8 right-6 lg:right-8 w-14 h-14 hover:scale-105 hover:brightness-110 sm:hidden"
+        className="fixed z-40 flex items-center justify-center transition-transform rounded-full text-snow bottom-[calc(6rem+env(safe-area-inset-bottom))] lg:bottom-8 right-6 lg:right-8 w-14 h-14 hover:scale-105 hover:brightness-110 sm:hidden"
       >
         <Plus size={24} strokeWidth={2.5} />
       </button>

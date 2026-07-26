@@ -1,13 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
-import { fechaHoyLocal } from '../lib/fecha'
 import { useRouter } from 'next/navigation'
-import { Bell, CheckCircle2, AlertTriangle, ChevronRight } from 'lucide-react'
+import { Bell, CheckCircle2, AlertTriangle, ChevronRight, X, RotateCcw } from 'lucide-react'
 
-interface Notificacion {
+interface Aviso {
   id: string
+  clave: string
+  periodo: string
   tipo: 'advertencia' | 'peligro'
   titulo: string
   mensaje: string
@@ -15,130 +15,57 @@ interface Notificacion {
 }
 
 export default function Notificaciones() {
-  const [notificaciones, setNotificaciones] = useState<Notificacion[]>([])
+  const [avisos, setAvisos] = useState<Aviso[]>([])
+  const [descartados, setDescartados] = useState(0)
   const [mostrar, setMostrar] = useState(false)
   const router = useRouter()
 
-  useEffect(() => {
-    cargarNotificaciones()
-  }, [])
+  useEffect(() => { cargar() }, [])
 
-  const cargarNotificaciones = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const mesActual = new Date().getMonth() + 1
-    const añoActual = new Date().getFullYear()
-    const inicioMes = `${añoActual}-${String(mesActual).padStart(2, '0')}-01`
-
-    // Cargar presupuestos del mes
-    const { data: budgets } = await supabase
-      .from('budgets')
-      .select('*, categories(nombre, icono)')
-      .eq('user_id', user.id)
-      .eq('mes', mesActual)
-      .eq('año', añoActual)
-
-    if (!budgets || budgets.length === 0) return
-
-    const nuevasNotificaciones: Notificacion[] = []
-
-    for (const budget of budgets) {
-      const { data: trans } = await supabase
-        .from('transactions')
-        .select('monto')
-        .eq('user_id', user.id)
-        .eq('category_id', budget.category_id)
-        .eq('tipo', 'gasto')
-        .gte('fecha', inicioMes)
-
-      const gastado = (trans || []).reduce((acc, t) => acc + Number(t.monto), 0)
-      const porcentaje = (gastado / budget.monto_limite) * 100
-      const icono = budget.categories?.icono || '📦'
-      const nombre = budget.categories?.nombre || 'Categoría'
-
-      if (porcentaje >= 100) {
-        nuevasNotificaciones.push({
-          id: budget.id,
-          tipo: 'peligro',
-          titulo: `${icono} Presupuesto sobrepasado`,
-          mensaje: `${nombre}: gastaste L ${gastado.toFixed(2)} de L ${Number(budget.monto_limite).toFixed(2)}`,
-          href: '/presupuesto'
-        })
-      } else if (porcentaje >= 80) {
-        nuevasNotificaciones.push({
-          id: budget.id,
-          tipo: 'advertencia',
-          titulo: `${icono} Presupuesto al ${Math.round(porcentaje)}%`,
-          mensaje: `${nombre}: te quedan L ${(Number(budget.monto_limite) - gastado).toFixed(2)}`,
-          href: '/presupuesto'
-        })
-      }
+  // Los avisos se calculan en /api/notificaciones. Antes se armaban en el
+  // cliente con una consulta por presupuesto y sin convertir monedas.
+  const cargar = async () => {
+    try {
+      const res = await fetch('/api/notificaciones')
+      if (!res.ok) return
+      const json = await res.json()
+      setAvisos(json.avisos || [])
+      setDescartados(json.descartados || 0)
+    } catch {
+      // Sin conexión se deja lo que ya estaba en pantalla.
     }
-
-    // Verificar deudas vencidas
-    const { data: deudas } = await supabase
-      .from('debts')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('completada', false)
-      .lt('fecha_limite', fechaHoyLocal())
-
-    for (const deuda of deudas || []) {
-      nuevasNotificaciones.push({
-        id: 'deuda-' + deuda.id,
-        tipo: 'peligro',
-        titulo: '🤝 Deuda vencida',
-        mensaje: `${deuda.nombre}: venció el ${new Date(deuda.fecha_limite + 'T12:00:00').toLocaleDateString('es-HN')}`,
-        href: '/deudas'
-      })
-    }
-
-    // Verificar tarjetas con pago próximo
-    const { data: tarjetas } = await supabase
-      .from('wallets')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('tipo', 'credito')
-      .eq('activo', true)
-
-    const hoy = new Date()
-    const diaHoy = hoy.getDate()
-
-    for (const tarjeta of tarjetas || []) {
-      if (!tarjeta.fecha_pago) continue
-
-      const diaPago = tarjeta.fecha_pago
-      let diasParaPago = diaPago - diaHoy
-      if (diasParaPago < 0) {
-        const diasEnMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate()
-        diasParaPago = diasEnMes - diaHoy + diaPago
-      }
-
-      if (diasParaPago <= 5) {
-        nuevasNotificaciones.push({
-          id: 'tarjeta-' + tarjeta.id,
-          tipo: diasParaPago <= 2 ? 'peligro' : 'advertencia',
-          titulo: `💳 Pago próximo — ${tarjeta.nombre}`,
-          mensaje: diasParaPago === 0
-            ? '¡Hoy es tu fecha de pago!'
-            : `Faltan ${diasParaPago} días para tu fecha de pago (día ${diaPago})`,
-          href: '/carteras'
-        })
-      }
-    }
-
-    setNotificaciones(nuevasNotificaciones)
   }
 
-  const cantidad = notificaciones.length
+  // El descarte se guarda por periodo: el aviso vuelve el siguiente ciclo.
+  const descartar = async (a: Aviso) => {
+    setAvisos(prev => prev.filter(x => x.clave !== a.clave))
+    setDescartados(n => n + 1)
+    try {
+      await fetch('/api/notificaciones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clave: a.clave, periodo: a.periodo }),
+      })
+    } catch {
+      cargar()
+    }
+  }
+
+  const restaurar = async () => {
+    try {
+      await fetch('/api/notificaciones', { method: 'DELETE' })
+    } finally {
+      cargar()
+    }
+  }
+
+  const cantidad = avisos.length
 
   return (
     <div className="relative">
-
-      {/* Botón campana */}
       <button
         onClick={() => setMostrar(!mostrar)}
+        aria-label={`Notificaciones${cantidad > 0 ? ` (${cantidad})` : ''}`}
         className="relative flex items-center justify-center transition-colors border rounded-full w-11 h-11 bg-snow border-fog shadow-soft text-graphite hover:text-ink hover:bg-mist"
       >
         <Bell size={19} strokeWidth={2} />
@@ -149,20 +76,24 @@ export default function Notificaciones() {
         )}
       </button>
 
-      {/* Panel de notificaciones */}
       {mostrar && (
         <>
-          {/* Overlay para cerrar */}
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setMostrar(false)}
-          />
+          <div className="fixed inset-0 z-40" onClick={() => setMostrar(false)} />
 
-          <div className="absolute right-0 z-50 overflow-hidden border shadow-soft top-12 w-80 max-w-[calc(100vw-2rem)] bg-snow border-fog rounded-card">
-
-            <div className="flex items-center justify-between p-4 border-b border-fog">
+          {/* En móvil el panel se ancla al borde de la pantalla para no salirse. */}
+          <div className="fixed left-4 right-4 z-50 overflow-hidden border shadow-soft top-20 bg-snow border-fog rounded-card sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-80">
+            <div className="flex items-center justify-between gap-2 p-4 border-b border-fog">
               <h3 className="text-sm font-semibold text-ink">Notificaciones</h3>
-              <span className="text-xs text-steel">{cantidad} alertas</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-steel">{cantidad} {cantidad === 1 ? 'alerta' : 'alertas'}</span>
+                <button
+                  onClick={() => setMostrar(false)}
+                  aria-label="Cerrar notificaciones"
+                  className="flex items-center justify-center w-7 h-7 -mr-1 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist sm:hidden"
+                >
+                  <X size={16} strokeWidth={2} />
+                </button>
+              </div>
             </div>
 
             {cantidad === 0 ? (
@@ -170,43 +101,66 @@ export default function Notificaciones() {
                 <CheckCircle2 size={32} strokeWidth={1.75} className="mx-auto mb-2 text-emerald-500" />
                 <p className="text-sm text-graphite">Todo en orden</p>
                 <p className="mt-1 text-xs text-steel">
-                  No tienes alertas pendientes
+                  {descartados > 0
+                    ? `${descartados} ${descartados === 1 ? 'aviso descartado' : 'avisos descartados'} este periodo`
+                    : 'No tienes alertas pendientes'}
                 </p>
               </div>
             ) : (
-              <div className="overflow-y-auto max-h-80">
-                {notificaciones.map(n => (
-                  <button
-                    key={n.id}
-                    onClick={() => {
-                      setMostrar(false)
-                      router.push(n.href)
-                    }}
-                    className={`w-full text-left p-4 border-b border-fog transition-colors ${n.tipo === 'peligro' ? 'bg-red-50 hover:bg-red-100/60 border-l-2 border-l-red-500' : 'bg-amber-50 hover:bg-amber-100/60 border-l-2 border-l-amber-500'
-                      }`}
+              <div className="overflow-y-auto max-h-[60vh] sm:max-h-80">
+                {avisos.map(n => (
+                  <div
+                    key={n.clave}
+                    className={`relative border-b border-fog border-l-2 transition-colors ${
+                      n.tipo === 'peligro'
+                        ? 'bg-red-50 border-l-red-500 hover:bg-red-100/60'
+                        : 'bg-amber-50 border-l-amber-500 hover:bg-amber-100/60'
+                    }`}
                   >
-                    <p className="text-sm font-medium text-ink">{n.titulo}</p>
-                    <p className="text-graphite text-xs mt-0.5">{n.mensaje}</p>
-                    <p className={`flex items-center gap-1 text-xs mt-1 font-medium ${n.tipo === 'peligro' ? 'text-red-600' : 'text-amber-600'
+                    <button
+                      onClick={() => { setMostrar(false); router.push(n.href) }}
+                      className="w-full p-4 pr-11 text-left"
+                    >
+                      <p className="text-sm font-medium text-ink">{n.titulo}</p>
+                      <p className="text-graphite text-xs mt-0.5">{n.mensaje}</p>
+                      <p className={`flex items-center gap-1 text-xs mt-1 font-medium ${
+                        n.tipo === 'peligro' ? 'text-red-600' : 'text-amber-600'
                       }`}>
-                      <AlertTriangle size={13} strokeWidth={2} />
-                      {n.tipo === 'peligro' ? 'Atención requerida' : 'Revisar'}
-                    </p>
-                  </button>
+                        <AlertTriangle size={13} strokeWidth={2} />
+                        {n.tipo === 'peligro' ? 'Atención requerida' : 'Revisar'}
+                      </p>
+                    </button>
+                    <button
+                      onClick={() => descartar(n)}
+                      aria-label="Descartar aviso"
+                      title="Descartar hasta el próximo periodo"
+                      className="absolute flex items-center justify-center w-8 h-8 transition-colors -translate-y-1/2 rounded-full right-2 top-1/2 text-ash hover:text-ink hover:bg-snow/80"
+                    >
+                      <X size={15} strokeWidth={2} />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
 
-            <div className="p-3 border-t border-fog">
+            <div className="flex items-center justify-between gap-2 p-3 border-t border-fog">
               <button
                 onClick={() => { setMostrar(false); router.push('/presupuesto') }}
-                className="inline-flex items-center justify-center w-full gap-0.5 text-xs font-medium transition-colors text-steel hover:text-ink"
+                className="inline-flex items-center gap-0.5 text-xs font-medium transition-colors text-steel hover:text-ink"
               >
-                Ver todos los presupuestos
+                Ver presupuestos
                 <ChevronRight size={14} strokeWidth={2} />
               </button>
+              {descartados > 0 && (
+                <button
+                  onClick={restaurar}
+                  className="inline-flex items-center gap-1 text-xs font-medium transition-colors text-steel hover:text-ink"
+                >
+                  <RotateCcw size={12} strokeWidth={2} />
+                  Ver descartados ({descartados})
+                </button>
+              )}
             </div>
-
           </div>
         </>
       )}

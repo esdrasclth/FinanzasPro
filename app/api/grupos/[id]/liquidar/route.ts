@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '../../../../lib/prisma'
 import { requireMiembro, nombresDeUsuarios } from '../../../../lib/grupos-server'
 import { round2 } from '../../../../lib/dinero'
+import { tasaVigente, montoParaCartera } from '../../../../lib/tipoCambio-server'
 
 const toDate = (s: string) => new Date(`${String(s).slice(0, 10)}T00:00:00.000Z`)
 
@@ -43,6 +44,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const fecha = toDate(fechaStr)
   const nombres = await nombresDeUsuarios([deUser, aUser])
+  const tasa = await tasaVigente(auth.ctx.user.id)
 
   // Elige la cartera de un usuario: la indicada si es el usuario actual, o su primera activa.
   const elegirWallet = async (tx: any, userId: string) => {
@@ -62,14 +64,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       nota,
     }
 
-    // El que paga: gasto en su cartera.
+    // El que paga: gasto en su cartera. La liquidación está en la moneda del
+    // grupo; en la cartera se refleja en la moneda de la cartera.
     const walletDe = await elegirWallet(tx, deUser)
     if (walletDe) {
+      const enCartera = montoParaCartera(monto, grupo.moneda, walletDe.moneda, tasa)
       const t = await tx.transactions.create({
         data: {
           user_id: deUser,
           wallet_id: walletDe.id,
-          monto,
+          monto: enCartera.monto,
+          moneda: enCartera.moneda,
+          monto_original: enCartera.monto_original,
+          tasa_cambio: enCartera.tasa_cambio,
           tipo: 'gasto',
           descripcion: `${grupo.nombre}: pago a ${nombres[aUser]?.nombre || 'miembro'}`,
           fecha,
@@ -82,11 +89,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // El que recibe: ingreso en su cartera.
     const walletA = await elegirWallet(tx, aUser)
     if (walletA) {
+      const enCartera = montoParaCartera(monto, grupo.moneda, walletA.moneda, tasa)
       const t = await tx.transactions.create({
         data: {
           user_id: aUser,
           wallet_id: walletA.id,
-          monto,
+          monto: enCartera.monto,
+          moneda: enCartera.moneda,
+          monto_original: enCartera.monto_original,
+          tasa_cambio: enCartera.tasa_cambio,
           tipo: 'ingreso',
           descripcion: `${grupo.nombre}: cobro de ${nombres[deUser]?.nombre || 'miembro'}`,
           fecha,

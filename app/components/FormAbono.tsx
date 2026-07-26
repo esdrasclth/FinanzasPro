@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { fechaHoyLocal } from '../lib/fecha'
 import { abonarDeuda, crearSubcategoriaDeuda } from '../lib/deudas'
+import { useMoneda } from '../lib/moneda-context'
 
 interface Props {
   deuda: any
@@ -19,6 +20,7 @@ export default function FormAbono({ deuda, onClose, onSuccess }: Props) {
   const [nota, setNota] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const { simbolo } = useMoneda()
 
   useEffect(() => {
     cargarWallets()
@@ -45,7 +47,7 @@ export default function FormAbono({ deuda, onClose, onSuccess }: Props) {
 
     const montoNum = parseFloat(monto)
     if (montoNum <= 0) { setError('El monto debe ser mayor a 0'); setLoading(false); return }
-    if (montoNum > pendiente) { setError(`El monto no puede superar el pendiente de L ${pendiente.toFixed(2)}`); setLoading(false); return }
+    if (montoNum > pendiente) { setError(`El monto no puede superar el pendiente de ${simbolo} ${pendiente.toFixed(2)}`); setLoading(false); return }
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
@@ -59,16 +61,13 @@ export default function FormAbono({ deuda, onClose, onSuccess }: Props) {
     }
 
     const { error } = await abonarDeuda({
-      userId: user.id,
       deudaId: deuda.id,
-      nombreDeuda: deuda.nombre,
-      montoPagadoActual: Number(deuda.monto_pagado),
-      montoTotal: Number(deuda.monto_total),
       walletId,
       monto: montoNum,
       fecha,
       nota,
       categoryId: catId,
+      moneda: wallets.find(w => w.id === walletId)?.moneda || 'HNL',
     })
 
     if (error) { setError(error); setLoading(false); return }
@@ -97,15 +96,15 @@ export default function FormAbono({ deuda, onClose, onSuccess }: Props) {
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <p className="text-xs text-steel">Total deuda</p>
-              <p className="font-medium text-ink">L {formatMonto(Number(deuda.monto_total))}</p>
+              <p className="font-medium text-ink">{simbolo} {formatMonto(Number(deuda.monto_total))}</p>
             </div>
             <div>
               <p className="text-xs text-steel">Pagado</p>
-              <p className="font-medium text-emerald-600">L {formatMonto(Number(deuda.monto_pagado))}</p>
+              <p className="font-medium text-emerald-600">{simbolo} {formatMonto(Number(deuda.monto_pagado))}</p>
             </div>
             <div className="col-span-2">
               <p className="text-xs text-steel">Pendiente</p>
-              <p className="text-lg font-semibold text-red-500">L {formatMonto(pendiente)}</p>
+              <p className="text-lg font-semibold text-red-500">{simbolo} {formatMonto(pendiente)}</p>
             </div>
           </div>
           <div className="w-full h-1.5 bg-fog rounded-full mt-3">
@@ -141,7 +140,7 @@ export default function FormAbono({ deuda, onClose, onSuccess }: Props) {
               onClick={() => setMonto(pendiente.toFixed(2))}
               className="mt-2 text-xs font-medium text-graphite hover:text-ink"
             >
-              Pagar todo (L {formatMonto(pendiente)}) →
+              Pagar todo ({simbolo} {formatMonto(pendiente)}) →
             </button>
           </div>
 

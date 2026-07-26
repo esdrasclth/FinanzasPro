@@ -198,7 +198,7 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
     setError('')
 
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) { setLoading(false); return }
 
     if (tipo === 'transferencia') {
       if (!walletDestinoId) {
@@ -206,70 +206,33 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
         setLoading(false)
         return
       }
-
-      let { data: catTransfer } = await supabase
-        .from('categories')
-        .select('id')
-        .eq('nombre', 'Transferencia')
-        .eq('es_sistema', true)
-        .limit(1)
-
-      let catId = catTransfer?.[0]?.id
-
-      if (!catId) {
-        const { data: newCat } = await supabase
-          .from('categories')
-          .insert({
-            nombre: 'Transferencia',
-            tipo: 'gasto',
-            icono: '↔️',
-            color: '#6366F1',
-            es_sistema: true,
-            user_id: user.id
-          })
-          .select()
-          .single()
-        catId = newCat?.id
-      }
-
-      const conv = necesitaConversion
-      if (conv && !(tasaVigente > 0)) {
+      if (necesitaConversion && !(tasaVigente > 0)) {
         setError('No hay tasa de cambio disponible. Actualízala o ingresa una manual.')
         setLoading(false)
         return
       }
 
-      // Origen: sale montoOrigen en su moneda. Destino: entra el monto en la moneda pagada.
-      const { error: e1 } = await supabase.from('transactions').insert({
-        user_id: user.id,
-        wallet_id: walletId,
-        category_id: catId,
-        monto: montoOrigen,
-        moneda: monedaOrigen,
-        monto_original: conv ? montoNum : null,
-        tasa_cambio: conv ? tasaVigente : null,
-        tipo: 'gasto',
-        descripcion: descripcion || `Transferencia a ${walletDestino?.nombre}`,
-        fecha,
-        wallet_destino_id: walletDestinoId
+      // Las dos piernas las escribe el servidor dentro de una sola transacción
+      // de base de datos. Hacerlo con dos inserts desde aquí dejaba el dinero
+      // saliendo de la cartera de origen sin llegar a la de destino si el
+      // segundo fallaba.
+      const res = await fetch('/api/transferencias', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          wallet_id: walletId,
+          wallet_destino_id: walletDestinoId,
+          monto: montoNum,
+          moneda_destino: monedaDestino,
+          tasa_cambio: tasaVigente || null,
+          descripcion,
+          fecha,
+        }),
       })
 
-      const { error: e2 } = await supabase.from('transactions').insert({
-        user_id: user.id,
-        wallet_id: walletDestinoId,
-        category_id: catId,
-        monto: montoNum,
-        moneda: monedaDestino,
-        monto_original: conv ? montoOrigen : null,
-        tasa_cambio: conv ? tasaVigente : null,
-        tipo: 'ingreso',
-        descripcion: descripcion || `Transferencia desde ${walletOrigen?.nombre}`,
-        fecha,
-        wallet_destino_id: walletId
-      })
-
-      if (e1 || e2) {
-        setError('Error al registrar transferencia')
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        setError(json?.error?.message || 'Error al registrar transferencia')
         setLoading(false)
         return
       }
@@ -312,11 +275,7 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
           }
 
           const { error: errAbono } = await abonarDeuda({
-            userId: user.id,
             deudaId: deuda.id,
-            nombreDeuda: deuda.nombre,
-            montoPagadoActual: Number(deuda.monto_pagado),
-            montoTotal: Number(deuda.monto_total),
             walletId,
             monto: montoAbono,
             fecha,
@@ -338,13 +297,19 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
       }
 
       // Se guarda en la moneda seleccionada; no se convierte al registrar
-      // (la conversión ocurre solo al pagar la tarjeta).
+      // (la conversión ocurre solo al pagar la tarjeta). Pero sí se sella la
+      // tasa de referencia vigente hoy, para que los reportes normalicen este
+      // movimiento con la tasa del día en que ocurrió y no con la de la fecha
+      // en que se consulten.
+      const tcSello = tc || (await obtenerTipoCambio())
+
       const { error } = await supabase.from('transactions').insert({
         user_id: user.id,
         wallet_id: walletId,
         category_id: categoryFinal,
         monto: parseFloat(monto),
         moneda: monedaMovimiento,
+        tasa_cambio: tcSello?.tasa || null,
         tipo,
         descripcion,
         fecha

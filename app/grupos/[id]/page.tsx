@@ -147,7 +147,7 @@ export default function GrupoDetalle() {
   if (loading && !grupo) {
     return (
       <AppLayout>
-        <div className="max-w-[1728px] p-6 mx-auto space-y-6 lg:p-8">
+        <div className="max-w-[1728px] p-4 mx-auto space-y-6 sm:p-6 lg:p-8">
           <div className="w-48 h-8 rounded-badge bg-fog animate-pulse" />
           <div className="h-40 rounded-2xl bg-fog animate-pulse" />
         </div>
@@ -157,7 +157,7 @@ export default function GrupoDetalle() {
 
   return (
     <AppLayout>
-      <div className="max-w-[1728px] p-6 mx-auto lg:p-8">
+      <div className="max-w-[1728px] p-4 mx-auto sm:p-6 lg:p-8">
 
         {/* Encabezado */}
         <div className="flex flex-wrap items-start justify-between gap-4 mb-8">

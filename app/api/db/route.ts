@@ -31,6 +31,8 @@ const TABLES: Record<
   debts: { user: 'user_id' },
   debt_payments: { user: 'user_id' },
   subscriptions: { user: 'user_id' },
+  meta_aportes: { user: 'user_id' },
+  subscription_charges: { user: 'user_id' },
 }
 
 const DATE_COLS = new Set(['fecha', 'fecha_limite', 'fecha_inicio', 'proximo_cobro'])

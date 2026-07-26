@@ -61,6 +61,14 @@ function avanzarCiclo(fecha: Date, frecuencia: Frecuencia): Date {
 const esFrecuencia = (f?: string | null): Frecuencia =>
   f === 'semanal' || f === 'trimestral' || f === 'anual' ? f : 'mensual'
 
+// Siguiente fecha de cobro a partir de una dada, como 'YYYY-MM-DD'.
+// La usa la confirmación de cobro para adelantar el ciclo ya cobrado.
+export function avanzarDesde(fechaISO: string, frecuencia?: string | null): string {
+  const base = parseFecha(fechaISO)
+  if (!base) return fechaISO
+  return aFechaLocal(avanzarCiclo(base, esFrecuencia(frecuencia)))
+}
+
 export function calcularSuscripcion(sub: SuscripcionLike, hoy: Date = new Date()): SuscripcionCalculo {
   const monto = num(sub.monto)
   const frecuencia = esFrecuencia(sub.frecuencia)

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { fechaHoyLocal } from '../lib/fecha'
+import { simboloMoneda } from '../lib/dinero'
 
 interface Props {
   cartera: any
@@ -17,6 +18,7 @@ export default function AjusteSaldo({ cartera, onClose, onSuccess }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const simbolo = simboloMoneda(cartera.moneda)
   const saldoActual = Number(cartera.saldo_actual) || 0
   const nuevoSaldoNum = parseFloat(nuevoSaldo) || 0
   const diferencia = nuevoSaldoNum - saldoActual
@@ -108,7 +110,7 @@ export default function AjusteSaldo({ cartera, onClose, onSuccess }: Props) {
           <div className="p-4 bg-mist rounded-input">
             <p className="mb-1 text-xs text-steel">Saldo actual registrado</p>
             <p className="text-2xl font-bold text-ink">
-              L {formatMonto(saldoActual)}
+              {simbolo} {formatMonto(saldoActual)}
             </p>
           </div>
 
@@ -118,7 +120,7 @@ export default function AjusteSaldo({ cartera, onClose, onSuccess }: Props) {
               ¿Cuánto hay realmente?
             </label>
             <div className="relative">
-              <span className="absolute font-medium -translate-y-1/2 left-4 top-1/2 text-ash">L</span>
+              <span className="absolute font-medium -translate-y-1/2 left-4 top-1/2 text-ash">{simbolo}</span>
               <input
                 type="number"
                 value={nuevoSaldo}
@@ -143,7 +145,7 @@ export default function AjusteSaldo({ cartera, onClose, onSuccess }: Props) {
                 <span className="text-lg">⚖️</span>
                 <div>
                   <p className={`font-semibold ${esIngreso ? 'text-emerald-600' : 'text-red-500'}`}>
-                    {esIngreso ? '+' : '-'}L {formatMonto(diferencia)}
+                    {esIngreso ? '+' : '-'}{simbolo} {formatMonto(diferencia)}
                   </p>
                   <p className="text-xs text-steel">
                     Ajuste de saldo · {esIngreso ? 'Ingreso' : 'Gasto'} · Hoy

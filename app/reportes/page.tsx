@@ -5,6 +5,9 @@ import { supabase } from '../lib/supabase'
 import { useRouter } from 'next/navigation'
 import AppLayout from '../components/AppLayout'
 import { SkeletonChart, SkeletonList } from '../components/Skeleton'
+import { useMoneda } from '../lib/moneda-context'
+import { obtenerTipoCambio } from '../lib/tipoCambio'
+import { soloMovimientosReales, montoNormalizado } from '../lib/finanzas'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, PieChart, Pie, Cell, LineChart, Line, Legend
@@ -15,6 +18,7 @@ export default function Reportes() {
   const [transacciones, setTransacciones] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [periodo, setPeriodo] = useState('3') // meses hacia atrás
+  const { simbolo, moneda } = useMoneda()
 
   useEffect(() => {
     const checkUser = async () => {
@@ -46,8 +50,17 @@ export default function Reportes() {
       .gte('fecha', inicioStr)
       .order('fecha', { ascending: true })
 
-    // El "Saldo inicial" (apertura) y las transferencias entre carteras no son movimientos del periodo.
-    setTransacciones((data || []).filter(t => t.categories?.nombre !== 'Saldo inicial' && !t.wallet_destino_id))
+    // Se descartan transferencias y aperturas de cartera, y cada monto se lleva
+    // a la moneda principal usando la tasa sellada en la propia transacción
+    // (la de hoy solo como respaldo para movimientos antiguos sin sellar).
+    const tc = await obtenerTipoCambio()
+    const tasaLocal = tc?.tasa ?? null
+    setTransacciones(
+      soloMovimientosReales(data || []).map(t => ({
+        ...t,
+        monto: montoNormalizado(t, moneda, tasaLocal),
+      }))
+    )
     setLoading(false)
   }
 
@@ -156,7 +169,7 @@ export default function Reportes() {
 
   return (
     <AppLayout>
-      <div className="max-w-[1728px] p-6 mx-auto lg:p-8">
+      <div className="max-w-[1728px] p-4 mx-auto sm:p-6 lg:p-8">
 
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
@@ -192,13 +205,13 @@ export default function Reportes() {
           <div className="p-5 border bg-snow border-fog rounded-card">
             <p className="mb-2 text-xs font-medium text-steel">Total ingresos</p>
             <p className="text-xl font-bold text-emerald-600">
-              L {formatMonto(totalIngresos)}
+              {simbolo} {formatMonto(totalIngresos)}
             </p>
           </div>
           <div className="p-5 border bg-snow border-fog rounded-card">
             <p className="mb-2 text-xs font-medium text-steel">Total gastos</p>
             <p className="text-xl font-bold text-red-500">
-              L {formatMonto(totalGastos)}
+              {simbolo} {formatMonto(totalGastos)}
             </p>
           </div>
           <div className="p-5 border bg-snow border-fog rounded-card">
@@ -211,7 +224,7 @@ export default function Reportes() {
           <div className="p-5 border bg-snow border-fog rounded-card">
             <p className="mb-2 text-xs font-medium text-steel">Gasto promedio/mes</p>
             <p className="text-xl font-bold text-obsidian">
-              L {formatMonto(promedioGastoMensual)}
+              {simbolo} {formatMonto(promedioGastoMensual)}
             </p>
           </div>
         </div>
@@ -227,10 +240,10 @@ export default function Reportes() {
               <LineChart data={evolucionMensual}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#ececee" />
                 <XAxis dataKey="label" tick={{ fill: '#71717a', fontSize: 12 }} axisLine={{ stroke: '#ececee' }} tickLine={false} />
-                <YAxis tick={{ fill: '#71717a', fontSize: 12 }} axisLine={{ stroke: '#ececee' }} tickLine={false} tickFormatter={(v) => `L${formatMonto(v)}`} width={75} />
+                <YAxis tick={{ fill: '#71717a', fontSize: 12 }} axisLine={{ stroke: '#ececee' }} tickLine={false} tickFormatter={(v) => `${simbolo}${formatMonto(v)}`} width={75} />
                 <Tooltip
                   formatter={(value: number | undefined, name: string | undefined) => [
-                    `L ${formatMontoCompleto(Number(value) || 0)}`,
+                    `${simbolo} ${formatMontoCompleto(Number(value) || 0)}`,
                     name === 'ingresos' ? '💰 Ingresos' : name === 'gastos' ? '💸 Gastos' : '💧 Ahorro'
                   ]}
                   contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #ececee', borderRadius: 16, color: '#18181b' }}
@@ -268,7 +281,7 @@ export default function Reportes() {
                           <span className="text-xs text-ash">({cat.count})</span>
                         </div>
                         <span className="text-sm font-medium text-ink">
-                          L {formatMonto(cat.total)}
+                          {simbolo} {formatMonto(cat.total)}
                         </span>
                       </div>
                       <div className="w-full bg-fog rounded-full h-1.5">
@@ -300,9 +313,9 @@ export default function Reportes() {
               <BarChart data={gastosPorDia}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#ececee" />
                 <XAxis dataKey="nombre" tick={{ fill: '#71717a', fontSize: 12 }} axisLine={{ stroke: '#ececee' }} tickLine={false} />
-                <YAxis tick={{ fill: '#71717a', fontSize: 12 }} axisLine={{ stroke: '#ececee' }} tickLine={false} tickFormatter={(v) => `L${formatMonto(v)}`} width={65} />
+                <YAxis tick={{ fill: '#71717a', fontSize: 12 }} axisLine={{ stroke: '#ececee' }} tickLine={false} tickFormatter={(v) => `${simbolo}${formatMonto(v)}`} width={65} />
                 <Tooltip
-                  formatter={(value: number | undefined) => [`L ${formatMontoCompleto(Number(value) || 0)}`, 'Gastos']}
+                  formatter={(value: number | undefined) => [`${simbolo} ${formatMontoCompleto(Number(value) || 0)}`, 'Gastos']}
                   contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #ececee', borderRadius: 16, color: '#18181b' }}
                   labelStyle={{ color: '#71717a' }}
                 />
@@ -341,7 +354,7 @@ export default function Reportes() {
             )}
             {topCategorias.length > 0 && (
               <p className="text-sm text-graphite">
-                📊 Tu mayor gasto es en <span className="font-medium text-ink">{(topCategorias[0] as any).icono} {(topCategorias[0] as any).nombre}</span> con <span className="font-medium text-red-500">L {formatMontoCompleto((topCategorias[0] as any).total)}</span> en el período.
+                📊 Tu mayor gasto es en <span className="font-medium text-ink">{(topCategorias[0] as any).icono} {(topCategorias[0] as any).nombre}</span> con <span className="font-medium text-red-500">{simbolo} {formatMontoCompleto((topCategorias[0] as any).total)}</span> en el período.
               </p>
             )}
             {diaMasGasto.total > 0 && (

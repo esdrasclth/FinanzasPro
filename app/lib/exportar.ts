@@ -69,7 +69,7 @@ function descargarBlob(blob: Blob, nombre: string) {
   URL.revokeObjectURL(url)
 }
 
-export async function exportarExcel(trans: TransaccionExport[], mes: string, filtrosTexto?: string) {
+export async function exportarExcel(trans: TransaccionExport[], mes: string, filtrosTexto?: string, simbolo = 'L') {
   const wb = new ExcelJS.Workbook()
   wb.creator = 'Caudal'
   wb.created = new Date()
@@ -114,7 +114,7 @@ export async function exportarExcel(trans: TransaccionExport[], mes: string, fil
     lc.font = { bold: true, color: { argb: 'FF3F3F46' } }
     const vc = ws.getCell(`B${fila}`)
     vc.value = valor
-    vc.numFmt = '"L" #,##0.00'
+    vc.numFmt = `"${simbolo}" #,##0.00`
     vc.font = { bold: true, color: { argb: color } }
   })
 
@@ -141,7 +141,7 @@ export async function exportarExcel(trans: TransaccionExport[], mes: string, fil
       monto: signo * monto,
     })
     const mc = row.getCell('monto')
-    mc.numFmt = '"L" #,##0.00'
+    mc.numFmt = `"${simbolo}" #,##0.00`
     mc.font = {
       color: { argb: t.tipo === 'ingreso' ? 'FF059669' : t.tipo === 'gasto' ? 'FFEF4444' : 'FF3F3F46' },
     }
@@ -154,7 +154,7 @@ export async function exportarExcel(trans: TransaccionExport[], mes: string, fil
   descargarBlob(blob, `Caudal_${mes}.xlsx`)
 }
 
-export function exportarPdf(trans: TransaccionExport[], mes: string, filtrosTexto?: string) {
+export function exportarPdf(trans: TransaccionExport[], mes: string, filtrosTexto?: string, simbolo = 'L') {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
   const r = calcularResumen(trans)
   const ancho = doc.internal.pageSize.getWidth()
@@ -192,7 +192,7 @@ export function exportarPdf(trans: TransaccionExport[], mes: string, filtrosText
     doc.setFontSize(14)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(...color)
-    doc.text(`L ${fmtMonto(valor === '' ? 0 : Number(valor))}`, x + 12, y + 44)
+    doc.text(`${simbolo} ${fmtMonto(valor === '' ? 0 : Number(valor))}`, x + 12, y + 44)
     doc.setFont('helvetica', 'normal')
   }
   const w = (ancho - 80 - 20) / 3
@@ -212,7 +212,7 @@ export function exportarPdf(trans: TransaccionExport[], mes: string, filtrosText
         t.categories?.nombre || '—',
         t.descripcion || '—',
         t.wallets?.nombre || '—',
-        `${signo}L ${fmtMonto(Number(t.monto))}`,
+        `${signo}${simbolo} ${fmtMonto(Number(t.monto))}`,
       ]
     }),
     styles: { fontSize: 8, cellPadding: 5 },

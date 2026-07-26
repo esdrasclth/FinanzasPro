@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { Trash2 } from 'lucide-react'
+import { eliminarTransaccion, tipoCompuesto, avisoBorrado } from '../lib/transacciones'
+import { Trash2, Info } from 'lucide-react'
 
 interface Props {
   transaccion: any
@@ -21,6 +22,9 @@ export default function FormEditarTransaccion({ transaccion, onClose, onSuccess 
   const [walletId, setWalletId] = useState(transaccion.wallet_id || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // Transferencia o abono: tienen contraparte, así que no se editan aquí.
+  const compuesto = tipoCompuesto(transaccion)
 
   useEffect(() => {
     cargarDatos()
@@ -95,8 +99,9 @@ export default function FormEditarTransaccion({ transaccion, onClose, onSuccess 
   }
 
   const handleEliminar = async () => {
-    if (!confirm('¿Eliminar esta transacción?')) return
-    await supabase.from('transactions').delete().eq('id', transaccion.id)
+    if (!confirm(avisoBorrado(compuesto))) return
+    const { error } = await eliminarTransaccion(transaccion.id)
+    if (error) { setError(error); return }
     onSuccess()
     onClose()
   }
@@ -118,6 +123,56 @@ export default function FormEditarTransaccion({ transaccion, onClose, onSuccess 
           <button onClick={onClose} className="text-ash hover:text-ink text-xl">✕</button>
         </div>
 
+        {/* Un movimiento compuesto no se puede editar campo por campo: cambiarle
+            el monto aquí dejaría descuadrada su contraparte (la otra pierna de
+            la transferencia, o el avance de la deuda). Se puede eliminar entero
+            y volver a registrarlo. */}
+        {compuesto ? (
+          <div className="p-6 space-y-4">
+            <div className="flex gap-3 p-4 border rounded-input bg-mist border-fog">
+              <Info size={18} strokeWidth={2} className="flex-shrink-0 mt-0.5 text-steel" />
+              <div className="text-sm">
+                <p className="font-medium text-ink">
+                  {compuesto === 'transferencia'
+                    ? 'Esto es una transferencia entre tus carteras'
+                    : 'Esto es un abono a una deuda'}
+                </p>
+                <p className="mt-1 text-graphite">
+                  {compuesto === 'transferencia'
+                    ? 'Son dos movimientos ligados: la salida de una cartera y la entrada en la otra. Editar solo este lado dejaría las carteras descuadradas.'
+                    : 'Está ligado al pendiente de la deuda y a su historial de pagos. Editar solo el monto aquí dejaría la deuda descuadrada.'}
+                </p>
+                <p className="mt-2 text-graphite">
+                  Para corregirlo, elimínalo y vuelve a registrarlo
+                  {compuesto === 'abono' ? ' desde la pantalla de Deudas.' : '.'}
+                </p>
+              </div>
+            </div>
+
+            {error && (
+              <div className="px-4 py-3 text-sm text-red-600 border bg-red-50 border-red-200 rounded-input">
+                {error}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="py-3 font-medium transition-all border rounded-full border-pebble text-graphite hover:bg-fog"
+              >
+                Cerrar
+              </button>
+              <button
+                type="button"
+                onClick={handleEliminar}
+                className="inline-flex items-center justify-center gap-2 py-3 font-medium text-red-600 transition-colors border border-red-200 rounded-full bg-red-50 hover:bg-red-100"
+              >
+                <Trash2 size={16} strokeWidth={2} /> Eliminar
+              </button>
+            </div>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
 
           {/* Monto */}
@@ -259,6 +314,7 @@ export default function FormEditarTransaccion({ transaccion, onClose, onSuccess 
           </div>
 
         </form>
+        )}
       </div>
     </div>
   )

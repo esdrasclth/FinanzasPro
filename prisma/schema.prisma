@@ -52,6 +52,8 @@ model wallets {
 
 model exchange_rates {
   id             String   @id @default(uuid()) @db.Uuid
+  // null = tasa global del BCH (compartida); con valor = override manual de ese usuario.
+  user_id        String?  @db.Uuid
   moneda_origen  String
   moneda_destino String
   tasa           Float
@@ -59,8 +61,9 @@ model exchange_rates {
   fuente         String   @default("BCH")
   created_at     DateTime @default(now())
 
-  @@unique([moneda_origen, moneda_destino, fecha, fuente])
+  @@unique([moneda_origen, moneda_destino, fecha, fuente, user_id], map: "exchange_rates_par_fecha_fuente_usuario_key")
   @@index([moneda_origen, moneda_destino, fecha])
+  @@index([user_id])
 }
 
 model categories {
@@ -98,6 +101,9 @@ model transactions {
   monto_original     Float?
   tasa_cambio        Float?
   debt_id            String?   @db.Uuid
+  // Une las dos piernas de una transferencia. Sin esto había que adivinar cuál
+  // era la pareja de un movimiento para poder borrarlas juntas.
+  transfer_id        String?   @db.Uuid
   fecha              DateTime  @db.Date
   created_at         DateTime  @default(now())
 
@@ -110,6 +116,7 @@ model transactions {
   @@index([wallet_id])
   @@index([category_id])
   @@index([debt_id])
+  @@index([transfer_id])
 }
 
 model budgets {
@@ -150,6 +157,29 @@ model metas {
   completada     Boolean   @default(false)
   created_at     DateTime  @default(now())
 
+  aportes meta_aportes[]
+
+  @@index([user_id])
+}
+
+// Historial de aportes a una meta. Cada aporte mueve dinero de verdad: es una
+// transferencia de la cartera de origen a la cartera donde se guarda el ahorro,
+// enlazada por transfer_id. Antes "aportar" solo subía un número en metas.
+model meta_aportes {
+  id                String   @id @default(uuid()) @db.Uuid
+  meta_id           String   @db.Uuid
+  user_id           String   @db.Uuid
+  wallet_id         String?  @db.Uuid
+  wallet_destino_id String?  @db.Uuid
+  transfer_id       String?  @db.Uuid
+  monto             Float
+  fecha             DateTime @db.Date
+  nota              String?
+  created_at        DateTime @default(now())
+
+  meta metas @relation(fields: [meta_id], references: [id], onDelete: Cascade)
+
+  @@index([meta_id])
   @@index([user_id])
 }
 
@@ -183,6 +213,8 @@ model debt_payments {
   debt_id     String   @db.Uuid
   user_id     String   @db.Uuid
   wallet_id   String?  @db.Uuid
+  // Transacción de gasto que refleja este abono. Permite deshacerlo entero.
+  transaction_id String? @db.Uuid
   monto       Float
   fecha       DateTime @db.Date
   nota        String?
@@ -200,6 +232,9 @@ model subscriptions {
   user_id       String    @db.Uuid
   nombre        String
   plan          String?
+  // 'gasto' (suscripción clásica) o 'ingreso' (sueldo, renta, mesada...).
+  // Es el mismo mecanismo de recurrencia: cambia el signo del movimiento.
+  tipo          String    @default("gasto")
   monto         Float
   moneda        String    @default("HNL")
   frecuencia    String    @default("mensual")
@@ -213,6 +248,43 @@ model subscriptions {
   notas         String?
   created_at    DateTime  @default(now())
 
+  cobros subscription_charges[]
+
+  @@index([user_id])
+}
+
+// Cobros confirmados de una suscripción. Una suscripción por sí sola no mueve
+// dinero: hasta que se confirma un cobro no existe el gasto. La unicidad por
+// (suscripción, fecha) impide cobrar dos veces el mismo ciclo.
+model subscription_charges {
+  id              String   @id @default(uuid()) @db.Uuid
+  subscription_id String   @db.Uuid
+  user_id         String   @db.Uuid
+  wallet_id       String?  @db.Uuid
+  transaction_id  String?  @db.Uuid
+  monto           Float
+  moneda          String   @default("HNL")
+  fecha           DateTime @db.Date
+  created_at      DateTime @default(now())
+
+  subscription subscriptions @relation(fields: [subscription_id], references: [id], onDelete: Cascade)
+
+  @@unique([subscription_id, fecha])
+  @@index([user_id])
+}
+
+// Avisos descartados por el usuario. Los avisos se calculan al vuelo (no se
+// almacenan), así que para poder ocultarlos se guarda la marca de descarte.
+// `periodo` hace que el aviso vuelva a aparecer el siguiente ciclo: descartar
+// "presupuesto de comida al 90%" en julio no debe silenciarlo en agosto.
+model notificaciones_descartadas {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String   @db.Uuid
+  clave      String
+  periodo    String
+  created_at DateTime @default(now())
+
+  @@unique([user_id, clave, periodo])
   @@index([user_id])
 }
 

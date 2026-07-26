@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { fechaHoyLocal } from '../lib/fecha'
 import { X } from 'lucide-react'
+import { useMoneda } from '../lib/moneda-context'
 
 interface Props {
   meta: any
@@ -12,8 +14,32 @@ interface Props {
 
 export default function FormAporteMeta({ meta, onClose, onSuccess }: Props) {
   const [monto, setMonto] = useState('')
+  const [wallets, setWallets] = useState<any[]>([])
+  const [walletOrigen, setWalletOrigen] = useState('')
+  const [walletDestino, setWalletDestino] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const { simbolo } = useMoneda()
+
+  useEffect(() => {
+    const cargar = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from('wallets').select('id, nombre, tipo, moneda')
+        .eq('user_id', user.id).eq('activo', true)
+        .order('posicion', { ascending: true })
+      const lista = data || []
+      setWallets(lista)
+      // Por defecto: sale de la primera cartera y se guarda en una de ahorros.
+      const ahorro = lista.find((w: any) => w.tipo === 'ahorro')
+      const origen = lista.find((w: any) => w.id !== ahorro?.id)
+      if (origen) setWalletOrigen(origen.id)
+      if (ahorro) setWalletDestino(ahorro.id)
+      else if (lista.length > 1) setWalletDestino(lista.find((w: any) => w.id !== origen?.id)?.id || '')
+    }
+    cargar()
+  }, [])
 
   const objetivo = Number(meta.monto_objetivo)
   const actual = Number(meta.monto_actual)
@@ -35,17 +61,36 @@ export default function FormAporteMeta({ meta, onClose, onSuccess }: Props) {
 
     const montoNum = parseFloat(monto)
     if (!montoNum || montoNum <= 0) { setError('El monto debe ser mayor a 0'); setLoading(false); return }
-    if (montoNum > restante) { setError(`El aporte no puede superar lo restante (L ${formatMonto(restante)})`); setLoading(false); return }
+    if (montoNum > restante) { setError(`El aporte no puede superar lo restante (${simbolo} ${formatMonto(restante)})`); setLoading(false); return }
 
-    const nuevoActual = actual + montoNum
-    const completada = nuevoActual >= objetivo
+    if (!walletOrigen || !walletDestino) {
+      setError('Elige de qué cartera sale y en cuál se guarda'); setLoading(false); return
+    }
 
-    const { error } = await supabase.from('metas').update({
-      monto_actual: nuevoActual,
-      completada,
-    }).eq('id', meta.id)
-
-    if (error) { setError('Error al registrar el aporte'); setLoading(false); return }
+    // El servidor crea las dos transacciones y actualiza la meta en una sola
+    // transacción de base de datos.
+    try {
+      const res = await fetch(`/api/metas/${meta.id}/aportes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          monto: montoNum,
+          wallet_id: walletOrigen,
+          wallet_destino_id: walletDestino,
+          fecha: fechaHoyLocal(),
+        }),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        setError(json?.error?.message || 'Error al registrar el aporte')
+        setLoading(false)
+        return
+      }
+    } catch {
+      setError('Error de red al registrar el aporte')
+      setLoading(false)
+      return
+    }
 
     onSuccess()
     onClose()
@@ -79,15 +124,15 @@ export default function FormAporteMeta({ meta, onClose, onSuccess }: Props) {
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <p className="text-xs text-steel">Objetivo</p>
-              <p className="font-medium text-ink">L {formatMonto(objetivo)}</p>
+              <p className="font-medium text-ink">{simbolo} {formatMonto(objetivo)}</p>
             </div>
             <div>
               <p className="text-xs text-steel">Ahorrado</p>
-              <p className="font-medium text-emerald-600">L {formatMonto(actual)}</p>
+              <p className="font-medium text-emerald-600">{simbolo} {formatMonto(actual)}</p>
             </div>
             <div className="col-span-2">
               <p className="text-xs text-steel">Falta por ahorrar</p>
-              <p className="text-lg font-semibold text-obsidian">L {formatMonto(restante)}</p>
+              <p className="text-lg font-semibold text-obsidian">{simbolo} {formatMonto(restante)}</p>
             </div>
           </div>
           <div className="w-full h-1.5 bg-fog rounded-full mt-3">
@@ -121,8 +166,46 @@ export default function FormAporteMeta({ meta, onClose, onSuccess }: Props) {
                 onClick={() => setMonto(restante.toFixed(2))}
                 className="mt-2 text-xs font-medium text-graphite hover:text-ink"
               >
-                Completar meta (L {formatMonto(restante)}) →
+                Completar meta ({simbolo} {formatMonto(restante)}) →
               </button>
+            )}
+          </div>
+
+          {/* El aporte es un movimiento real de dinero: sale de una cartera y se
+              guarda en otra. Antes solo subía un número y el dinero seguía
+              disponible en la cuenta. */}
+          <div>
+            <label className="block mb-2 text-sm font-medium text-graphite">Sale de</label>
+            <select
+              value={walletOrigen}
+              onChange={(e) => setWalletOrigen(e.target.value)}
+              required
+              className="w-full px-4 py-3 text-ink transition-colors border bg-mist border-transparent rounded-input focus:outline-none focus:border-obsidian focus:bg-snow"
+            >
+              <option value="">— Selecciona cartera —</option>
+              {wallets.map(w => <option key={w.id} value={w.id}>{w.nombre}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="block mb-2 text-sm font-medium text-graphite">
+              Se guarda en <span className="font-normal text-steel">(cartera de ahorro)</span>
+            </label>
+            <select
+              value={walletDestino}
+              onChange={(e) => setWalletDestino(e.target.value)}
+              required
+              className="w-full px-4 py-3 text-ink transition-colors border bg-mist border-transparent rounded-input focus:outline-none focus:border-obsidian focus:bg-snow"
+            >
+              <option value="">— Selecciona cartera —</option>
+              {wallets.filter(w => w.id !== walletOrigen).map(w => (
+                <option key={w.id} value={w.id}>{w.nombre}</option>
+              ))}
+            </select>
+            {wallets.length < 2 && (
+              <p className="mt-2 text-xs text-amber-600">
+                Necesitas al menos dos carteras para apartar el ahorro. Crea una de tipo Ahorros en Carteras.
+              </p>
             )}
           </div>
 

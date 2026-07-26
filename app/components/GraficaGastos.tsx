@@ -1,9 +1,11 @@
 'use client'
 
-import { Fragment } from 'react'
+import { Fragment, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { ChevronRight } from 'lucide-react'
+import { useMoneda } from '../lib/moneda-context'
+import { obtenerTipoCambio, aMonedaPrincipal } from '../lib/tipoCambio'
 
 interface Props {
   transacciones: any[]
@@ -13,6 +15,14 @@ interface Props {
 
 export default function GraficaGastos({ transacciones, vista, onVistaChange }: Props) {
   const router = useRouter()
+  const { simbolo, moneda } = useMoneda()
+  const [tasa, setTasa] = useState<number | null>(null)
+
+  useEffect(() => {
+    obtenerTipoCambio().then(tc => setTasa(tc?.tasa ?? null))
+  }, [])
+
+  const conv = (t: any) => aMonedaPrincipal(Number(t.monto), t.moneda, moneda, tasa)
 
   const COLORES = [
     '#0D9488', '#3B82F6', '#8B5CF6', '#F59E0B',
@@ -30,9 +40,9 @@ export default function GraficaGastos({ transacciones, vista, onVistaChange }: P
       const icono = t.categories?.icono || '💸'
       const existing = acc.find(a => a.key === nombre)
       if (existing) {
-        existing.valor += Number(t.monto)
+        existing.valor += conv(t)
       } else {
-        acc.push({ key: nombre, nombre: `${icono} ${nombre}`, valor: Number(t.monto) })
+        acc.push({ key: nombre, nombre: `${icono} ${nombre}`, valor: conv(t) })
       }
       return acc
     }, [])
@@ -98,7 +108,7 @@ export default function GraficaGastos({ transacciones, vista, onVistaChange }: P
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value) => [`L ${formatMonto(Number(value) || 0)}`, 'Monto']}
+                    formatter={(value) => [`${simbolo} ${formatMonto(Number(value) || 0)}`, 'Monto']}
                     contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #ececee', borderRadius: 16, color: '#18181b' }}
                     labelStyle={{ color: '#71717a' }}
                   />
@@ -106,7 +116,7 @@ export default function GraficaGastos({ transacciones, vista, onVistaChange }: P
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                 <span className="text-[11px] font-medium text-steel">Total</span>
-                <span className="text-lg font-bold leading-tight text-ink">L {formatMonto(total)}</span>
+                <span className="text-lg font-bold leading-tight text-ink">{simbolo} {formatMonto(total)}</span>
               </div>
             </div>
 
@@ -120,7 +130,7 @@ export default function GraficaGastos({ transacciones, vista, onVistaChange }: P
                       <span className="flex-shrink-0 w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORES[index % COLORES.length] }} />
                       <span className="text-sm truncate text-ink">{item.key}</span>
                     </div>
-                    <span className="text-sm font-medium text-right text-ink whitespace-nowrap">L {formatMonto(item.valor)}</span>
+                    <span className="text-sm font-medium text-right text-ink whitespace-nowrap">{simbolo} {formatMonto(item.valor)}</span>
                     <span className="text-xs font-medium text-right text-steel">{pct}%</span>
                   </Fragment>
                 )

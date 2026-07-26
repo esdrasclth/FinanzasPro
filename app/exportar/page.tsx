@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import AppLayout from '../components/AppLayout'
+import { useMoneda } from '../lib/moneda-context'
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
@@ -15,6 +16,7 @@ export default function Exportar() {
   const [loadingExcel, setLoadingExcel] = useState(false)
   const [loadingPdf, setLoadingPdf] = useState(false)
   const [mensaje, setMensaje] = useState('')
+  const { simbolo } = useMoneda()
 
   // Filtros
   const [busqueda, setBusqueda] = useState('')
@@ -111,10 +113,10 @@ export default function Exportar() {
       const lib = await import('../lib/exportar')
       const filtrosTexto = construirFiltrosTexto()
       if (formato === 'excel') {
-        await lib.exportarExcel(filtradas, mes, filtrosTexto)
+        await lib.exportarExcel(filtradas, mes, filtrosTexto, simbolo)
         setMensaje('✅ Excel descargado exitosamente')
       } else {
-        lib.exportarPdf(filtradas, mes, filtrosTexto)
+        lib.exportarPdf(filtradas, mes, filtrosTexto, simbolo)
         setMensaje('✅ PDF descargado exitosamente')
       }
     } catch (error) {
@@ -140,7 +142,7 @@ export default function Exportar() {
 
   return (
     <AppLayout>
-      <div className="max-w-[1728px] p-6 mx-auto lg:p-8">
+      <div className="max-w-[1728px] p-4 mx-auto sm:p-6 lg:p-8">
 
         {/* Header */}
         <div className="mb-8">

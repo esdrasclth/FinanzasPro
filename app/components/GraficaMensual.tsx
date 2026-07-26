@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { ChevronRight, ChevronDown } from 'lucide-react'
+import { useMoneda } from '../lib/moneda-context'
+import { obtenerTipoCambio, aMonedaPrincipal } from '../lib/tipoCambio'
 
 interface Props {
   transacciones: any[]
@@ -25,6 +27,15 @@ export default function GraficaMensual({ transacciones }: Props) {
   const [agrupacion, setAgrupacion] = useState<Agrupacion>('dia')
   const [showMenu, setShowMenu] = useState(false)
   const [datosAnuales, setDatosAnuales] = useState<any[] | null>(null)
+  const [tasa, setTasa] = useState<number | null>(null)
+  const { simbolo, moneda } = useMoneda()
+
+  useEffect(() => {
+    obtenerTipoCambio().then(tc => setTasa(tc?.tasa ?? null))
+  }, [])
+
+  // Convierte el monto de una transacción a la moneda principal.
+  const conv = (t: any) => aMonedaPrincipal(Number(t.monto), t.moneda, moneda, tasa)
 
   // Año a mostrar, derivado del mes cargado (o año actual)
   const yearRef = transacciones[0]?.fecha
@@ -40,7 +51,7 @@ export default function GraficaMensual({ transacciones }: Props) {
       if (!user) return
       const { data } = await supabase
         .from('transactions')
-        .select('monto, tipo, fecha, wallet_destino_id, categories(nombre)')
+        .select('monto, moneda, tipo, fecha, wallet_destino_id, categories(nombre)')
         .eq('user_id', user.id)
         .gte('fecha', `${yearRef}-01-01`)
         .lte('fecha', `${yearRef}-12-31`)
@@ -59,10 +70,10 @@ export default function GraficaMensual({ transacciones }: Props) {
 
   const ingresosTotal = movimientos
     .filter(t => t.tipo === 'ingreso')
-    .reduce((s, t) => s + Number(t.monto), 0)
+    .reduce((s, t) => s + conv(t), 0)
   const gastosTotal = movimientos
     .filter(t => t.tipo === 'gasto')
-    .reduce((s, t) => s + Number(t.monto), 0)
+    .reduce((s, t) => s + conv(t), 0)
 
   // Determinar mes/año a partir de las transacciones (o mes actual)
   const ref = transacciones[0]?.fecha
@@ -79,8 +90,8 @@ export default function GraficaMensual({ transacciones }: Props) {
     const dia = Number(String(t.fecha).slice(8, 10))
     const entry = porDia.get(dia)
     if (!entry) return
-    if (t.tipo === 'ingreso') entry.ingreso += Number(t.monto)
-    else if (t.tipo === 'gasto') entry.gasto += Number(t.monto)
+    if (t.tipo === 'ingreso') entry.ingreso += conv(t)
+    else if (t.tipo === 'gasto') entry.gasto += conv(t)
   })
 
   let datos: { label: string | number; ingreso: number; gasto: number }[]
@@ -92,8 +103,8 @@ export default function GraficaMensual({ transacciones }: Props) {
     fuente.forEach(t => {
       const m = Number(String(t.fecha).slice(5, 7)) - 1
       if (m < 0 || m > 11) return
-      if (t.tipo === 'ingreso') meses[m].ingreso += Number(t.monto)
-      else if (t.tipo === 'gasto') meses[m].gasto += Number(t.monto)
+      if (t.tipo === 'ingreso') meses[m].ingreso += conv(t)
+      else if (t.tipo === 'gasto') meses[m].gasto += conv(t)
     })
     datos = meses.map((v, m) => ({ label: MESES_CORTOS[m], ingreso: v.ingreso, gasto: v.gasto }))
     ticks = datos.map(d => d.label)
@@ -188,12 +199,12 @@ export default function GraficaMensual({ transacciones }: Props) {
             tick={{ fill: '#a1a1aa', fontSize: 11 }}
             axisLine={false}
             tickLine={false}
-            tickFormatter={(v) => `L ${formatMonto(v)}`}
+            tickFormatter={(v) => `${simbolo} ${formatMonto(v)}`}
             width={60}
           />
           <Tooltip
             formatter={(value: any, name: any) => [
-              `L ${formatMonto(Number(value) || 0)}`,
+              `${simbolo} ${formatMonto(Number(value) || 0)}`,
               name === 'ingreso' ? 'Ingresos' : 'Gastos',
             ]}
             labelFormatter={(l) => (agrupacion === 'dia' ? `Día ${l}` : `${l}`)}

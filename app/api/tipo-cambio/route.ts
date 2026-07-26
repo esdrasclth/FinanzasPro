@@ -44,25 +44,31 @@ function responder(row: RateRow, stale: boolean) {
   })
 }
 
-async function cacheHoy(): Promise<RateRow | null> {
-  // Preferimos una tasa manual del día sobre la de BCH.
-  const rows: RateRow[] = await prisma.exchange_rates.findMany({
+// La tasa manual es de cada usuario; la del BCH es global (es la cifra que
+// publica el banco central). Por eso se buscan por separado: antes vivían
+// mezcladas y la manual de un usuario se le aplicaba a todos.
+async function cacheHoy(userId: string): Promise<RateRow | null> {
+  const fecha = new Date(`${hoyISO()}T00:00:00.000Z`)
+
+  const manual = await prisma.exchange_rates.findFirst({
+    where: { moneda_origen: ORIGEN, moneda_destino: DESTINO, fecha, fuente: 'manual', user_id: userId },
+  })
+  if (manual) return manual
+
+  return prisma.exchange_rates.findFirst({
+    where: { moneda_origen: ORIGEN, moneda_destino: DESTINO, fecha, fuente: 'BCH', user_id: null },
+  })
+}
+
+async function ultimaCacheada(userId: string): Promise<RateRow | null> {
+  return prisma.exchange_rates.findFirst({
     where: {
       moneda_origen: ORIGEN,
       moneda_destino: DESTINO,
-      fecha: new Date(`${hoyISO()}T00:00:00.000Z`),
+      OR: [{ user_id: userId }, { user_id: null, fuente: 'BCH' }],
     },
-  })
-  if (rows.length === 0) return null
-  return rows.find(r => r.fuente === 'manual') || rows[0]
-}
-
-async function ultimaCacheada(): Promise<RateRow | null> {
-  const row = await prisma.exchange_rates.findFirst({
-    where: { moneda_origen: ORIGEN, moneda_destino: DESTINO },
     orderBy: { fecha: 'desc' },
   })
-  return row
 }
 
 async function consultarBCH(): Promise<RateRow | null> {
@@ -89,26 +95,32 @@ async function consultarBCH(): Promise<RateRow | null> {
     const valor = Number(ultima.Valor)
     if (!valor || Number.isNaN(valor)) return null
 
-    // Guardar en caché con la fecha de hoy (venta vigente).
+    // Guardar en caché con la fecha de hoy (venta vigente). La unicidad de la
+    // fila global vive en un índice parcial, que upsert() no puede usar; si dos
+    // peticiones compiten, una choca y se ignora porque el valor es el mismo.
     const fecha = new Date(`${hoyISO()}T00:00:00.000Z`)
-    await prisma.exchange_rates.upsert({
-      where: {
-        moneda_origen_moneda_destino_fecha_fuente: {
-          moneda_origen: ORIGEN,
-          moneda_destino: DESTINO,
-          fecha,
-          fuente: 'BCH',
-        },
-      },
-      update: { tasa: valor },
-      create: {
-        moneda_origen: ORIGEN,
-        moneda_destino: DESTINO,
-        tasa: valor,
-        fecha,
-        fuente: 'BCH',
-      },
-    })
+    try {
+      const existente = await prisma.exchange_rates.findFirst({
+        where: { moneda_origen: ORIGEN, moneda_destino: DESTINO, fecha, fuente: 'BCH', user_id: null },
+        select: { id: true },
+      })
+      if (existente) {
+        await prisma.exchange_rates.update({ where: { id: existente.id }, data: { tasa: valor } })
+      } else {
+        await prisma.exchange_rates.create({
+          data: {
+            user_id: null,
+            moneda_origen: ORIGEN,
+            moneda_destino: DESTINO,
+            tasa: valor,
+            fecha,
+            fuente: 'BCH',
+          },
+        })
+      }
+    } catch {
+      // La cifra ya quedó guardada por otra petición: se devuelve igual.
+    }
     return { tasa: valor, fecha, fuente: 'BCH' }
   } catch {
     return null
@@ -121,13 +133,13 @@ export async function GET() {
     return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
   }
 
-  const enCache = await cacheHoy()
+  const enCache = await cacheHoy(session.id)
   if (enCache) return responder(enCache, false)
 
   const bch = await consultarBCH()
   if (bch) return responder(bch, false)
 
-  const previa = await ultimaCacheada()
+  const previa = await ultimaCacheada(session.id)
   if (previa) return responder(previa, true)
 
   return NextResponse.json(
@@ -155,25 +167,34 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Tasa inválida' }, { status: 400 })
   }
 
+  // El override manual queda a nombre de quien lo fija: ya no se le impone a
+  // los demás usuarios de la instancia.
   const fecha = new Date(`${hoyISO()}T00:00:00.000Z`)
-  await prisma.exchange_rates.upsert({
+  const existente = await prisma.exchange_rates.findFirst({
     where: {
-      moneda_origen_moneda_destino_fecha_fuente: {
+      moneda_origen: ORIGEN,
+      moneda_destino: DESTINO,
+      fecha,
+      fuente: 'manual',
+      user_id: session.id,
+    },
+    select: { id: true },
+  })
+
+  if (existente) {
+    await prisma.exchange_rates.update({ where: { id: existente.id }, data: { tasa } })
+  } else {
+    await prisma.exchange_rates.create({
+      data: {
+        user_id: session.id,
         moneda_origen: ORIGEN,
         moneda_destino: DESTINO,
+        tasa,
         fecha,
         fuente: 'manual',
       },
-    },
-    update: { tasa },
-    create: {
-      moneda_origen: ORIGEN,
-      moneda_destino: DESTINO,
-      tasa,
-      fecha,
-      fuente: 'manual',
-    },
-  })
+    })
+  }
 
   return responder({ tasa, fecha, fuente: 'manual' }, false)
 }

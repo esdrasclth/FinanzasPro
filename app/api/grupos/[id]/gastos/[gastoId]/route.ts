@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '../../../../../lib/prisma'
 import { requireMiembro } from '../../../../../lib/grupos-server'
 import { prepararGasto, escribirPagosYDivisiones, borrarTransaccionesDeGasto } from '../../../../../lib/gastos-server'
+import { tasaVigente } from '../../../../../lib/tipoCambio-server'
 
 type Params = { params: Promise<{ id: string; gastoId: string }> }
 
@@ -40,6 +41,9 @@ export async function PUT(req: Request, { params }: Params) {
   if (!prep.ok) return NextResponse.json({ error: prep.error }, { status: prep.status })
   const d = prep.data
 
+  // Una sola lectura de la tasa para todas las carteras que refleja el gasto.
+  const tasa = await tasaVigente(az.auth.ctx.user.id)
+
   await prisma.$transaction(async (tx) => {
     // Revertir el estado anterior: transacciones reflejadas + pagos + divisiones.
     await borrarTransaccionesDeGasto(tx, gastoId)
@@ -68,6 +72,8 @@ export async function PUT(req: Request, { params }: Params) {
       pagos: d.pagos,
       asignados: d.asignados,
       actingUserId: az.auth.ctx.user.id,
+      monedaGrupo: az.grupo.moneda,
+      tasa,
     })
   })
 

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { fechaHoyLocal } from '../lib/fecha'
+import { obtenerTipoCambio } from '../lib/tipoCambio'
 import { X, Wallet, Landmark, CreditCard, PiggyBank } from 'lucide-react'
 
 interface Props {
@@ -153,6 +154,10 @@ export default function FormCartera({ cartera, onClose, onSuccess }: Props) {
       categoriaId = newCat?.id
     }
 
+    // Se sella la tasa de referencia vigente para que este saldo de apertura
+    // se normalice siempre con la tasa del día en que se abrió la cartera.
+    const tc = await obtenerTipoCambio()
+
     await supabase.from('transactions').insert({
       user_id: userId,
       wallet_id: walletId,
@@ -160,6 +165,7 @@ export default function FormCartera({ cartera, onClose, onSuccess }: Props) {
       monto: Math.abs(monto),
       tipo: tipoCat,
       moneda: monedaMov,
+      tasa_cambio: tc?.tasa || null,
       descripcion: 'Saldo inicial',
       fecha: fechaHoyLocal(),
     })

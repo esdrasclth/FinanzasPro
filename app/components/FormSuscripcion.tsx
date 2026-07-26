@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { X } from 'lucide-react'
+import { X, TrendingUp, TrendingDown } from 'lucide-react'
 
 interface Props {
   suscripcion?: any
@@ -25,6 +25,8 @@ export default function FormSuscripcion({ suscripcion, onClose, onSuccess }: Pro
   const [categorias, setCategorias] = useState<any[]>([])
   const [nombre, setNombre] = useState(suscripcion?.nombre || '')
   const [plan, setPlan] = useState(suscripcion?.plan || '')
+  // Un recurrente puede ser gasto (suscripción) o ingreso (sueldo, renta).
+  const [tipo, setTipo] = useState<'gasto' | 'ingreso'>(suscripcion?.tipo === 'ingreso' ? 'ingreso' : 'gasto')
   const [monto, setMonto] = useState(suscripcion?.monto?.toString() || '')
   const [frecuencia, setFrecuencia] = useState<'semanal' | 'mensual' | 'trimestral' | 'anual'>(
     suscripcion?.frecuencia || 'mensual'
@@ -52,12 +54,12 @@ export default function FormSuscripcion({ suscripcion, onClose, onSuccess }: Pro
         .from('categories')
         .select('*')
         .or(`user_id.eq.${user.id},es_sistema.eq.true`)
-        .eq('tipo', 'gasto')
+        .eq('tipo', tipo)
         .order('nombre')
       setCategorias((data || []).filter((c: any) => !c.archivada && !c.parent_id))
     }
     cargar()
-  }, [])
+  }, [tipo])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -71,6 +73,7 @@ export default function FormSuscripcion({ suscripcion, onClose, onSuccess }: Pro
       user_id: user.id,
       nombre,
       plan: plan || null,
+      tipo,
       monto: parseFloat(monto),
       moneda: 'HNL',
       frecuencia,
@@ -107,7 +110,9 @@ export default function FormSuscripcion({ suscripcion, onClose, onSuccess }: Pro
           </div>
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-fog sm:px-6 sm:py-4">
             <h2 className="text-base font-semibold text-ink sm:text-lg">
-              {esEdicion ? 'Editar suscripción' : 'Nueva suscripción'}
+              {esEdicion
+                ? (tipo === 'ingreso' ? 'Editar ingreso recurrente' : 'Editar suscripción')
+                : (tipo === 'ingreso' ? 'Nuevo ingreso recurrente' : 'Nueva suscripción')}
             </h2>
             <button onClick={onClose} className="flex items-center justify-center w-8 h-8 -mr-1 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist">
               <X size={18} strokeWidth={2} />
@@ -117,14 +122,29 @@ export default function FormSuscripcion({ suscripcion, onClose, onSuccess }: Pro
 
         <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4 sm:px-6 sm:space-y-5">
 
+          {/* Tipo: el mismo mecanismo de recurrencia sirve para un cobro que
+              para un cobro a favor; lo único que cambia es el signo. */}
+          <div className="grid grid-cols-2 gap-2 p-1 bg-mist rounded-full">
+            <button type="button" onClick={() => { setTipo('gasto'); setCategoriaId('') }}
+              className={`flex items-center justify-center gap-1.5 py-2.5 rounded-full text-sm font-medium transition-all ${tipo === 'gasto' ? 'bg-red-500 text-white' : 'text-steel hover:text-ink'}`}>
+              <TrendingDown size={16} strokeWidth={2} /> Pago
+            </button>
+            <button type="button" onClick={() => { setTipo('ingreso'); setCategoriaId('') }}
+              className={`flex items-center justify-center gap-1.5 py-2.5 rounded-full text-sm font-medium transition-all ${tipo === 'ingreso' ? 'bg-emerald-500 text-white' : 'text-steel hover:text-ink'}`}>
+              <TrendingUp size={16} strokeWidth={2} /> Ingreso
+            </button>
+          </div>
+
           {/* Nombre */}
           <div>
-            <label className="block mb-2 text-sm font-medium text-graphite">Nombre del servicio</label>
+            <label className="block mb-2 text-sm font-medium text-graphite">
+              {tipo === 'ingreso' ? 'Nombre del ingreso' : 'Nombre del servicio'}
+            </label>
             <input
               type="text"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              placeholder="Ej: Netflix, Spotify, ChatGPT Plus"
+              placeholder={tipo === 'ingreso' ? 'Ej: Sueldo, Renta, Mesada' : 'Ej: Netflix, Spotify, ChatGPT Plus'}
               required
               className="w-full px-4 py-3 text-ink transition-colors border bg-mist border-transparent placeholder-ash rounded-input focus:outline-none focus:border-obsidian focus:bg-snow"
             />

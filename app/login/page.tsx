@@ -25,7 +25,9 @@ export default function Login() {
       setError('Email o contraseña incorrectos')
       setLoading(false)
     } else {
-      router.push('/dashboard')
+      // El middleware guarda en `next` la ruta a la que se intentaba entrar.
+      const destino = new URLSearchParams(window.location.search).get('next')
+      router.push(destino && destino.startsWith('/') ? destino : '/dashboard')
     }
   }
 

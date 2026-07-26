@@ -85,7 +85,7 @@ export default function Categorias() {
 
   return (
     <AppLayout>
-      <div className="p-6 lg:p-8 max-w-[1728px] mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1728px] mx-auto">
 
         {/* Header */}
         <div className="mb-8">
@@ -253,7 +253,7 @@ export default function Categorias() {
           setCategoriaParent(null)
           setShowForm(true)
         }}
-        className="fixed bottom-24 lg:bottom-8 right-6 lg:right-8 w-14 h-14 bg-obsidian hover:bg-graphite text-snow rounded-full text-2xl shadow-pill transition-all hover:scale-110 flex items-center justify-center z-40"
+        className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] lg:bottom-8 right-6 lg:right-8 w-14 h-14 bg-obsidian hover:bg-graphite text-snow rounded-full text-2xl shadow-pill transition-all hover:scale-110 flex items-center justify-center z-40"
       >
         +
       </button>
