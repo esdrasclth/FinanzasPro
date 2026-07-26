@@ -219,7 +219,7 @@ export default function RepartoDetalle() {
         >
           <div className="absolute top-0 right-0 rounded-full pointer-events-none -mt-16 -mr-16 w-72 h-72 bg-white/5 blur-2xl" />
           <div className="absolute bottom-0 rounded-full pointer-events-none left-1/3 -mb-24 w-72 h-72 bg-emerald-400/10 blur-3xl" />
-          <div className="relative px-6 py-9 lg:px-8 lg:py-12">
+          <div className="relative px-5 py-6 sm:px-6 sm:py-9 lg:px-8 lg:py-12">
             <div className="mb-8">
               <h2 className="text-xl font-semibold">Estado del reparto</h2>
               <p className="text-base text-white/60">{pct}% pagado · {pagados}/{total} personas</p>

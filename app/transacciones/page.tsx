@@ -390,10 +390,10 @@ export default function Transacciones() {
       <div className="max-w-[1728px] p-4 mx-auto sm:p-6 lg:p-8">
 
         {/* Encabezado */}
-        <div className="flex items-start justify-between mb-8">
+        <div className="flex items-start justify-between mb-5 sm:mb-8">
           <div>
             <p className="mb-1 text-sm font-medium text-steel">Movimientos</p>
-            <h1 className="text-3xl font-bold text-obsidian">Administra tus ingresos y gastos</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-obsidian">Administra tus ingresos y gastos</h1>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -415,7 +415,7 @@ export default function Transacciones() {
         >
           <div className="absolute top-0 right-0 rounded-full pointer-events-none -mt-16 -mr-16 w-72 h-72 bg-white/5 blur-2xl" />
           <div className="absolute bottom-0 rounded-full pointer-events-none left-1/3 -mb-24 w-72 h-72 bg-emerald-400/10 blur-3xl" />
-          <div className="relative px-6 py-9 lg:px-8 lg:py-12">
+          <div className="relative px-5 py-6 sm:px-6 sm:py-9 lg:px-8 lg:py-12">
             <div className="mb-8">
               <h2 className="text-xl font-semibold">Resumen de movimientos</h2>
               <p className="text-base capitalize text-white/60">{mesLabel}</p>
@@ -931,7 +931,7 @@ function MonthPicker({ value, onChange }: { value: string; onChange: (v: string)
           <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
           <div className="absolute left-0 z-30 p-4 mt-2 border shadow-soft top-full w-72 bg-snow border-fog rounded-2xl">
             <div className="flex items-center justify-between mb-3">
-              <button onClick={() => setPickerYear(y => y - 1)} className="flex items-center justify-center w-10 h-10 sm:w-8 sm:h-8 rounded-full text-graphite hover:bg-mist" aria-label="Año anterior">
+              <button onClick={() => setPickerYear(y => y - 1)} className="flex items-center justify-center w-11 h-11 sm:w-8 sm:h-8 rounded-full text-graphite hover:bg-mist" aria-label="Año anterior">
                 <ChevronLeft size={16} strokeWidth={2} />
               </button>
               <p className="font-semibold text-ink">{pickerYear}</p>

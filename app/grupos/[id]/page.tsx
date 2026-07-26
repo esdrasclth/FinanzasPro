@@ -166,7 +166,7 @@ export default function GrupoDetalle() {
               className="inline-flex items-center gap-1.5 mb-2 text-sm font-medium text-steel hover:text-ink">
               <ArrowLeft size={15} strokeWidth={2} /> Compartidos
             </button>
-            <h1 className="text-3xl font-bold text-obsidian">{grupo?.nombre}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-obsidian">{grupo?.nombre}</h1>
             <p className="mt-1 text-sm text-steel">{miembros.length} {miembros.length === 1 ? 'miembro' : 'miembros'} · {moneda}</p>
           </div>
           <div className="flex flex-col items-end gap-1.5">
@@ -187,7 +187,7 @@ export default function GrupoDetalle() {
         <div className="relative mb-8 overflow-hidden text-white shadow-soft rounded-2xl" style={{ background: gradiente }}>
           <div className="absolute top-0 right-0 rounded-full pointer-events-none -mt-16 -mr-16 w-72 h-72 bg-white/5 blur-2xl" />
           <div className="absolute bottom-0 rounded-full pointer-events-none left-1/3 -mb-24 w-72 h-72 bg-emerald-400/10 blur-3xl" />
-          <div className="relative px-6 py-9 lg:px-8 lg:py-12">
+          <div className="relative px-5 py-6 sm:px-6 sm:py-9 lg:px-8 lg:py-12">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
               <div>
                 <h2 className="text-xl font-semibold">Resumen de {MESES[mes - 1]}</h2>

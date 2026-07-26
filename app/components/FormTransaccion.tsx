@@ -368,7 +368,7 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
           </div>
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-fog sm:px-6 sm:py-4">
             <h2 className="text-base font-semibold text-ink sm:text-lg">Nueva transacción</h2>
-            <button onClick={onClose} className="flex items-center justify-center w-8 h-8 -mr-1 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist">
+            <button onClick={onClose} className="flex items-center justify-center w-11 h-11 -mr-1 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist">
               <X size={18} strokeWidth={2} />
             </button>
           </div>
@@ -379,15 +379,15 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
           {/* Tipo */}
           <div className="grid grid-cols-3 gap-2 p-1 bg-mist rounded-full">
             <button type="button" onClick={() => { setTipo('gasto'); setCategoriaId('') }}
-              className={`flex items-center justify-center gap-1.5 py-2.5 rounded-full text-sm font-medium transition-all ${tipo === 'gasto' ? 'bg-red-500 text-white' : 'text-steel hover:text-ink'}`}>
+              className={`flex items-center justify-center gap-1.5 py-3 rounded-full text-sm font-medium transition-all ${tipo === 'gasto' ? 'bg-red-500 text-white' : 'text-steel hover:text-ink'}`}>
               <TrendingDown size={16} strokeWidth={2} /> Gasto
             </button>
             <button type="button" onClick={() => { setTipo('ingreso'); setCategoriaId(''); setEsCompartido(false); setGrupoSel(''); setDeseaRepartir(false) }}
-              className={`flex items-center justify-center gap-1.5 py-2.5 rounded-full text-sm font-medium transition-all ${tipo === 'ingreso' ? 'bg-emerald-500 text-white' : 'text-steel hover:text-ink'}`}>
+              className={`flex items-center justify-center gap-1.5 py-3 rounded-full text-sm font-medium transition-all ${tipo === 'ingreso' ? 'bg-emerald-500 text-white' : 'text-steel hover:text-ink'}`}>
               <TrendingUp size={16} strokeWidth={2} /> Ingreso
             </button>
             <button type="button" onClick={() => { setTipo('transferencia'); setCategoriaId(''); setEsCompartido(false); setGrupoSel(''); setDeseaRepartir(false) }}
-              className={`flex items-center justify-center gap-1.5 py-2.5 rounded-full text-sm font-medium transition-all ${tipo === 'transferencia' ? 'bg-violet-500 text-white' : 'text-steel hover:text-ink'}`}>
+              className={`flex items-center justify-center gap-1.5 py-3 rounded-full text-sm font-medium transition-all ${tipo === 'transferencia' ? 'bg-violet-500 text-white' : 'text-steel hover:text-ink'}`}>
               <ArrowLeftRight size={16} strokeWidth={2} /> Mover
             </button>
           </div>
@@ -405,7 +405,7 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
                       type="checkbox"
                       checked={esCompartido}
                       onChange={(e) => { setEsCompartido(e.target.checked); if (e.target.checked) setDeseaRepartir(false); else setGrupoSel('') }}
-                      className="w-4 h-4 accent-obsidian"
+                      className="w-5 h-5 accent-obsidian"
                     />
                   </label>
                   {esCompartido && (
@@ -429,7 +429,7 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
                   type="checkbox"
                   checked={deseaRepartir}
                   onChange={(e) => { setDeseaRepartir(e.target.checked); if (e.target.checked) { setEsCompartido(false); setGrupoSel('') } }}
-                  className="w-4 h-4 accent-obsidian"
+                  className="w-5 h-5 accent-obsidian"
                 />
               </label>
             </div>
@@ -509,7 +509,7 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
                   <div className="grid grid-cols-2 gap-2">
                     {(['HNL', 'USD'] as const).map(m => (
                       <button key={m} type="button" onClick={() => setMonedaDestinoTC(m)}
-                        className={`py-2.5 rounded-input text-sm font-medium transition-all border ${monedaDestinoTC === m ? 'border-obsidian bg-obsidian/5 text-ink' : 'border-fog text-steel hover:border-pebble'}`}>
+                        className={`py-3 rounded-input text-sm font-medium transition-all border ${monedaDestinoTC === m ? 'border-obsidian bg-obsidian/5 text-ink' : 'border-fog text-steel hover:border-pebble'}`}>
                         {m === 'HNL' ? 'Lempiras (L)' : 'Dólares ($)'}
                       </button>
                     ))}
@@ -608,7 +608,7 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
                   <div className="grid grid-cols-2 gap-2">
                     {(['HNL', 'USD'] as const).map(m => (
                       <button key={m} type="button" onClick={() => setMonedaGasto(m)}
-                        className={`py-2.5 rounded-input text-sm font-medium transition-all border ${monedaGasto === m ? 'border-obsidian bg-obsidian/5 text-ink' : 'border-fog text-steel hover:border-pebble'}`}>
+                        className={`py-3 rounded-input text-sm font-medium transition-all border ${monedaGasto === m ? 'border-obsidian bg-obsidian/5 text-ink' : 'border-fog text-steel hover:border-pebble'}`}>
                         {m === 'HNL' ? 'Lempiras (L)' : 'Dólares ($)'}
                       </button>
                     ))}

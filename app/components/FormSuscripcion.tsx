@@ -114,7 +114,7 @@ export default function FormSuscripcion({ suscripcion, onClose, onSuccess }: Pro
                 ? (tipo === 'ingreso' ? 'Editar ingreso recurrente' : 'Editar suscripción')
                 : (tipo === 'ingreso' ? 'Nuevo ingreso recurrente' : 'Nueva suscripción')}
             </h2>
-            <button onClick={onClose} className="flex items-center justify-center w-8 h-8 -mr-1 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist">
+            <button onClick={onClose} className="flex items-center justify-center w-11 h-11 -mr-1 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist">
               <X size={18} strokeWidth={2} />
             </button>
           </div>
@@ -126,11 +126,11 @@ export default function FormSuscripcion({ suscripcion, onClose, onSuccess }: Pro
               para un cobro a favor; lo único que cambia es el signo. */}
           <div className="grid grid-cols-2 gap-2 p-1 bg-mist rounded-full">
             <button type="button" onClick={() => { setTipo('gasto'); setCategoriaId('') }}
-              className={`flex items-center justify-center gap-1.5 py-2.5 rounded-full text-sm font-medium transition-all ${tipo === 'gasto' ? 'bg-red-500 text-white' : 'text-steel hover:text-ink'}`}>
+              className={`flex items-center justify-center gap-1.5 py-3 rounded-full text-sm font-medium transition-all ${tipo === 'gasto' ? 'bg-red-500 text-white' : 'text-steel hover:text-ink'}`}>
               <TrendingDown size={16} strokeWidth={2} /> Pago
             </button>
             <button type="button" onClick={() => { setTipo('ingreso'); setCategoriaId('') }}
-              className={`flex items-center justify-center gap-1.5 py-2.5 rounded-full text-sm font-medium transition-all ${tipo === 'ingreso' ? 'bg-emerald-500 text-white' : 'text-steel hover:text-ink'}`}>
+              className={`flex items-center justify-center gap-1.5 py-3 rounded-full text-sm font-medium transition-all ${tipo === 'ingreso' ? 'bg-emerald-500 text-white' : 'text-steel hover:text-ink'}`}>
               <TrendingUp size={16} strokeWidth={2} /> Ingreso
             </button>
           </div>
@@ -235,7 +235,7 @@ export default function FormSuscripcion({ suscripcion, onClose, onSuccess }: Pro
                   key={c}
                   type="button"
                   onClick={() => setColor(c)}
-                  className={`w-10 h-10 sm:w-8 sm:h-8 rounded-full transition-transform ${color === c ? 'ring-2 ring-offset-2 ring-obsidian scale-110' : 'hover:scale-110'}`}
+                  className={`w-11 h-11 sm:w-8 sm:h-8 rounded-full transition-transform ${color === c ? 'ring-2 ring-offset-2 ring-obsidian scale-110' : 'hover:scale-110'}`}
                   style={{ backgroundColor: c }}
                 />
               ))}

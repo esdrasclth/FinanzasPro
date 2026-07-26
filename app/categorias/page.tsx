@@ -89,7 +89,7 @@ export default function Categorias() {
 
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-obsidian">Categorías</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-obsidian">Categorías</h1>
           <p className="text-steel mt-1 text-sm">
             Organiza tus transacciones con categorías y subcategorías personalizadas
           </p>

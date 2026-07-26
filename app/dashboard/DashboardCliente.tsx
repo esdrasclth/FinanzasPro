@@ -46,6 +46,8 @@ export default function DashboardCliente({
   const [mesOffset, setMesOffset] = useState(0) // 0 = mes actual, -1 = mes anterior
   const [showMesPicker, setShowMesPicker] = useState(false)
   const [pickerYear, setPickerYear] = useState(new Date().getFullYear())
+  // Panel visible del conmutador de gráficas en móvil.
+  const [panelMovil, setPanelMovil] = useState<'mensual' | 'categoria' | 'calendario'>('mensual')
 
   // El mes actual ya viene del servidor; solo se recarga al cambiar de mes o
   // tras registrar un movimiento.
@@ -185,10 +187,10 @@ export default function DashboardCliente({
       <div className="max-w-[1728px] p-4 mx-auto sm:p-6 lg:p-8">
 
         {/* Header */}
-        <div className="flex items-start justify-between mb-8">
+        <div className="flex items-start justify-between mb-5 sm:mb-8">
           <div>
             <p className="mb-1 text-sm font-medium capitalize text-steel">{mesNombre}</p>
-            <h1 className="text-3xl font-bold text-obsidian">
+            <h1 className="text-2xl sm:text-3xl font-bold text-obsidian">
               {saludo()}, {usuario?.nombre?.split(' ')[0]} 👋
             </h1>
           </div>
@@ -202,12 +204,12 @@ export default function DashboardCliente({
         >
           <div className="absolute top-0 right-0 rounded-full pointer-events-none -mt-16 -mr-16 w-72 h-72 bg-white/5 blur-2xl" />
           <div className="absolute bottom-0 rounded-full pointer-events-none left-1/3 -mb-24 w-72 h-72 bg-emerald-400/10 blur-3xl" />
-          <div className="relative px-6 py-9 lg:px-8 lg:py-12">
-            <div className="mb-8">
+          <div className="relative px-5 py-6 sm:px-6 sm:py-9 lg:px-8 lg:py-12">
+            <div className="mb-5 sm:mb-8">
               <h2 className="text-xl font-semibold">Resumen de este mes</h2>
               <p className="text-base capitalize text-white/60">{mesNombre}</p>
             </div>
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-3 sm:gap-6 sm:divide-x sm:divide-white/10">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 sm:gap-6 sm:divide-x sm:divide-white/10">
               <div className="flex items-start gap-4 sm:pr-6">
                 <div className="flex items-center justify-center flex-shrink-0 w-11 h-11 rounded-xl bg-white/10">
                   <TrendingUp size={20} strokeWidth={2} />
@@ -249,7 +251,7 @@ export default function DashboardCliente({
           <div className="flex items-center justify-between h-16 px-3 border bg-snow border-fog rounded-2xl">
             <button
               onClick={() => setMesOffset(mesOffset - 1)}
-              className="flex items-center justify-center transition-all border rounded-full w-10 h-10 sm:w-9 sm:h-9 bg-snow border-fog text-graphite hover:bg-mist hover:text-ink"
+              className="flex items-center justify-center transition-all border rounded-full w-11 h-11 sm:w-9 sm:h-9 bg-snow border-fog text-graphite hover:bg-mist hover:text-ink"
               aria-label="Mes anterior"
             >
               <ChevronLeft size={18} strokeWidth={2} />
@@ -283,7 +285,7 @@ export default function DashboardCliente({
                 <div className="flex items-center justify-between mb-3">
                   <button
                     onClick={() => setPickerYear(y => y - 1)}
-                    className="flex items-center justify-center w-10 h-10 sm:w-8 sm:h-8 rounded-full text-graphite hover:bg-mist"
+                    className="flex items-center justify-center w-11 h-11 sm:w-8 sm:h-8 rounded-full text-graphite hover:bg-mist"
                     aria-label="Año anterior"
                   >
                     <ChevronLeft size={16} strokeWidth={2} />
@@ -333,8 +335,61 @@ export default function DashboardCliente({
           )}
         </div>
 
-        {/* Gráficas */}
-        <div className="grid grid-cols-1 gap-6 mb-8 lg:grid-cols-2">
+        {/* Gráficas.
+            En móvil las tres van en un conmutador de pestañas: apiladas
+            obligaban a recorrer tres pantallas enteras para llegar al resto.
+            A partir de lg vuelven a mostrarse todas a la vez. */}
+        <div className="mb-5 sm:mb-8 lg:hidden">
+          <div className="grid grid-cols-3 gap-1 p-1 mb-3 bg-mist rounded-full">
+            {([
+              { id: 'mensual', label: 'Mensual' },
+              { id: 'categoria', label: 'Categorías' },
+              { id: 'calendario', label: 'Calendario' },
+            ] as const).map(t => (
+              <button
+                key={t.id}
+                onClick={() => setPanelMovil(t.id)}
+                className={`py-2.5 rounded-full text-xs font-medium transition-all ${
+                  panelMovil === t.id ? 'bg-snow text-ink shadow-soft' : 'text-steel'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-col p-5 border bg-snow border-fog rounded-card">
+            {panelMovil === 'mensual' && (
+              <>
+                <h2 className="mb-1 font-semibold text-obsidian">Movimientos Mensuales</h2>
+                <p className="mb-4 text-xs text-steel">Ingresos vs Gastos</p>
+                <GraficaMensual transacciones={transacciones} />
+              </>
+            )}
+            {panelMovil === 'categoria' && (
+              <>
+                <h2 className="mb-1 font-semibold text-obsidian">
+                  {vistaGrafica === 'gasto' ? 'Gastos por Categoría' : 'Ingresos por Categoría'}
+                </h2>
+                <p className="mb-4 text-xs text-steel">Distribución del mes</p>
+                <GraficaGastos
+                  transacciones={transacciones}
+                  vista={vistaGrafica}
+                  onVistaChange={setVistaGrafica}
+                />
+              </>
+            )}
+            {panelMovil === 'calendario' && (
+              <>
+                <h2 className="mb-1 font-semibold text-obsidian">Calendario Financiero</h2>
+                <p className="mb-4 text-xs text-steel">Actividad diaria del mes</p>
+                <CalendarioFinanciero transacciones={transacciones} mes={getMesActual()} />
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="hidden grid-cols-1 gap-6 mb-8 lg:grid lg:grid-cols-2">
           <div className="relative flex flex-col p-6 border bg-snow border-fog rounded-card">
             <h2 className="mb-1 font-semibold text-obsidian">Movimientos Mensuales</h2>
             <p className="mb-4 text-xs text-steel">Ingresos vs Gastos</p>
@@ -356,7 +411,10 @@ export default function DashboardCliente({
             <p className="mb-4 text-xs text-steel">Actividad diaria del mes</p>
             <CalendarioFinanciero transacciones={transacciones} mes={getMesActual()} />
           </div>
-          <div className="flex flex-col p-6 border bg-snow border-fog rounded-card">
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 mb-5 sm:mb-8 lg:grid-cols-2">
+          <div className="flex flex-col p-5 border sm:p-6 bg-snow border-fog rounded-card">
             <h2 className="mb-1 font-semibold text-obsidian">Acciones rápidas</h2>
             <p className="mb-4 text-xs text-steel">Atajos a lo que más usas</p>
             <div className="grid flex-1 grid-cols-2 gap-3 auto-rows-fr">

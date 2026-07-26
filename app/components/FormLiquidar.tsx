@@ -75,7 +75,7 @@ export default function FormLiquidar({ grupoId, moneda, miembros, yo, prefill, o
           </div>
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-fog sm:px-6 sm:py-4">
             <h2 className="text-base font-semibold text-ink sm:text-lg">Saldar cuenta</h2>
-            <button onClick={onClose} className="flex items-center justify-center w-8 h-8 -mr-1 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist">
+            <button onClick={onClose} className="flex items-center justify-center w-11 h-11 -mr-1 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist">
               <X size={18} strokeWidth={2} />
             </button>
           </div>

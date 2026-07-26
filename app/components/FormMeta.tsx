@@ -85,7 +85,7 @@ export default function FormMeta({ meta, onClose, onSuccess }: Props) {
             <h2 className="text-base font-semibold text-ink sm:text-lg">
               {esEdicion ? 'Editar meta de ahorro' : 'Nueva meta de ahorro'}
             </h2>
-            <button onClick={onClose} className="flex items-center justify-center w-8 h-8 -mr-1 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist">
+            <button onClick={onClose} className="flex items-center justify-center w-11 h-11 -mr-1 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist">
               <X size={18} strokeWidth={2} />
             </button>
           </div>
@@ -184,7 +184,7 @@ export default function FormMeta({ meta, onClose, onSuccess }: Props) {
                   key={c}
                   type="button"
                   onClick={() => setColor(c)}
-                  className={`w-10 h-10 sm:w-8 sm:h-8 rounded-full transition-all ${
+                  className={`w-11 h-11 sm:w-8 sm:h-8 rounded-full transition-all ${
                     color === c ? 'ring-2 ring-obsidian ring-offset-2 ring-offset-snow scale-110' : ''
                   }`}
                   style={{ backgroundColor: c }}

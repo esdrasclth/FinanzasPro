@@ -169,10 +169,10 @@ export default function Suscripciones() {
       <div className="max-w-[1728px] p-4 mx-auto sm:p-6 lg:p-8">
 
         {/* Encabezado */}
-        <div className="flex items-start justify-between mb-8">
+        <div className="flex items-start justify-between mb-5 sm:mb-8">
           <div>
             <p className="mb-1 text-sm font-medium text-steel">Suscripciones</p>
-            <h1 className="text-3xl font-bold text-obsidian">Tus pagos recurrentes</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-obsidian">Tus pagos recurrentes</h1>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -194,7 +194,7 @@ export default function Suscripciones() {
         >
           <div className="absolute top-0 right-0 rounded-full pointer-events-none -mt-16 -mr-16 w-72 h-72 bg-white/5 blur-2xl" />
           <div className="absolute bottom-0 rounded-full pointer-events-none left-1/3 -mb-24 w-72 h-72 bg-emerald-400/10 blur-3xl" />
-          <div className="relative px-6 py-9 lg:px-8 lg:py-12">
+          <div className="relative px-5 py-6 sm:px-6 sm:py-9 lg:px-8 lg:py-12">
             <div className="mb-8">
               <h2 className="text-xl font-semibold">Resumen de suscripciones</h2>
               <p className="text-base text-white/60">
@@ -202,7 +202,7 @@ export default function Suscripciones() {
                 {subs.length - activas.length > 0 && <span className="ml-1 text-white/40">· {subs.length - activas.length} en pausa</span>}
               </p>
             </div>
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-3 sm:gap-6 sm:divide-x sm:divide-white/10">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 sm:gap-6 sm:divide-x sm:divide-white/10">
               <div className="flex items-start gap-4 sm:pr-6">
                 <div className="flex items-center justify-center flex-shrink-0 w-11 h-11 rounded-xl bg-white/10">
                   <RefreshCw size={20} strokeWidth={2} className="text-white" />
@@ -494,7 +494,7 @@ export default function Suscripciones() {
             {/* Consejo */}
             <div className="p-5 border rounded-card border-fog" style={{ background: 'linear-gradient(135deg, #f4f9f6 0%, #eef5f0 100%)' }}>
               <div className="flex items-center gap-2 mb-3">
-                <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 sm:w-8 sm:h-8 rounded-full bg-emerald-100">
+                <div className="flex items-center justify-center flex-shrink-0 w-11 h-11 sm:w-8 sm:h-8 rounded-full bg-emerald-100">
                   <Lightbulb size={16} strokeWidth={2} className="text-emerald-700" />
                 </div>
                 <h3 className="text-sm font-semibold text-steel">¿Sabías que...?</h3>

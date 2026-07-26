@@ -174,7 +174,7 @@ export default function Reportes() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-obsidian">Reportes</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-obsidian">Reportes</h1>
             <p className="mt-1 text-sm text-steel">Análisis de tus finanzas</p>
           </div>
 

@@ -56,10 +56,10 @@ function Compartidos() {
       <div className="max-w-[1728px] p-4 mx-auto sm:p-6 lg:p-8">
 
         {/* Encabezado */}
-        <div className="flex items-start justify-between mb-8">
+        <div className="flex items-start justify-between mb-5 sm:mb-8">
           <div>
             <p className="mb-1 text-sm font-medium text-steel">Compartidos</p>
-            <h1 className="text-3xl font-bold text-obsidian">Divide gastos con otras personas</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-obsidian">Divide gastos con otras personas</h1>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -266,7 +266,7 @@ function GruposPanel({ router, accion, setAccion, tab, cambiarTab }: {
       <div className="relative mb-6 overflow-hidden text-white shadow-soft rounded-2xl" style={{ background: gradiente }}>
         <div className="absolute top-0 right-0 rounded-full pointer-events-none -mt-16 -mr-16 w-72 h-72 bg-white/5 blur-2xl" />
         <div className="absolute bottom-0 rounded-full pointer-events-none left-1/3 -mb-24 w-72 h-72 bg-emerald-400/10 blur-3xl" />
-        <div className="relative px-6 py-9 lg:px-8 lg:py-12">
+        <div className="relative px-5 py-6 sm:px-6 sm:py-9 lg:px-8 lg:py-12">
           <div className="mb-8">
             <h2 className="text-xl font-semibold">Tu balance en grupos</h2>
             <p className="text-base text-white/60">{grupos.length} {grupos.length === 1 ? 'grupo activo' : 'grupos activos'}</p>
@@ -398,7 +398,7 @@ function GruposPanel({ router, accion, setAccion, tab, cambiarTab }: {
                 {actividad.map(a => (
                   <button key={a.id} onClick={() => router.push(`/grupos/${a.grupo_id}`)}
                     className="flex items-center w-full gap-3 px-2 py-2 -mx-2 text-left transition-colors rounded-xl hover:bg-mist">
-                    <span className="flex items-center justify-center flex-shrink-0 text-base rounded-full w-10 h-10 sm:w-9 sm:h-9" style={{ backgroundColor: a.grupo_color + '1a' }}>
+                    <span className="flex items-center justify-center flex-shrink-0 text-base rounded-full w-11 h-11 sm:w-9 sm:h-9" style={{ backgroundColor: a.grupo_color + '1a' }}>
                       {a.grupo_icono}
                     </span>
                     <div className="flex-1 min-w-0">
@@ -577,7 +577,7 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
       <div className="relative mb-8 overflow-hidden text-white shadow-soft rounded-2xl" style={{ background: gradiente }}>
         <div className="absolute top-0 right-0 rounded-full pointer-events-none -mt-16 -mr-16 w-72 h-72 bg-white/5 blur-2xl" />
         <div className="absolute bottom-0 rounded-full pointer-events-none left-1/3 -mb-24 w-72 h-72 bg-emerald-400/10 blur-3xl" />
-        <div className="relative px-6 py-9 lg:px-8 lg:py-12">
+        <div className="relative px-5 py-6 sm:px-6 sm:py-9 lg:px-8 lg:py-12">
           <div className="mb-8">
             <h2 className="text-xl font-semibold">Resumen de tus repartos</h2>
             <p className="text-base text-white/60">{repartos.length} {repartos.length === 1 ? 'reparto' : 'repartos'} · {liquidados} liquidados</p>
@@ -807,7 +807,7 @@ function ModalCrear({ onClose, onSuccess }: { onClose: () => void; onSuccess: (i
           <div className="flex flex-wrap gap-3">
             {COLORES.map(c => (
               <button key={c} type="button" onClick={() => setColor(c)}
-                className={`w-10 h-10 sm:w-8 sm:h-8 rounded-full transition-all ${color === c ? 'ring-2 ring-obsidian ring-offset-2 ring-offset-snow scale-110' : ''}`}
+                className={`w-11 h-11 sm:w-8 sm:h-8 rounded-full transition-all ${color === c ? 'ring-2 ring-obsidian ring-offset-2 ring-offset-snow scale-110' : ''}`}
                 style={{ backgroundColor: c }} />
             ))}
           </div>

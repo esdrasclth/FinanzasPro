@@ -151,7 +151,7 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', descripcio
           </div>
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-fog sm:px-6 sm:py-4">
             <h2 className="text-base font-semibold text-ink sm:text-lg">{reparto ? 'Editar reparto' : 'Nuevo reparto'}</h2>
-            <button onClick={onClose} className="flex items-center justify-center w-8 h-8 -mr-1 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist">
+            <button onClick={onClose} className="flex items-center justify-center w-11 h-11 -mr-1 transition-colors rounded-full text-ash hover:text-ink hover:bg-mist">
               <X size={18} strokeWidth={2} />
             </button>
           </div>
@@ -230,7 +230,7 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', descripcio
                     </div>
                   )}
                   <button type="button" onClick={() => marcarYo(p.key)} title={p.esYo ? 'Soy yo (mi parte no se cobra)' : 'Marcar como yo'}
-                    className={`flex items-center justify-center w-10 h-10 sm:w-8 sm:h-8 rounded-full shrink-0 transition-colors border ${p.esYo ? 'bg-obsidian text-snow border-obsidian' : 'border-fog text-ash hover:text-ink hover:bg-mist'}`}>
+                    className={`flex items-center justify-center w-11 h-11 sm:w-8 sm:h-8 rounded-full shrink-0 transition-colors border ${p.esYo ? 'bg-obsidian text-snow border-obsidian' : 'border-fog text-ash hover:text-ink hover:bg-mist'}`}>
                     <User size={15} strokeWidth={2} />
                   </button>
                   <button type="button" onClick={() => quitar(p.key)} className="flex items-center justify-center w-8 h-8 transition-colors rounded-full text-ash hover:text-red-500 hover:bg-red-50 shrink-0">

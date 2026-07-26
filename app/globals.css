@@ -24,12 +24,33 @@ html {
 }
 
 /* Los campos por debajo de 16px hacen que iOS haga zoom automático al
-   enfocarlos y deje la pantalla descuadrada. */
+   enfocarlos y deje la pantalla descuadrada.
+   Se listan las clases pequeñas de forma explícita (y los campos sin clase de
+   tamaño) para ganarle a la utilidad de Tailwind sin tocar los campos que sí
+   son grandes a propósito, como el monto de los formularios. */
 @media (max-width: 640px) {
-  input,
+  input:not([type='checkbox']):not([type='radio']),
   select,
   textarea {
-    font-size: 16px;
+    font-size: 16px !important;
+  }
+
+  /* Los campos que son grandes a propósito (el monto de los formularios)
+     conservan su tamaño; todos quedan por encima de 16px de todas formas. */
+  input.text-lg,
+  textarea.text-lg {
+    font-size: 1.125rem !important;
+  }
+  input.text-xl,
+  textarea.text-xl {
+    font-size: 1.25rem !important;
+  }
+  input.text-2xl,
+  textarea.text-2xl {
+    font-size: 1.5rem !important;
+  }
+  input.text-3xl {
+    font-size: 1.875rem !important;
   }
 }
 
