@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
 import { useRouter } from 'next/navigation'
 import Sidebar from './Sidebar'
 import { MonedaProvider } from '../lib/moneda-context'
@@ -24,34 +23,17 @@ export default function AppLayout({
     if (usuarioInicial) return
 
     const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-
-      // El middleware ya bloquea las rutas sin sesión; esto solo cubre que la
-      // sesión caduque con la pestaña abierta.
-      if (!session) { router.push('/login'); return }
-
-      const user = session.user
-
-      let { data: profile } = await supabase
-        .from('profiles').select('*').eq('id', user.id).single()
-
-      if (!profile) {
-        const nombre = user.user_metadata?.nombre ||
-          user.email?.split('@')[0] || 'Usuario'
-        await supabase.from('profiles')
-          .insert({ id: user.id, nombre, moneda_default: 'HNL', onboarding_completado: false })
-        router.push('/onboarding')
-        return
-      }
-
-      if (!profile.onboarding_completado) {
-        router.push('/onboarding')
-        return
-      }
-
-      setUsuario(profile)
+      // El proxy ya bloquea las rutas sin sesión; esto solo cubre que caduque
+      // con la pestaña abierta, o que falte completar el onboarding.
+      const res = await fetch('/api/perfil')
+      if (res.status === 401) { router.push('/login'); return }
+      if (!res.ok) return
+      const { perfil } = await res.json()
+      if (!perfil || !perfil.onboarding_completado) { router.push('/onboarding'); return }
+      setUsuario(perfil)
       setLoading(false)
     }
+
     checkUser()
   }, [router, usuarioInicial])
 

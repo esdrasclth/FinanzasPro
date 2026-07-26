@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { X, Plus, Trash2, RotateCcw, User } from 'lucide-react'
-import { supabase } from '../lib/supabase'
 import { round2, simboloMoneda } from '../lib/dinero'
 import { fechaHoyLocal } from '../lib/fecha'
 
@@ -48,9 +47,9 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', descripcio
   // Carga las carteras del usuario para elegir de cuál sale el gasto.
   useEffect(() => {
     const cargar = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { data } = await supabase.from('wallets').select('id, nombre, moneda').eq('user_id', user.id).eq('activo', true).order('posicion', { ascending: true })
+      const res = await fetch('/api/carteras/lista')
+      if (!res.ok) return
+      const { carteras: data } = await res.json()
       setWallets(data || [])
       if (data && data.length > 0) setWalletId(prev => prev || data[0].id)
     }

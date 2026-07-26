@@ -56,6 +56,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     : null
   if (!wallet) return error('Selecciona una cartera válida', 400)
 
+  // Las deudas creadas antes de que la subcategoría fuera automática no la
+  // tienen; se crea aquí para que el abono cuente en su presupuesto.
+  let categoriaFinal = categoryId
+  if (!categoriaFinal && deuda.tipo === 'debo') {
+    categoriaFinal = deuda.category_id
+    if (!categoriaFinal) {
+      const creada = await asegurarSubcategoria(session.id, deuda.id, deuda.nombre)
+      categoriaFinal = creada
+    }
+  }
+
   const moneda = body?.moneda || wallet.moneda || 'HNL'
   const tasaSello = await tasaVigente(session.id)
 
@@ -93,7 +104,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         data: {
           user_id: session.id,
           wallet_id: wallet.id,
-          category_id: categoryId,
+          category_id: categoriaFinal,
           debt_id: deuda.id,
           monto,
           moneda,
@@ -126,4 +137,32 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
     return error('No se pudo registrar el abono. No se movió dinero.', 400)
   }
+}
+
+// Crea la subcategoría de una deuda bajo la raíz "Deudas" y la enlaza.
+async function asegurarSubcategoria(userId: string, deudaId: string, nombre: string): Promise<string | null> {
+  return prisma.$transaction(async (tx) => {
+    let raiz = await tx.categories.findFirst({
+      where: { user_id: userId, protegida: true, nombre: 'Deudas' },
+      select: { id: true },
+    })
+    if (!raiz) {
+      raiz = await tx.categories.create({
+        data: {
+          user_id: userId, nombre: 'Deudas', tipo: 'gasto', icono: '🤝',
+          color: '#0EA5E9', protegida: true, es_sistema: false,
+        },
+        select: { id: true },
+      })
+    }
+    const sub = await tx.categories.create({
+      data: {
+        user_id: userId, nombre, tipo: 'gasto', icono: '💸',
+        color: '#EF4444', parent_id: raiz.id,
+      },
+      select: { id: true },
+    })
+    await tx.debts.update({ where: { id: deudaId }, data: { category_id: sub.id } })
+    return sub.id
+  })
 }

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
 import { fechaHoyLocal } from '../lib/fecha'
 import { X } from 'lucide-react'
 import { useMoneda } from '../lib/moneda-context'
@@ -23,12 +22,9 @@ export default function FormAporteMeta({ meta, onClose, onSuccess }: Props) {
 
   useEffect(() => {
     const cargar = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { data } = await supabase
-        .from('wallets').select('id, nombre, tipo, moneda')
-        .eq('user_id', user.id).eq('activo', true)
-        .order('posicion', { ascending: true })
+      const res = await fetch('/api/carteras/lista')
+      if (!res.ok) return
+      const { carteras: data } = await res.json()
       const lista = data || []
       setWallets(lista)
       // Por defecto: sale de la primera cartera y se guarda en una de ahorros.

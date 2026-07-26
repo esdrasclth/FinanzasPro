@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '../lib/supabase'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { ChevronRight, ChevronDown } from 'lucide-react'
 import { useMoneda } from '../lib/moneda-context'
@@ -47,14 +46,9 @@ export default function GraficaMensual({ transacciones }: Props) {
     if (agrupacion !== 'mes' || datosAnuales) return
     let cancelado = false
     const cargarAnual = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { data } = await supabase
-        .from('transactions')
-        .select('monto, moneda, tipo, fecha, wallet_destino_id, categories(nombre)')
-        .eq('user_id', user.id)
-        .gte('fecha', `${yearRef}-01-01`)
-        .lte('fecha', `${yearRef}-12-31`)
+      const res = await fetch(`/api/transacciones/buscar?desde=${yearRef}-01-01&hasta=${yearRef}-12-31&limit=500`)
+      if (!res.ok) return
+      const { data } = await res.json()
       if (!cancelado) setDatosAnuales(data || [])
     }
     cargarAnual()

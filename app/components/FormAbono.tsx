@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
 import { fechaHoyLocal } from '../lib/fecha'
-import { abonarDeuda, crearSubcategoriaDeuda } from '../lib/deudas'
+import { abonarDeuda } from '../lib/deudas'
 import { useMoneda } from '../lib/moneda-context'
 
 interface Props {
@@ -27,13 +26,9 @@ export default function FormAbono({ deuda, onClose, onSuccess }: Props) {
   }, [])
 
   const cargarWallets = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { data } = await supabase
-      .from('wallets')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('activo', true)
+    const res = await fetch('/api/carteras/lista')
+    if (!res.ok) return
+    const { carteras: data } = await res.json()
     setWallets(data || [])
     if (data && data.length > 0) setWalletId(data[0].id)
   }
@@ -49,24 +44,15 @@ export default function FormAbono({ deuda, onClose, onSuccess }: Props) {
     if (montoNum <= 0) { setError('El monto debe ser mayor a 0'); setLoading(false); return }
     if (montoNum > pendiente) { setError(`El monto no puede superar el pendiente de ${simbolo} ${pendiente.toFixed(2)}`); setLoading(false); return }
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    // Subcategoría propia de la deuda (bajo "Deudas"). Se crea si faltara
-    // (deudas creadas antes de esta función) para que el abono cuente en su
-    // presupuesto mensual.
-    let catId = deuda.category_id
-    if (!catId) {
-      catId = await crearSubcategoriaDeuda(user.id, { id: deuda.id, nombre: deuda.nombre })
-    }
-
+    // Si la deuda no tuviera subcategoría (las creadas antes de que fuera
+    // automática), el servidor la crea al registrar el abono.
     const { error } = await abonarDeuda({
       deudaId: deuda.id,
       walletId,
       monto: montoNum,
       fecha,
       nota,
-      categoryId: catId,
+      categoryId: deuda.category_id || null,
       moneda: wallets.find(w => w.id === walletId)?.moneda || 'HNL',
     })
 

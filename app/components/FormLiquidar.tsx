@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
-import { supabase } from '../lib/supabase'
 import { simboloMoneda } from '../lib/dinero'
 import { fechaHoyLocal } from '../lib/fecha'
 
@@ -34,7 +33,8 @@ export default function FormLiquidar({ grupoId, moneda, miembros, yo, prefill, o
 
   useEffect(() => {
     const cargar = async () => {
-      const { data } = await supabase.from('wallets').select('*').eq('user_id', yo).eq('activo', true).order('created_at', { ascending: true })
+      const res = await fetch('/api/carteras/lista')
+      const { carteras: data } = res.ok ? await res.json() : { carteras: [] }
       setWallets(data || [])
       if (data && data.length > 0) setWalletId(data[0].id)
     }

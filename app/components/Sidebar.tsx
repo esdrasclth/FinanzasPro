@@ -1,7 +1,6 @@
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
-import { supabase } from '../lib/supabase'
 import { useState } from 'react'
 import {
   LayoutDashboard, ArrowLeftRight, Target, Wallet, Users, Tag,
@@ -96,7 +95,7 @@ export default function Sidebar({ usuario }: { usuario: any }) {
   const router = useRouter()
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
+    await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/')
   }
 
