@@ -5,7 +5,7 @@ import { useState } from 'react'
 import {
   LayoutDashboard, ArrowLeftRight, Target, Wallet, Users, Tag,
   Download, Handshake, BarChart3, Settings, Droplets, LogOut, Plus,
-  RefreshCw, type LucideIcon,
+  RefreshCw, X, type LucideIcon,
 } from 'lucide-react'
 
 interface NavItem {
@@ -44,55 +44,17 @@ const LABEL_BARRA: Record<string, string> = {
 const ITEMS_BARRA = NAV_ITEMS.filter(i => i.enBarra)
 const ITEMS_MAS = NAV_ITEMS.filter(i => !i.enBarra)
 
-function MasMenu({ pathname, router }: { pathname: string, router: any }) {
-  const [abierto, setAbierto] = useState(false)
-
-  const MAS_ITEMS = ITEMS_MAS
-
-  const algunoActivo = MAS_ITEMS.some(i => i.href === pathname)
-
-  return (
-    <>
-      {abierto && (
-        <div className="fixed inset-0 z-40 bg-obsidian/30 backdrop-blur-sm" onClick={() => setAbierto(false)} />
-      )}
-
-      {abierto && (
-        <div className="fixed z-50 w-48 overflow-hidden border shadow-soft bottom-16 right-2 bg-snow border-fog rounded-card">
-          {MAS_ITEMS.map(({ href, Icon, label }) => {
-            const activo = pathname === href
-            return (
-              <button
-                key={href}
-                onClick={() => { router.push(href); setAbierto(false) }}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors border-b border-fog last:border-0 ${activo ? 'bg-obsidian text-snow font-medium' : 'text-steel hover:bg-mist hover:text-ink'
-                  }`}
-              >
-                <Icon size={18} strokeWidth={2} className="shrink-0" />
-                {label}
-                {activo && <div className="ml-auto w-1.5 h-1.5 bg-snow rounded-full" />}
-              </button>
-            )
-          })}
-        </div>
-      )}
-
-      <button
-        onClick={() => setAbierto(!abierto)}
-        className={`flex-1 flex flex-col items-center gap-0.5 py-3 text-xs transition-all ${algunoActivo || abierto ? 'text-obsidian' : 'text-steel'
-          }`}
-      >
-        <Plus size={22} strokeWidth={2} className={`transition-transform ${abierto ? 'rotate-45' : ''}`} />
-        <span className="text-[10px]">Más</span>
-        {algunoActivo && !abierto && <div className="w-1 h-1 bg-obsidian rounded-full" />}
-      </button>
-    </>
-  )
-}
-
 export default function Sidebar({ usuario }: { usuario: any }) {
   const pathname = usePathname()
   const router = useRouter()
+  const [masAbierto, setMasAbierto] = useState(false)
+
+  // El submenú se cierra al navegar, para no dejarlo abierto sobre la pantalla
+  // nueva.
+  const ir = (href: string) => {
+    setMasAbierto(false)
+    router.push(href)
+  }
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -137,7 +99,7 @@ export default function Sidebar({ usuario }: { usuario: any }) {
             return (
               <button
                 key={href}
-                onClick={() => router.push(href)}
+                onClick={() => ir(href)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-full text-sm transition-colors ${activo
                     ? 'bg-obsidian text-snow font-medium'
                     : 'text-steel hover:bg-mist hover:text-ink'
@@ -163,28 +125,92 @@ export default function Sidebar({ usuario }: { usuario: any }) {
         </div>
       </aside>
 
-      {/* Bottom Nav Mobile */}
+      {/* Barra inferior (móvil).
+          El overlay y el panel del submenú van FUERA del <nav>: el nav tiene
+          z-50 y backdrop-blur, así que crea su propio contexto de apilamiento y
+          cualquier overlay puesto dentro acababa tapando sus propios botones.
+          Con el orden overlay(40) < nav(50) < panel(60) la barra sigue visible y
+          se puede tocar mientras el submenú está abierto. */}
+      {masAbierto && (
+        <div
+          className="fixed inset-0 z-40 lg:hidden bg-obsidian/30 backdrop-blur-sm"
+          onClick={() => setMasAbierto(false)}
+          aria-hidden
+        />
+      )}
+
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t lg:hidden bg-snow/90 backdrop-blur border-fog pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center">
           {ITEMS_BARRA.map(({ href, Icon }) => {
-            const activo = pathname === href
+            const activo = pathname === href && !masAbierto
             return (
               <button
                 key={href}
-                onClick={() => router.push(href)}
+                onClick={() => ir(href)}
                 aria-label={LABEL_BARRA[href] || href}
                 className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs transition-all ${activo ? 'text-obsidian' : 'text-steel'
                   }`}
               >
                 <Icon size={22} strokeWidth={2} className={`transition-transform ${activo ? 'scale-110' : ''}`} />
                 <span className="text-[10px] leading-tight">{LABEL_BARRA[href]}</span>
-                {activo && <div className="w-1 h-1 bg-obsidian rounded-full" />}
+                {activo && <div className="w-1 h-1 rounded-full bg-obsidian" />}
               </button>
             )
           })}
-          <MasMenu pathname={pathname} router={router} />
+
+          <button
+            onClick={() => setMasAbierto(v => !v)}
+            aria-expanded={masAbierto}
+            aria-label={masAbierto ? 'Cerrar menú' : 'Más opciones'}
+            className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs transition-all ${
+              masAbierto || ITEMS_MAS.some(i => i.href === pathname) ? 'text-obsidian' : 'text-steel'
+            }`}
+          >
+            <Plus size={22} strokeWidth={2} className={`transition-transform ${masAbierto ? 'rotate-45' : ''}`} />
+            <span className="text-[10px] leading-tight">{masAbierto ? 'Cerrar' : 'Más'}</span>
+            {ITEMS_MAS.some(i => i.href === pathname) && !masAbierto && (
+              <div className="w-1 h-1 rounded-full bg-obsidian" />
+            )}
+          </button>
         </div>
       </nav>
+
+      {/* Panel del submenú: hoja anclada sobre la barra, a lo ancho de la
+          pantalla para que los destinos sean fáciles de tocar. */}
+      {masAbierto && (
+        <div className="fixed left-0 right-0 z-[60] lg:hidden bottom-[calc(4.25rem+env(safe-area-inset-bottom))] px-3">
+          <div className="overflow-hidden border shadow-soft bg-snow border-fog rounded-card">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-fog">
+              <p className="text-sm font-semibold text-ink">Más opciones</p>
+              <button
+                onClick={() => setMasAbierto(false)}
+                aria-label="Cerrar menú"
+                className="flex items-center justify-center transition-colors rounded-full w-9 h-9 text-ash hover:text-ink hover:bg-mist"
+              >
+                <X size={18} strokeWidth={2} />
+              </button>
+            </div>
+
+            <div className="max-h-[55vh] overflow-y-auto">
+              {ITEMS_MAS.map(({ href, Icon, label }) => {
+                const activo = pathname === href
+                return (
+                  <button
+                    key={href}
+                    onClick={() => ir(href)}
+                    className={`w-full flex items-center gap-3 px-4 py-3.5 text-sm transition-colors border-b border-fog last:border-0 ${activo ? 'bg-obsidian text-snow font-medium' : 'text-steel hover:bg-mist hover:text-ink'
+                      }`}
+                  >
+                    <Icon size={18} strokeWidth={2} className="shrink-0" />
+                    {label}
+                    {activo && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-snow" />}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
