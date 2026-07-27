@@ -6,12 +6,12 @@ import AppLayout from '../components/AppLayout'
 import FormReparto from '../components/FormReparto'
 import Notificaciones from '../components/Notificaciones'
 import { SkeletonCard } from '../components/Skeleton'
-import { formatoMoneda } from '../lib/dinero'
+import { formatoMoneda, simboloMoneda } from '../lib/dinero'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   Plus, Search, X, ChevronDown, Users, Receipt, Coins, HandCoins, KeyRound,
   CheckCircle2, Clock, ArrowDownLeft, ArrowUpRight, Scale, PieChart as PieIcon,
-  ShieldCheck, User, Activity,
+  ShieldCheck, User, Activity, FileDown,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -517,6 +517,37 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
 
   const totalMonto = repartos.reduce((s, r) => s + r.monto_total, 0)
   const totalPagado = repartos.reduce((s, r) => s + r.monto_pagado, 0)
+  // Liquidación del periodo: es lo que se comparte con el grupo al cerrar la
+  // quincena o la semana.
+  const hoyISO = new Date().toISOString().slice(0, 10)
+  const haceUnMes = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
+  const [expAbierto, setExpAbierto] = useState(false)
+  const [expDesde, setExpDesde] = useState(haceUnMes)
+  const [expHasta, setExpHasta] = useState(hoyISO)
+  const [expGenerando, setExpGenerando] = useState('')
+
+  const generarLiquidacion = async (formato: 'pdf' | 'excel') => {
+    setExpGenerando(formato)
+    try {
+      const res = await fetch(`/api/repartos/reporte?desde=${expDesde}&hasta=${expHasta}`)
+      const json = await res.json().catch(() => null)
+      if (!res.ok) { alert(json?.error?.message || 'No se pudo generar el reporte'); return }
+      if (!json.gastos?.length) { alert('No hay repartos en ese rango de fechas'); return }
+
+      const lib = await import('../lib/exportar-liquidacion')
+      const simbolo = simboloMoneda(json.moneda)
+      if (formato === 'excel') await lib.liquidacionExcel(json, simbolo)
+      else lib.liquidacionPdf(json, simbolo)
+    } finally {
+      setExpGenerando('')
+    }
+  }
+
+  const atajoRango = (dias: number) => {
+    setExpHasta(hoyISO)
+    setExpDesde(new Date(Date.now() - dias * 86400000).toISOString().slice(0, 10))
+  }
+
   const totalPendiente = Math.max(0, totalMonto - totalPagado)
   const personasPendientes = repartos.reduce((s, r) => s + (r.participantes - r.pagados), 0)
   const liquidados = repartos.filter(r => estadoDe(r) === 'liquidado').length
@@ -591,6 +622,71 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
             <HeroMetrica icon={Users} label="Personas pendientes" valor={`${personasPendientes}`} className="lg:pl-6" />
           </div>
         </div>
+      </div>
+
+      {/* Liquidación del periodo */}
+      <div className="mb-6 border bg-snow border-fog rounded-card">
+        <button
+          onClick={() => setExpAbierto(v => !v)}
+          className="flex items-center justify-between w-full gap-3 p-4 text-left"
+        >
+          <span className="inline-flex items-center gap-2 text-sm font-medium text-graphite">
+            <FileDown size={16} strokeWidth={2} className="text-steel" />
+            Liquidar un periodo
+            <span className="hidden text-xs font-normal sm:inline text-ash">
+              · desglose, total y quién le paga a quién
+            </span>
+          </span>
+          <ChevronDown size={16} strokeWidth={2} className={`flex-shrink-0 text-steel transition-transform ${expAbierto ? 'rotate-180' : ''}`} />
+        </button>
+
+        {expAbierto && (
+          <div className="px-4 pb-4 space-y-3 border-t border-fog pt-4">
+            <div className="flex flex-wrap gap-2">
+              {[
+                { l: 'Última semana', d: 7 },
+                { l: 'Última quincena', d: 15 },
+                { l: 'Último mes', d: 30 },
+              ].map(a => (
+                <button key={a.d} onClick={() => atajoRango(a.d)}
+                  className="px-3 py-2 text-xs font-medium transition-colors border rounded-full border-fog text-graphite hover:bg-mist">
+                  {a.l}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block mb-1.5 text-xs font-medium text-steel">Desde</label>
+                <input type="date" value={expDesde} onChange={e => setExpDesde(e.target.value)}
+                  className="w-full px-3 py-2.5 text-sm text-ink border bg-mist border-transparent rounded-input focus:outline-none focus:border-obsidian focus:bg-snow" />
+              </div>
+              <div>
+                <label className="block mb-1.5 text-xs font-medium text-steel">Hasta</label>
+                <input type="date" value={expHasta} onChange={e => setExpHasta(e.target.value)}
+                  className="w-full px-3 py-2.5 text-sm text-ink border bg-mist border-transparent rounded-input focus:outline-none focus:border-obsidian focus:bg-snow" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => generarLiquidacion('excel')} disabled={!!expGenerando}
+                className="inline-flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors border rounded-full text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100 disabled:opacity-50">
+                <FileDown size={15} strokeWidth={2} />
+                {expGenerando === 'excel' ? 'Generando…' : 'Excel'}
+              </button>
+              <button onClick={() => generarLiquidacion('pdf')} disabled={!!expGenerando}
+                className="inline-flex items-center justify-center gap-2 py-3 text-sm font-medium text-red-600 transition-colors border border-red-200 rounded-full bg-red-50 hover:bg-red-100 disabled:opacity-50">
+                <FileDown size={15} strokeWidth={2} />
+                {expGenerando === 'pdf' ? 'Generando…' : 'PDF'}
+              </button>
+            </div>
+
+            <p className="text-xs text-ash">
+              Incluye cada gasto con su fecha, quién pagó y con qué medio, el total del
+              periodo, lo que le toca a cada persona y los pagos necesarios para quedar a mano.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Controles (debajo del hero): tabs · buscador · filtros */}
