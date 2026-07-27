@@ -23,6 +23,7 @@ const nuevaKey = () => `p${Date.now()}_${contador++}`
 
 export default function FormReparto({ reparto, monedaDefault = 'HNL', descripcionInicial, montoInicial, fechaInicial, onClose, onSuccess }: Props) {
   const [descripcion, setDescripcion] = useState(reparto?.descripcion || descripcionInicial || '')
+  const [lugar, setLugar] = useState(reparto?.lugar || '')
   const [monto, setMonto] = useState(reparto ? String(reparto.monto_total) : (montoInicial || ''))
   const [moneda, setMoneda] = useState(reparto?.moneda || monedaDefault)
   const [fecha, setFecha] = useState(reparto ? String(reparto.fecha).slice(0, 10) : (fechaInicial || fechaHoyLocal()))
@@ -129,6 +130,7 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', descripcio
       moneda,
       metodo,
       fecha,
+      lugar: lugar.trim() || null,
       wallet_id: pagadoPor ? null : walletId,
       pagado_por: pagadoPor || null,
       metodo_pago: pagadoPor ? metodoPago : null,
@@ -165,8 +167,18 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', descripcio
 
         <form onSubmit={submit} className="px-5 py-5 space-y-4 sm:px-6 sm:space-y-5">
           <div>
-            <label className="block mb-2 text-sm font-medium text-graphite">Descripción</label>
-            <input value={descripcion} onChange={e => setDescripcion(e.target.value)} required placeholder="Ej: Viaje a San Pedro"
+            <label className="block mb-2 text-sm font-medium text-graphite">Concepto</label>
+            <input value={descripcion} onChange={e => setDescripcion(e.target.value)} required placeholder="Ej: Pizza, combustible, hotel"
+              className="w-full px-4 py-3 text-ink transition-colors border bg-mist border-transparent placeholder-ash rounded-input focus:outline-none focus:border-obsidian focus:bg-snow" />
+          </div>
+
+          {/* El lugar va aparte del concepto porque en el reporte de
+              liquidación hacen falta los dos: qué se compró y dónde. */}
+          <div>
+            <label className="block mb-2 text-sm font-medium text-graphite">
+              Lugar <span className="font-normal text-steel">(opcional)</span>
+            </label>
+            <input value={lugar} onChange={e => setLugar(e.target.value)} placeholder="Ej: Pizza Hut, Uno La Ceiba"
               className="w-full px-4 py-3 text-ink transition-colors border bg-mist border-transparent placeholder-ash rounded-input focus:outline-none focus:border-obsidian focus:bg-snow" />
           </div>
 

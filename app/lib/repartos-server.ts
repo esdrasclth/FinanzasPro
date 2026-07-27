@@ -10,6 +10,7 @@ export interface ParticipanteInput {
 
 export interface RepartoPreparado {
   descripcion: string
+  lugar: string | null
   montoTotal: number
   moneda: string
   metodo: string
@@ -30,6 +31,7 @@ type PrepErr = { ok: false; status: number; error: string }
 // Valida y calcula los montos de cada participante según el método.
 export function prepararReparto(body: any): PrepOk | PrepErr {
   const descripcion = String(body?.descripcion || '').trim()
+  const lugar = String(body?.lugar || '').trim() || null
   const montoTotal = round2(Number(body?.monto_total) || 0)
   const moneda = String(body?.moneda || 'HNL').trim().toUpperCase().slice(0, 3)
   const metodo = body?.metodo === 'manual' ? 'manual' : 'igual'
@@ -83,7 +85,7 @@ export function prepararReparto(body: any): PrepOk | PrepErr {
   return {
     ok: true,
     data: {
-      descripcion, montoTotal, moneda, metodo, fecha: new Date(fechaStr),
+      descripcion, lugar, montoTotal, moneda, metodo, fecha: new Date(fechaStr),
       walletId, pagadoPor, metodoPago, metodoDetalle, participantes,
     },
   }

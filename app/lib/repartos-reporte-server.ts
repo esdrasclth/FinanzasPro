@@ -22,6 +22,7 @@ const METODOS: Record<string, string> = {
 export interface LineaGasto {
   fecha: string
   descripcion: string
+  lugar: string
   monto: number
   moneda: string
   pagadoPor: string
@@ -96,6 +97,7 @@ export async function reporteLiquidacion(
     return {
       fecha: r.fecha.toISOString().slice(0, 10),
       descripcion: r.descripcion,
+      lugar: r.lugar?.trim() || '',
       monto: round2(r.monto_total),
       moneda: r.moneda,
       pagadoPor: pagador,

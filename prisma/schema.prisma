@@ -388,6 +388,9 @@ model repartos {
   id             String   @id @default(uuid()) @db.Uuid
   user_id        String   @db.Uuid
   descripcion    String
+  // Establecimiento donde se hizo el gasto ("Pizza Hut"), separado del
+  // concepto ("Pizza"). Va en el reporte de liquidación.
+  lugar          String?
   monto_total    Float
   moneda         String   @default("HNL")
   metodo         String   @default("igual") // 'igual' | 'manual'

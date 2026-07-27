@@ -466,6 +466,7 @@ function StatMini({ icon: Icon, label, valor, color, full }: { icon: LucideIcon;
 interface Reparto {
   id: string
   descripcion: string
+  lugar?: string | null
   monto_total: number
   moneda: string
   metodo: string
@@ -525,6 +526,7 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
   const [expDesde, setExpDesde] = useState(haceUnMes)
   const [expHasta, setExpHasta] = useState(hoyISO)
   const [expGenerando, setExpGenerando] = useState('')
+  const [rangoActivo, setRangoActivo] = useState(false)
 
   const generarLiquidacion = async (formato: 'pdf' | 'excel') => {
     setExpGenerando(formato)
@@ -554,9 +556,12 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
   const cobradoPct = totalMonto > 0 ? (totalPagado / totalMonto) * 100 : 0
 
   const q = busqueda.trim().toLowerCase()
+  // El rango elegido para liquidar filtra también la lista, para que se vea
+  // exactamente lo que va a salir en el documento.
   const filtrados = repartos
     .filter(r => filtroEstado === 'todos' ? true : estadoDe(r) === filtroEstado)
-    .filter(r => !q || r.descripcion.toLowerCase().includes(q))
+    .filter(r => !rangoActivo || (r.fecha >= expDesde && r.fecha <= expHasta))
+    .filter(r => !q || r.descripcion.toLowerCase().includes(q) || (r.lugar || '').toLowerCase().includes(q))
     .sort((a, b) => {
       if (orden === 'monto') return b.monto_total - a.monto_total
       if (orden === 'pendiente') return pendienteDe(b) - pendienteDe(a)
@@ -681,8 +686,14 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
               </button>
             </div>
 
+            <label className="flex items-center gap-2 text-xs cursor-pointer text-graphite">
+              <input type="checkbox" checked={rangoActivo} onChange={e => setRangoActivo(e.target.checked)}
+                className="w-4 h-4 accent-obsidian" />
+              Mostrar abajo solo los repartos de este rango
+            </label>
+
             <p className="text-xs text-ash">
-              Incluye cada gasto con su fecha, quién pagó y con qué medio, el total del
+              Incluye cada gasto con su fecha, lugar, quién pagó y con qué medio, el total del
               periodo, lo que le toca a cada persona y los pagos necesarios para quedar a mano.
             </p>
           </div>

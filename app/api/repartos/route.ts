@@ -26,6 +26,7 @@ export async function GET() {
         monto_total: r.monto_total,
         moneda: r.moneda,
         metodo: r.metodo,
+        lugar: r.lugar,
         fecha: r.fecha.toISOString().slice(0, 10),
         participantes: cobrables.length,
         pagados: cobrables.filter(p => p.pagado).length,
@@ -82,6 +83,7 @@ export async function POST(req: Request) {
       data: {
         user_id: user.id,
         descripcion: d.descripcion,
+        lugar: d.lugar,
         monto_total: d.montoTotal,
         moneda: d.moneda,
         metodo: d.metodo,

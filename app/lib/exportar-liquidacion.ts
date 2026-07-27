@@ -11,6 +11,7 @@ import autoTable from 'jspdf-autotable'
 export interface LineaGastoDoc {
   fecha: string
   descripcion: string
+  lugar: string
   monto: number
   moneda: string
   pagadoPor: string
@@ -55,7 +56,8 @@ export async function liquidacionExcel(r: ReporteDoc, simbolo = 'L') {
   const hoja = wb.addWorksheet('Gastos')
   hoja.columns = [
     { header: 'Fecha', key: 'fecha', width: 14 },
-    { header: 'Concepto', key: 'desc', width: 32 },
+    { header: 'Concepto', key: 'desc', width: 28 },
+    { header: 'Lugar', key: 'lugar', width: 22 },
     { header: 'Pagó', key: 'pago', width: 18 },
     { header: 'Método', key: 'metodo', width: 26 },
     { header: 'Reparto', key: 'reparto', width: 18 },
@@ -66,6 +68,7 @@ export async function liquidacionExcel(r: ReporteDoc, simbolo = 'L') {
     hoja.addRow({
       fecha: fecha(g.fecha),
       desc: g.descripcion,
+      lugar: g.lugar,
       pago: g.pagadoPor,
       metodo: g.metodo,
       reparto: g.reparto,
@@ -145,13 +148,13 @@ export function liquidacionPdf(r: ReporteDoc, simbolo = 'L') {
 
   autoTable(doc, {
     startY: 100,
-    head: [['Fecha', 'Concepto', 'Pagó', 'Método', `Monto (${r.moneda})`]],
-    body: r.gastos.map(g => [fecha(g.fecha), g.descripcion, g.pagadoPor, g.metodo, fmt(g.monto)]),
-    foot: [['', '', '', 'TOTAL', fmt(r.total)]],
+    head: [['Fecha', 'Concepto', 'Lugar', 'Pagó', 'Método', `Monto (${r.moneda})`]],
+    body: r.gastos.map(g => [fecha(g.fecha), g.descripcion, g.lugar || '—', g.pagadoPor, g.metodo, fmt(g.monto)]),
+    foot: [['', '', '', '', 'TOTAL', fmt(r.total)]],
     styles: { fontSize: 9, cellPadding: 5 },
     headStyles: { fillColor: [44, 110, 73] },
     footStyles: { fillColor: [240, 240, 240], textColor: 20, fontStyle: 'bold' },
-    columnStyles: { 4: { halign: 'right' } },
+    columnStyles: { 5: { halign: 'right' } },
   })
 
   // Resumen por persona

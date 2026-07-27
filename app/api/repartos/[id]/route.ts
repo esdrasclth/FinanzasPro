@@ -25,6 +25,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     reparto: {
       id: reparto.id,
       descripcion: reparto.descripcion,
+      lugar: reparto.lugar,
       monto_total: reparto.monto_total,
       moneda: reparto.moneda,
       metodo: reparto.metodo,
@@ -116,6 +117,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       where: { id },
       data: {
         descripcion: d.descripcion,
+        lugar: d.lugar,
         monto_total: d.montoTotal,
         moneda: d.moneda,
         metodo: d.metodo,
