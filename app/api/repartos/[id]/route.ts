@@ -30,6 +30,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       metodo: reparto.metodo,
       fecha: reparto.fecha.toISOString().slice(0, 10),
       wallet_id: reparto.wallet_id,
+      // Quién puso el dinero y cómo. Null en pagado_por = lo pagaste tú.
+      pagado_por: reparto.pagado_por,
+      metodo_pago: reparto.metodo_pago,
+      metodo_detalle: reparto.metodo_detalle,
       monto_pagado: round2(cobrado),
       monto_recuperable: round2(recuperable),
       mi_parte: round2(miParte),
@@ -56,9 +60,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   if (!prep.ok) return NextResponse.json({ error: prep.error }, { status: prep.status })
   const d = prep.data
 
-  const wallet = await walletDeUsuario(auth.userId, d.walletId)
-  if (!wallet) return NextResponse.json({ error: 'Selecciona la cartera de la que salió el gasto' }, { status: 400 })
-  const walletId = wallet.id
+  // Igual que al crear: si pagó otra persona no se toca ninguna cartera tuya.
+  const pagoAjeno = !!d.pagadoPor
+  const wallet = pagoAjeno ? null : await walletDeUsuario(auth.userId, d.walletId)
+  if (!pagoAjeno && !wallet) {
+    return NextResponse.json({ error: 'Selecciona la cartera de la que salió el gasto' }, { status: 400 })
+  }
+  const walletId = wallet?.id ?? null
 
   const repartoPrev = await prisma.repartos.findUnique({ where: { id }, select: { transaction_id: true } })
   const previos = await prisma.reparto_participantes.findMany({ where: { reparto_id: id } })
@@ -81,26 +89,28 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     : []
   const monedaDeCartera = new Map(carterasCobro.map(w => [w.id, w.moneda]))
   const tasa = await tasaVigente(auth.userId)
-  const enCarteraGasto = montoParaCartera(d.montoTotal, d.moneda, wallet.moneda, tasa)
+  const enCarteraGasto = wallet ? montoParaCartera(d.montoTotal, d.moneda, wallet.moneda, tasa) : null
 
   await prisma.$transaction(async (tx) => {
     // Rehacer el gasto: borra las transacciones viejas y crea una nueva por el nuevo total.
     const aBorrar = [repartoPrev?.transaction_id, ...txIdsRecuperacion].filter((x): x is string => !!x)
     if (aBorrar.length > 0) await tx.transactions.deleteMany({ where: { id: { in: aBorrar } } })
 
-    const gasto = await tx.transactions.create({
-      data: {
-        user_id: auth.userId,
-        wallet_id: walletId,
-        monto: enCarteraGasto.monto,
-        moneda: enCarteraGasto.moneda,
-        monto_original: enCarteraGasto.monto_original,
-        tasa_cambio: enCarteraGasto.tasa_cambio,
-        tipo: 'gasto',
-        descripcion: `Reparto: ${d.descripcion}`,
-        fecha: d.fecha,
-      },
-    })
+    const gasto = enCarteraGasto && walletId
+      ? await tx.transactions.create({
+          data: {
+            user_id: auth.userId,
+            wallet_id: walletId,
+            monto: enCarteraGasto.monto,
+            moneda: enCarteraGasto.moneda,
+            monto_original: enCarteraGasto.monto_original,
+            tasa_cambio: enCarteraGasto.tasa_cambio,
+            tipo: 'gasto',
+            descripcion: `Reparto: ${d.descripcion}`,
+            fecha: d.fecha,
+          },
+        })
+      : null
 
     await tx.repartos.update({
       where: { id },
@@ -111,7 +121,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         metodo: d.metodo,
         fecha: d.fecha,
         wallet_id: walletId,
-        transaction_id: gasto.id,
+        transaction_id: gasto?.id ?? null,
+        pagado_por: d.pagadoPor,
+        metodo_pago: d.metodoPago,
+        metodo_detalle: d.metodoDetalle,
       },
     })
     await tx.reparto_participantes.deleteMany({ where: { reparto_id: id } })
@@ -122,7 +135,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       // Recrea el ingreso de cobro solo si antes estaba pagado y sabemos a qué cartera entró.
       let txId: string | null = null
       let walletCobro: string | null = null
-      if (cobro && cobro.wallet_id && p.monto_asignado > 0) {
+      if (!pagoAjeno && cobro && cobro.wallet_id && p.monto_asignado > 0) {
         const enCartera = montoParaCartera(
           p.monto_asignado, d.moneda, monedaDeCartera.get(cobro.wallet_id), tasa
         )

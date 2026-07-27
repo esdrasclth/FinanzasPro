@@ -46,29 +46,38 @@ export async function POST(req: Request) {
   if (!prep.ok) return NextResponse.json({ error: prep.error }, { status: prep.status })
   const d = prep.data
 
-  const wallet = await walletDeUsuario(user.id, d.walletId)
-  if (!wallet) return NextResponse.json({ error: 'Selecciona la cartera de la que salió el gasto' }, { status: 400 })
-  const walletId = wallet.id
+  // Si pagó otra persona no sale dinero de ninguna cartera tuya: no hay
+  // cartera que elegir ni gasto que registrar. Tu parte queda como lo que le
+  // debes a quien pagó.
+  const pagoAjeno = !!d.pagadoPor
 
-  // El reparto puede llevarse en otra moneda que la cartera; el dinero sale en
-  // la moneda de la cartera.
-  const enCartera = montoParaCartera(d.montoTotal, d.moneda, wallet.moneda, await tasaVigente(user.id))
+  const wallet = pagoAjeno ? null : await walletDeUsuario(user.id, d.walletId)
+  if (!pagoAjeno && !wallet) {
+    return NextResponse.json({ error: 'Selecciona la cartera de la que salió el gasto' }, { status: 400 })
+  }
+  const walletId = wallet?.id ?? null
+
+  const enCartera = wallet
+    ? montoParaCartera(d.montoTotal, d.moneda, wallet.moneda, await tasaVigente(user.id))
+    : null
 
   const reparto = await prisma.$transaction(async (tx) => {
-    // Gasto real: sale el monto total de la cartera elegida.
-    const gasto = await tx.transactions.create({
-      data: {
-        user_id: user.id,
-        wallet_id: walletId,
-        monto: enCartera.monto,
-        moneda: enCartera.moneda,
-        monto_original: enCartera.monto_original,
-        tasa_cambio: enCartera.tasa_cambio,
-        tipo: 'gasto',
-        descripcion: `Reparto: ${d.descripcion}`,
-        fecha: d.fecha,
-      },
-    })
+    // Gasto real: sale el monto total de la cartera elegida (solo si pagaste tú).
+    const gasto = enCartera && walletId
+      ? await tx.transactions.create({
+          data: {
+            user_id: user.id,
+            wallet_id: walletId,
+            monto: enCartera.monto,
+            moneda: enCartera.moneda,
+            monto_original: enCartera.monto_original,
+            tasa_cambio: enCartera.tasa_cambio,
+            tipo: 'gasto',
+            descripcion: `Reparto: ${d.descripcion}`,
+            fecha: d.fecha,
+          },
+        })
+      : null
     return tx.repartos.create({
       data: {
         user_id: user.id,
@@ -78,7 +87,10 @@ export async function POST(req: Request) {
         metodo: d.metodo,
         fecha: d.fecha,
         wallet_id: walletId,
-        transaction_id: gasto.id,
+        transaction_id: gasto?.id ?? null,
+        pagado_por: d.pagadoPor,
+        metodo_pago: d.metodoPago,
+        metodo_detalle: d.metodoDetalle,
         participantes: {
           create: d.participantes.map((p, i) => ({
             nombre: p.nombre,

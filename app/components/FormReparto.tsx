@@ -34,6 +34,10 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', descripcio
   )
   const [wallets, setWallets] = useState<any[]>([])
   const [walletId, setWalletId] = useState<string>(reparto?.wallet_id || '')
+  // Quién puso el dinero. Vacío = lo pagaste tú.
+  const [pagadoPor, setPagadoPor] = useState<string>(reparto?.pagado_por || '')
+  const [metodoPago, setMetodoPago] = useState<string>(reparto?.metodo_pago || 'efectivo')
+  const [metodoDetalle, setMetodoDetalle] = useState<string>(reparto?.metodo_detalle || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -116,7 +120,7 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', descripcio
       setError(`La suma (${simbolo}${sumaManual.toFixed(2)}) no cuadra con el total (${simbolo}${total.toFixed(2)})`)
       return
     }
-    if (!walletId) { setError('Elige la cartera de la que salió el gasto'); return }
+    if (!pagadoPor && !walletId) { setError('Elige la cartera de la que salió el gasto'); return }
 
     setLoading(true)
     const payload = {
@@ -125,7 +129,10 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', descripcio
       moneda,
       metodo,
       fecha,
-      wallet_id: walletId,
+      wallet_id: pagadoPor ? null : walletId,
+      pagado_por: pagadoPor || null,
+      metodo_pago: pagadoPor ? metodoPago : null,
+      metodo_detalle: pagadoPor ? (metodoDetalle || null) : null,
       participantes: conNombre.map(p => ({ nombre: p.nombre.trim(), monto_asignado: Number(p.monto) || 0, es_yo: p.esYo })),
     }
     const url = reparto ? `/api/repartos/${reparto.id}` : '/api/repartos'
@@ -184,16 +191,71 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', descripcio
             </div>
           </div>
 
-          {/* Cartera que pagó */}
+          {/* Quién puso el dinero. El gasto no siempre lo pagas tú: si lo puso
+              otra persona no sale nada de tus carteras y tu parte pasa a ser lo
+              que le debes. */}
           <div>
-            <label className="block mb-2 text-sm font-medium text-graphite">¿Con qué cartera pagaste?</label>
-            <select value={walletId} onChange={e => setWalletId(e.target.value)}
-              className="w-full px-4 py-3 text-ink transition-colors border bg-mist border-transparent rounded-input focus:outline-none focus:border-obsidian focus:bg-snow">
-              <option value="">— Selecciona una cartera —</option>
-              {wallets.map(w => <option key={w.id} value={w.id}>{w.nombre}{w.moneda && w.moneda !== moneda ? ` (${w.moneda})` : ''}</option>)}
+            <label className="block mb-2 text-sm font-medium text-graphite">¿Quién pagó?</label>
+            <select
+              value={pagadoPor}
+              onChange={e => setPagadoPor(e.target.value)}
+              className="w-full px-4 py-3 text-ink transition-colors border bg-mist border-transparent rounded-input focus:outline-none focus:border-obsidian focus:bg-snow"
+            >
+              <option value="">Yo</option>
+              {participantes
+                .filter(p => !p.esYo && p.nombre.trim())
+                .map((p, i) => <option key={i} value={p.nombre.trim()}>{p.nombre.trim()}</option>)}
             </select>
-            <p className="mt-1.5 text-xs text-ash">Se registrará un gasto por {simbolo}{total.toFixed(2)} en esta cartera.</p>
           </div>
+
+          {!pagadoPor ? (
+            <div>
+              <label className="block mb-2 text-sm font-medium text-graphite">¿Con qué cartera pagaste?</label>
+              <select value={walletId} onChange={e => setWalletId(e.target.value)}
+                className="w-full px-4 py-3 text-ink transition-colors border bg-mist border-transparent rounded-input focus:outline-none focus:border-obsidian focus:bg-snow">
+                <option value="">— Selecciona una cartera —</option>
+                {wallets.map(w => <option key={w.id} value={w.id}>{w.nombre}{w.moneda && w.moneda !== moneda ? ` (${w.moneda})` : ''}</option>)}
+              </select>
+              <p className="mt-1.5 text-xs text-ash">Se registrará un gasto por {simbolo}{total.toFixed(2)} en esta cartera.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <label className="block mb-2 text-sm font-medium text-graphite">¿Cómo pagó {pagadoPor}?</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { v: 'efectivo', l: 'Efectivo' },
+                    { v: 'tarjeta', l: 'Tarjeta' },
+                    { v: 'transferencia', l: 'Transferencia' },
+                    { v: 'otro', l: 'Otro' },
+                  ] as const).map(o => (
+                    <button key={o.v} type="button" onClick={() => setMetodoPago(o.v)}
+                      className={`py-3 rounded-input text-sm font-medium transition-all border ${metodoPago === o.v ? 'border-obsidian bg-obsidian/5 text-ink' : 'border-fog text-steel hover:border-pebble'}`}>
+                      {o.l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block mb-2 text-sm font-medium text-graphite">
+                  Detalle <span className="font-normal text-steel">(opcional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={metodoDetalle}
+                  onChange={e => setMetodoDetalle(e.target.value)}
+                  placeholder={metodoPago === 'tarjeta' ? 'Ej: BAC ••••1234' : 'Ej: banco, referencia...'}
+                  className="w-full px-4 py-3 text-ink transition-colors border bg-mist border-transparent placeholder-ash rounded-input focus:outline-none focus:border-obsidian focus:bg-snow"
+                />
+              </div>
+
+              <p className="text-xs text-ash">
+                No se registrará ningún gasto en tus carteras: el dinero lo puso {pagadoPor}.
+                Tu parte quedará como lo que le debes.
+              </p>
+            </div>
+          )}
 
           {/* Método */}
           <div>

@@ -15,8 +15,14 @@ export interface RepartoPreparado {
   metodo: string
   fecha: Date
   walletId: string | null
+  // Null = pagaste tú. Con nombre, pagó otra persona y no se toca tu dinero.
+  pagadoPor: string | null
+  metodoPago: string | null
+  metodoDetalle: string | null
   participantes: { nombre: string; monto_asignado: number; es_yo: boolean }[]
 }
+
+const METODOS = ['efectivo', 'tarjeta', 'transferencia', 'otro']
 
 type PrepOk = { ok: true; data: RepartoPreparado }
 type PrepErr = { ok: false; status: number; error: string }
@@ -30,6 +36,9 @@ export function prepararReparto(body: any): PrepOk | PrepErr {
   const fechaStr = String(body?.fecha || '').slice(0, 10)
   const walletIdRaw = body?.wallet_id
   const walletId = typeof walletIdRaw === 'string' && walletIdRaw.trim() ? walletIdRaw.trim() : null
+  const pagadoPor = String(body?.pagado_por || '').trim() || null
+  const metodoPago = METODOS.includes(body?.metodo_pago) ? body.metodo_pago : null
+  const metodoDetalle = String(body?.metodo_detalle || '').trim() || null
 
   if (!descripcion) return { ok: false, status: 400, error: 'La descripción es obligatoria' }
   if (montoTotal <= 0) return { ok: false, status: 400, error: 'Ingresa un monto válido' }
@@ -41,6 +50,9 @@ export function prepararReparto(body: any): PrepOk | PrepErr {
     .filter(p => p.nombre.length > 0)
 
   if (limpios.length === 0) return { ok: false, status: 400, error: 'Agrega al menos un participante' }
+  if (pagadoPor && !metodoPago) {
+    return { ok: false, status: 400, error: 'Indica cómo pagó ' + pagadoPor }
+  }
 
   // Solo un participante puede ser "yo".
   let yaHayYo = false
@@ -70,7 +82,10 @@ export function prepararReparto(body: any): PrepOk | PrepErr {
 
   return {
     ok: true,
-    data: { descripcion, montoTotal, moneda, metodo, fecha: new Date(fechaStr), walletId, participantes },
+    data: {
+      descripcion, montoTotal, moneda, metodo, fecha: new Date(fechaStr),
+      walletId, pagadoPor, metodoPago, metodoDetalle, participantes,
+    },
   }
 }
 

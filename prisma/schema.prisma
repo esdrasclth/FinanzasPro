@@ -392,7 +392,16 @@ model repartos {
   moneda         String   @default("HNL")
   metodo         String   @default("igual") // 'igual' | 'manual'
   fecha          DateTime @db.Date
-  wallet_id      String?  @db.Uuid // cartera de la que salió el gasto
+  // Quién puso el dinero. Null = lo pagaste tú (caso por defecto). Con nombre,
+  // pagó otra persona: no sale nada de tus carteras y tu parte pasa a ser una
+  // deuda con quien pagó.
+  pagado_por     String?
+  // Cómo se pagó: 'efectivo' | 'tarjeta' | 'transferencia' | 'otro'.
+  metodo_pago    String?
+  // Detalle legible del método, p. ej. "BAC ••••1234". Se guarda ya resuelto
+  // para que el reporte no dependa de que la cartera siga existiendo igual.
+  metodo_detalle String?
+  wallet_id      String?  @db.Uuid // cartera de la que salió el gasto (si pagaste tú)
   transaction_id String?  @db.Uuid // transacción de gasto asociada
   created_at     DateTime @default(now())
 

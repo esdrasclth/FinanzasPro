@@ -14,17 +14,34 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: 'Participante no encontrado' }, { status: 404 })
   }
 
-  const reparto = await prisma.repartos.findUnique({ where: { id }, select: { descripcion: true, moneda: true } })
+  const reparto = await prisma.repartos.findUnique({
+    where: { id },
+    select: { descripcion: true, moneda: true, pagado_por: true },
+  })
   if (!reparto) return NextResponse.json({ error: 'Reparto no encontrado' }, { status: 404 })
 
   const body = await req.json().catch(() => null)
   const pagado = !!body?.pagado
 
-  // La parte propia (es_yo) no genera cobro; solo se marca.
-  if (participante.es_yo) {
-    await prisma.reparto_participantes.update({
-      where: { id: pid },
-      data: { pagado, fecha_pago: pagado ? new Date() : null },
+  // Quién puso el dinero decide en qué dirección se mueve el tuyo:
+  //  - Pagaste tú  -> cada participante que salda te ENTRA dinero; tu parte no
+  //                   genera movimiento porque ya la pusiste.
+  //  - Pagó otro   -> los demás le pagan a esa persona, no a ti: no toca tus
+  //                   carteras. Lo único tuyo es tu propia parte, que SALE de
+  //                   tu cartera cuando le pagas.
+  const pagoAjeno = !!reparto.pagado_por
+  const mueveMiDinero = pagoAjeno ? participante.es_yo : !participante.es_yo
+  const tipoMovimiento = pagoAjeno ? 'gasto' : 'ingreso'
+
+  if (!mueveMiDinero) {
+    await prisma.$transaction(async (tx) => {
+      if (participante.transaction_id) {
+        await tx.transactions.deleteMany({ where: { id: participante.transaction_id } })
+      }
+      await tx.reparto_participantes.update({
+        where: { id: pid },
+        data: { pagado, fecha_pago: pagado ? new Date() : null, wallet_id: null, transaction_id: null },
+      })
     })
     return NextResponse.json({ ok: true })
   }
@@ -32,7 +49,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   let cartera: { id: string; moneda: string } | null = null
   if (pagado) {
     cartera = await walletDeUsuario(auth.userId, body?.wallet_id)
-    if (!cartera) return NextResponse.json({ error: 'Selecciona la cartera donde recibiste el pago' }, { status: 400 })
+    if (!cartera) {
+      return NextResponse.json(
+        { error: pagoAjeno ? 'Selecciona la cartera con la que pagaste tu parte' : 'Selecciona la cartera donde recibiste el pago' },
+        { status: 400 }
+      )
+    }
   }
   const walletCobro = cartera?.id ?? null
   const tasa = await tasaVigente(auth.userId)
@@ -57,8 +79,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           moneda: enCartera.moneda,
           monto_original: enCartera.monto_original,
           tasa_cambio: enCartera.tasa_cambio,
-          tipo: 'ingreso',
-          descripcion: `Cobro reparto: ${reparto.descripcion} — ${participante.nombre}`,
+          tipo: tipoMovimiento,
+          descripcion: pagoAjeno
+            ? `Mi parte del reparto: ${reparto.descripcion} — pagué a ${reparto.pagado_por}`
+            : `Cobro reparto: ${reparto.descripcion} — ${participante.nombre}`,
           fecha: new Date(),
         },
       })
