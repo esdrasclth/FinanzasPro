@@ -47,6 +47,9 @@ export interface Traspaso {
 export interface ReporteLiquidacion {
   desde: string
   hasta: string
+  // Encabezado del documento. En un periodo es el rango; en un reparto suelto,
+  // su concepto.
+  titulo: string
   moneda: string
   gastos: LineaGasto[]
   total: number
@@ -57,19 +60,45 @@ export interface ReporteLiquidacion {
 
 const aFecha = (s: string) => new Date(`${String(s).slice(0, 10)}T00:00:00.000Z`)
 
+// Liquidación de un periodo completo.
 export async function reporteLiquidacion(
   userId: string,
   desde: string,
   hasta: string
 ): Promise<ReporteLiquidacion> {
-  const perfil = await prisma.profiles.findUnique({ where: { id: userId } })
-  const yo = perfil?.nombre || 'Yo'
-
   const repartos = await prisma.repartos.findMany({
     where: { user_id: userId, fecha: { gte: aFecha(desde), lte: aFecha(hasta) } },
     include: { participantes: { orderBy: { orden: 'asc' } } },
     orderBy: { fecha: 'asc' },
   })
+  return calcular(userId, repartos, desde, hasta, null)
+}
+
+// Liquidación de un solo reparto, para compartir ese gasto suelto sin esperar
+// al cierre del periodo. Devuelve null si no es del usuario.
+export async function reporteDeReparto(
+  userId: string,
+  repartoId: string
+): Promise<ReporteLiquidacion | null> {
+  const r = await prisma.repartos.findFirst({
+    where: { id: repartoId, user_id: userId },
+    include: { participantes: { orderBy: { orden: 'asc' } } },
+  })
+  if (!r) return null
+
+  const fecha = r.fecha.toISOString().slice(0, 10)
+  return calcular(userId, [r], fecha, fecha, r.descripcion)
+}
+
+async function calcular(
+  userId: string,
+  repartos: any[],
+  desde: string,
+  hasta: string,
+  titulo: string | null
+): Promise<ReporteLiquidacion> {
+  const perfil = await prisma.profiles.findUnique({ where: { id: userId } })
+  const yo = perfil?.nombre || 'Yo'
 
   // Nombre visible de cada persona: se conserva la primera forma con la que
   // aparece escrita, para no mostrar todo en minúsculas.
@@ -83,7 +112,7 @@ export async function reporteLiquidacion(
     mapa.set(k, round2((mapa.get(k) || 0) + monto))
   }
 
-  const gastos: LineaGasto[] = repartos.map(r => {
+  const gastos: LineaGasto[] = repartos.map((r: any) => {
     // Si no se registró pagador, lo pusiste tú.
     const pagador = r.pagado_por?.trim() || yo
 
@@ -103,7 +132,7 @@ export async function reporteLiquidacion(
       pagadoPor: pagador,
       metodo,
       reparto: r.metodo === 'manual' ? 'Montos distintos' : 'Partes iguales',
-      participantes: r.participantes.map(p => ({
+      participantes: r.participantes.map((p: any) => ({
         nombre: p.nombre,
         monto: round2(p.monto_asignado),
         pagado: p.pagado,
@@ -123,6 +152,7 @@ export async function reporteLiquidacion(
   return {
     desde,
     hasta,
+    titulo: titulo || '',
     // Todos los repartos del periodo deberían compartir moneda; si no, se toma
     // la del primero y se indica en el documento.
     moneda: repartos[0]?.moneda || perfil?.moneda_default || 'HNL',

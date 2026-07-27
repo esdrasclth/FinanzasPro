@@ -23,6 +23,8 @@ export interface LineaGastoDoc {
 export interface ReporteDoc {
   desde: string
   hasta: string
+  // Presente cuando el documento es de un solo reparto.
+  titulo?: string
   moneda: string
   gastos: LineaGastoDoc[]
   total: number
@@ -37,7 +39,16 @@ const fmt = (n: number) =>
 const fecha = (s: string) =>
   new Date(s + 'T12:00:00').toLocaleDateString('es-HN', { day: '2-digit', month: 'short', year: 'numeric' })
 
-const periodo = (r: ReporteDoc) => `Del ${fecha(r.desde)} al ${fecha(r.hasta)}`
+// Un solo reparto se identifica por su concepto y su fecha; un periodo, por el
+// rango de fechas.
+const periodo = (r: ReporteDoc) =>
+  r.titulo ? `${r.titulo} · ${fecha(r.desde)}` : `Del ${fecha(r.desde)} al ${fecha(r.hasta)}`
+
+const esUnico = (r: ReporteDoc) => !!r.titulo
+
+const slug = (s: string) =>
+  s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'reparto'
 
 // "Le deben" / "Debe", que es como se lee de un vistazo.
 const estado = (neto: number, simbolo: string) => {
@@ -45,7 +56,10 @@ const estado = (neto: number, simbolo: string) => {
   return neto > 0 ? `Le deben ${simbolo}${fmt(neto)}` : `Debe ${simbolo}${fmt(-neto)}`
 }
 
-const nombreArchivo = (r: ReporteDoc, ext: string) => `liquidacion-${r.desde}-a-${r.hasta}.${ext}`
+const nombreArchivo = (r: ReporteDoc, ext: string) =>
+  esUnico(r)
+    ? `reparto-${slug(r.titulo!)}-${r.desde}.${ext}`
+    : `liquidacion-${r.desde}-a-${r.hasta}.${ext}`
 
 export async function liquidacionExcel(r: ReporteDoc, simbolo = 'L') {
   const wb = new ExcelJS.Workbook()
@@ -83,7 +97,8 @@ export async function liquidacionExcel(r: ReporteDoc, simbolo = 'L') {
   hoja.getRow(1).font = { bold: true }
   hoja.getColumn('monto').numFmt = '#,##0.00'
 
-  // --- Hoja 2: el detalle por persona de cada gasto ---
+  // --- Hoja 2: el detalle por persona de cada gasto (sobra si es uno solo) ---
+  if (!esUnico(r)) {
   const det = wb.addWorksheet('Detalle por persona')
   det.columns = [
     { header: 'Fecha', key: 'fecha', width: 14 },
@@ -105,6 +120,7 @@ export async function liquidacionExcel(r: ReporteDoc, simbolo = 'L') {
   })
   det.getRow(1).font = { bold: true }
   det.getColumn('monto').numFmt = '#,##0.00'
+  }
 
   // --- Hoja 3: el resumen que se comparte ---
   const res = wb.addWorksheet('Resumen')
@@ -139,7 +155,7 @@ export function liquidacionPdf(r: ReporteDoc, simbolo = 'L') {
   const ancho = doc.internal.pageSize.getWidth()
 
   doc.setFontSize(16)
-  doc.text('Liquidación de gastos compartidos', 40, 48)
+  doc.text(esUnico(r) ? 'Detalle del reparto' : 'Liquidación de gastos compartidos', 40, 48)
   doc.setFontSize(10)
   doc.setTextColor(110)
   doc.text(periodo(r), 40, 66)
@@ -193,6 +209,9 @@ export function liquidacionPdf(r: ReporteDoc, simbolo = 'L') {
     })
   }
 
+  // Con un solo reparto, el resumen por persona ya contiene todo: repetir el
+  // detalle sería decir lo mismo dos veces.
+  if (!esUnico(r)) {
   // Desglose de quién participa en cada gasto, al final para no romper la
   // lectura del resumen.
   doc.addPage()
@@ -208,6 +227,7 @@ export function liquidacionPdf(r: ReporteDoc, simbolo = 'L') {
     headStyles: { fillColor: [44, 110, 73] },
     columnStyles: { 3: { halign: 'right' } },
   })
+  }
 
   const paginas = doc.getNumberOfPages()
   for (let i = 1; i <= paginas; i++) {

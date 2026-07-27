@@ -87,5 +87,23 @@ chk('y el total se recalcula', r3.total === 200, 'total=' + r3.total)
 const malRango = await req('/api/repartos/reporte?desde=2026-07-31&hasta=2026-07-01')
 chk('rechaza un rango invertido', malRango.st === 400)
 
+// ---------- Documento de un solo reparto ----------
+const lista = (await req('/api/repartos')).j.repartos || []
+const unoId = lista.find(x => x.descripcion === 'Combustible')?.id
+const uno = (await req(`/api/repartos/${unoId}/reporte`)).j
+chk('el reporte de un solo reparto responde', !!uno && uno.gastos?.length === 1, 'n=' + uno?.gastos?.length)
+chk('lleva el concepto como título', uno?.titulo === 'Combustible', 'titulo=' + uno?.titulo)
+chk('el rango se acota a su fecha', uno?.desde === '2026-07-09' && uno?.hasta === '2026-07-09')
+chk('el total es solo el suyo', uno?.total === 150, 'total=' + uno?.total)
+chk('conserva quién pagó y con qué', uno?.gastos[0]?.pagadoPor === 'Oscar' && (uno.gastos[0].metodo || '').includes('1234'))
+chk('reparte entre sus participantes', (uno?.saldos || []).length === 3, 'n=' + uno?.saldos?.length)
+chk('a cada uno le tocan 50', (uno?.saldos || []).every(x => Math.abs(x.leToca - 50) < 0.05))
+chk('quien pagó queda con saldo a favor de 100',
+  Math.abs((uno?.saldos || []).find(x => x.nombre === 'Oscar')?.neto - 100) < 0.05)
+chk('calcula los pagos hacia Oscar', (uno?.traspasos || []).every(t => t.a === 'Oscar'), JSON.stringify(uno?.traspasos))
+
+const ajeno = await req('/api/repartos/00000000-0000-0000-0000-000000000000/reporte')
+chk('un reparto ajeno o inexistente da 404', ajeno.st === 404, 'st ' + ajeno.st)
+
 console.log('\n' + (fallos === 0 ? 'TODO OK' : fallos + ' FALLAS'))
 process.exit(fallos === 0 ? 0 : 1)

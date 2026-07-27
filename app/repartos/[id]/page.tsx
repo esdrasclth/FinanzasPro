@@ -4,11 +4,11 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import AppLayout from '../../components/AppLayout'
 import FormReparto from '../../components/FormReparto'
-import { formatoMoneda } from '../../lib/dinero'
+import { formatoMoneda, simboloMoneda } from '../../lib/dinero'
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import {
   ArrowLeft, Share2, Copy, Check, Pencil, Trash2, MoreHorizontal,
-  Coins, CheckCircle2, HandCoins, Users, Send, CheckCheck, RotateCcw, X,
+  Coins, CheckCircle2, HandCoins, Users, Send, CheckCheck, RotateCcw, X, FileDown,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -45,6 +45,25 @@ export default function RepartoDetalle() {
   const [showEditar, setShowEditar] = useState(false)
   const [copiado, setCopiado] = useState(false)
   const [procesando, setProcesando] = useState(false)
+  const [descargando, setDescargando] = useState('')
+
+  // El mismo documento de liquidación pero de este reparto suelto, para poder
+  // compartirlo sin esperar al cierre del periodo.
+  const descargar = async (formato: 'pdf' | 'excel') => {
+    setDescargando(formato)
+    try {
+      const res = await fetch(`/api/repartos/${repartoId}/reporte`)
+      const json = await res.json().catch(() => null)
+      if (!res.ok) { alert(json?.error?.message || 'No se pudo generar el documento'); return }
+
+      const lib = await import('../../lib/exportar-liquidacion')
+      const simbolo = simboloMoneda(json.moneda)
+      if (formato === 'excel') await lib.liquidacionExcel(json, simbolo)
+      else lib.liquidacionPdf(json, simbolo)
+    } finally {
+      setDescargando('')
+    }
+  }
   const [wallets, setWallets] = useState<WalletMini[]>([])
   // Modal para elegir en qué cartera entra el cobro (individual o de todos).
   const [cobroModal, setCobroModal] = useState<{ tipo: 'uno'; p: Participante } | { tipo: 'todos' } | null>(null)
@@ -208,7 +227,27 @@ export default function RepartoDetalle() {
               {new Date(reparto.fecha + 'T12:00:00').toLocaleDateString('es-HN', { day: 'numeric', month: 'long', year: 'numeric' })} · {reparto.metodo === 'igual' ? 'Partes iguales' : 'Montos a mano'}
             </p>
           </div>
-          <RowMenu onEdit={() => setShowEditar(true)} onDelete={eliminar} />
+          <div className="flex items-center flex-shrink-0 gap-2">
+            <button
+              onClick={() => descargar('pdf')}
+              disabled={!!descargando}
+              title="Descargar este reparto en PDF"
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium text-red-600 transition-colors border border-red-200 rounded-full bg-red-50 hover:bg-red-100 disabled:opacity-50"
+            >
+              <FileDown size={14} strokeWidth={2} />
+              {descargando === 'pdf' ? 'Generando…' : 'PDF'}
+            </button>
+            <button
+              onClick={() => descargar('excel')}
+              disabled={!!descargando}
+              title="Descargar este reparto en Excel"
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors border rounded-full text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100 disabled:opacity-50"
+            >
+              <FileDown size={14} strokeWidth={2} />
+              {descargando === 'excel' ? 'Generando…' : 'Excel'}
+            </button>
+            <RowMenu onEdit={() => setShowEditar(true)} onDelete={eliminar} />
+          </div>
         </div>
 
         {/* Hero resumen */}
