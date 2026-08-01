@@ -227,6 +227,10 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
     // monto se guardaba en la moneda de origen y la cartera acababa con, por
     // ejemplo, dólares dentro de una cuenta en lempiras. Ya no puede ocurrir,
     // pero lo que se registró así sigue ahí y conviene que se vea.
+    //
+    // Las tarjetas quedan fuera: llevan deuda en lempiras y en dólares a la vez
+    // a propósito, así que avisar ahí sería ruido permanente.
+    if (esCred) return
     Object.entries((c.saldos || {}) as Record<string, number>).forEach(([m, v]) => {
       if (m === (c.moneda || 'HNL') || Math.abs(Number(v)) < 0.005) return
       alertas.push({
