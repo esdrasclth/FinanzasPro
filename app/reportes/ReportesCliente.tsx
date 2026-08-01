@@ -1,150 +1,253 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import AppLayout from '../components/AppLayout'
-import { SkeletonChart, SkeletonList } from '../components/Skeleton'
 import { useMoneda } from '../lib/moneda-context'
 import { Encabezado, Hero } from '../components/Encabezado'
-import { TrendingUp, TrendingDown, PiggyBank, Scale } from 'lucide-react'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, PieChart, Pie, Cell, LineChart, Line, Legend
+  TrendingUp, TrendingDown, PiggyBank, Scale, ArrowUpRight, ArrowDownRight,
+  Minus, CalendarRange, Wallet, Lightbulb, Loader2, Info,
+} from 'lucide-react'
+import {
+  ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  CartesianGrid, PieChart, Pie, Cell, ReferenceLine,
 } from 'recharts'
+import { finMesDesplazado, inicioMesDesplazado, fechaHoyLocal } from '../lib/fecha'
+import type { DatosReportes, MovimientoReporte } from '../lib/reportes-server'
+
+const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+// Lo bastante corto para que el gráfico se lea enseguida tras cambiar de periodo.
+const ANIM = 450
+
+// Respaldo para categorías sin color propio.
+const PALETA = ['#2c6e49', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899', '#0D9488', '#6366F1']
 
 interface Props {
   usuario: any
-  transaccionesIniciales: any[]
+  datosIniciales: DatosReportes
 }
 
-export default function ReportesCliente({ usuario, transaccionesIniciales }: Props) {
-  const [transacciones, setTransacciones] = useState<any[]>(transaccionesIniciales)
-  const [loading, setLoading] = useState(false)
-  const [periodo, setPeriodo] = useState('3') // meses hacia atrás
-  const { simbolo } = useMoneda()
+type Preset = '1' | '3' | '6' | '12' | 'personalizado'
 
-  // El periodo inicial ya viene del servidor; solo se recarga al cambiarlo.
+interface Agrupado {
+  nombre: string
+  icono: string | null
+  color: string
+  total: number
+  cantidad: number
+  pct: number
+  previo: number
+}
+
+const fechaCorta = (iso: string) => {
+  const [a, m, d] = iso.split('-').map(Number)
+  return `${d} ${MESES_CORTOS[m - 1]} ${a}`
+}
+
+const diasEntre = (desde: string, hasta: string) =>
+  Math.round((Date.parse(hasta + 'T00:00:00Z') - Date.parse(desde + 'T00:00:00Z')) / 86400000) + 1
+
+// Variación relativa contra el periodo anterior. Sin base previa no hay
+// porcentaje que valga: se devuelve null y la tarjeta lo dice con palabras.
+function variacion(actual: number, previo: number): { pct: number | null; signo: 1 | 0 | -1 } {
+  const dif = actual - previo
+  const signo = Math.abs(dif) < 0.005 ? 0 : dif > 0 ? 1 : -1
+  if (previo <= 0) return { pct: null, signo }
+  return { pct: (dif / previo) * 100, signo }
+}
+
+export default function ReportesCliente({ usuario, datosIniciales }: Props) {
+  const { simbolo } = useMoneda()
+  const [datos, setDatos] = useState<DatosReportes>(datosIniciales)
+  const [cargando, setCargando] = useState(false)
+  const [preset, setPreset] = useState<Preset>('3')
+  const [desde, setDesde] = useState(datosIniciales.desde)
+  const [hasta, setHasta] = useState(datosIniciales.hasta)
+  const [verCategorias, setVerCategorias] = useState<'gasto' | 'ingreso'>('gasto')
+  const [todasLasCategorias, setTodasLasCategorias] = useState(false)
+
+  // El primer periodo llega resuelto del Server Component. A partir de ahí cada
+  // cambio consulta la API, con una pausa para no disparar una petición por
+  // cada tecla del campo de fecha.
   const primeraCarga = useRef(true)
   useEffect(() => {
     if (primeraCarga.current) { primeraCarga.current = false; return }
-    cargarDatos(periodo)
-  }, [periodo])
+    if (!desde || !hasta || desde > hasta) return
 
-  // El filtrado y la normalización de moneda los hace el servidor.
-  const cargarDatos = async (meses: string) => {
-    setLoading(true)
-    try {
-      const res = await fetch(`/api/reportes?meses=${meses}`)
-      if (res.ok) {
-        const json = await res.json()
-        setTransacciones(json.transacciones || [])
+    const id = setTimeout(async () => {
+      setCargando(true)
+      try {
+        const res = await fetch(`/api/reportes?desde=${desde}&hasta=${hasta}`)
+        if (res.ok) setDatos(await res.json())
+      } finally {
+        setCargando(false)
       }
-    } finally {
-      setLoading(false)
-    }
+    }, 350)
+    return () => clearTimeout(id)
+  }, [desde, hasta])
+
+  const aplicarPreset = (p: Preset) => {
+    setPreset(p)
+    if (p === 'personalizado') return
+    const hoy = fechaHoyLocal()
+    setDesde(inicioMesDesplazado(hoy, -(Number(p) - 1)))
+    setHasta(finMesDesplazado(hoy))
   }
 
-  const formatMonto = (n: number) =>
-    new Intl.NumberFormat('es-HN', { minimumFractionDigits: 0 }).format(n)
+  const cambiarFecha = (cual: 'desde' | 'hasta', valor: string) => {
+    setPreset('personalizado')
+    if (cual === 'desde') setDesde(valor)
+    else setHasta(valor)
+  }
 
-  const formatMontoCompleto = (n: number) =>
-    new Intl.NumberFormat('es-HN', { minimumFractionDigits: 2 }).format(n)
+  const fmt = (n: number) =>
+    new Intl.NumberFormat('es-HN', { maximumFractionDigits: 0 }).format(n)
+  const fmtExacto = (n: number) =>
+    new Intl.NumberFormat('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
+  // Los ejes se saturan con miles: 12.4k se lee mejor que 12,400.
+  const fmtEje = (n: number) =>
+    Math.abs(n) >= 1000 ? `${simbolo}${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k` : `${simbolo}${fmt(n)}`
 
-  // ── Datos para gráfica de línea (evolución mensual) ──
-  const evolucionMensual = (() => {
-    const meses: any = {}
-    transacciones.forEach(t => {
-      const mes = t.fecha.slice(0, 7)
-      if (!meses[mes]) meses[mes] = { mes, ingresos: 0, gastos: 0, ahorro: 0 }
-      if (t.tipo === 'ingreso') meses[mes].ingresos += Number(t.monto)
-      if (t.tipo === 'gasto') meses[mes].gastos += Number(t.monto)
-    })
-    return Object.values(meses).map((m: any) => ({
-      ...m,
-      ahorro: m.ingresos - m.gastos,
-      label: new Date(m.mes + '-01').toLocaleDateString('es-HN', {
-        month: 'short', year: '2-digit'
+  const analisis = useMemo(() => {
+    const trans: MovimientoReporte[] = datos.transacciones
+    const ingresos = trans.filter(t => t.tipo === 'ingreso').reduce((s, t) => s + t.monto, 0)
+    const gastosMovs = trans.filter(t => t.tipo === 'gasto')
+    const gastos = gastosMovs.reduce((s, t) => s + t.monto, 0)
+    const balance = ingresos - gastos
+    const tasaAhorro = ingresos > 0 ? (balance / ingresos) * 100 : 0
+
+    const prev = datos.anterior
+    const tasaPrevia = prev.ingresos > 0 ? ((prev.ingresos - prev.gastos) / prev.ingresos) * 100 : 0
+
+    const dias = diasEntre(datos.desde, datos.hasta)
+    // Con un mes o menos, un punto por mes no dibuja nada: se agrupa por día.
+    const porDia = dias <= 45
+
+    const cubos = new Map<string, { ingresos: number; gastos: number }>()
+    for (const t of trans) {
+      const k = porDia ? t.fecha : t.fecha.slice(0, 7)
+      const c = cubos.get(k) || { ingresos: 0, gastos: 0 }
+      if (t.tipo === 'ingreso') c.ingresos += t.monto
+      else c.gastos += t.monto
+      cubos.set(k, c)
+    }
+    // Por mes, la línea es el ahorro de cada mes. Por día no serviría de nada
+    // —salta de +32.000 el día del sueldo a −8.500 el del alquiler—, así que
+    // ahí lleva el acumulado, que sí enseña cómo evolucionó el dinero.
+    let acumulado = 0
+    const evolucion = [...cubos.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([k, v]) => {
+        acumulado += v.ingresos - v.gastos
+        return {
+          clave: k,
+          label: porDia
+            ? `${Number(k.slice(8))} ${MESES_CORTOS[Number(k.slice(5, 7)) - 1]}`
+            : `${MESES_CORTOS[Number(k.slice(5, 7)) - 1]} ${k.slice(2, 4)}`,
+          ingresos: v.ingresos,
+          gastos: v.gastos,
+          linea: porDia ? acumulado : v.ingresos - v.gastos,
+        }
       })
-    }))
-  })()
 
-  // ── Top categorías de gastos ──
-  const topCategorias = (() => {
-    const cats: any = {}
-    transacciones
-      .filter(t => t.tipo === 'gasto')
-      .forEach(t => {
-        const nombre = t.categories?.nombre || 'Sin categoría'
-        const icono = t.categories?.icono || '📦'
-        if (!cats[nombre]) cats[nombre] = { nombre, icono, total: 0, count: 0 }
-        cats[nombre].total += Number(t.monto)
-        cats[nombre].count += 1
-      })
-    return Object.values(cats)
-      .sort((a: any, b: any) => b.total - a.total)
-      .slice(0, 6)
-  })()
+    // Agrupación por categoría del tipo que se esté mirando.
+    const agrupar = (tipo: 'gasto' | 'ingreso'): Agrupado[] => {
+      const total = tipo === 'gasto' ? gastos : ingresos
+      const mapa = new Map<string, Agrupado>()
+      let i = 0
+      for (const t of trans) {
+        if (t.tipo !== tipo) continue
+        const nombre = t.categoria.nombre
+        const linea = mapa.get(nombre) || {
+          nombre,
+          icono: t.categoria.icono,
+          color: t.categoria.color || PALETA[i++ % PALETA.length],
+          total: 0,
+          cantidad: 0,
+          pct: 0,
+          previo: tipo === 'gasto' ? (prev.porCategoria[nombre] || 0) : 0,
+        }
+        linea.total += t.monto
+        linea.cantidad++
+        mapa.set(nombre, linea)
+      }
+      return [...mapa.values()]
+        .map(l => ({ ...l, pct: total > 0 ? (l.total / total) * 100 : 0 }))
+        .sort((a, b) => b.total - a.total)
+    }
 
-  // ── Datos para dona de categorías ──
-  const COLORES = ['#0D9488', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#EC4899']
+    const porCategoria = agrupar('gasto')
+    const porIngreso = agrupar('ingreso')
 
-  // ── Totales generales ──
-  const totalIngresos = transacciones
-    .filter(t => t.tipo === 'ingreso')
-    .reduce((acc, t) => acc + Number(t.monto), 0)
+    const carteras = new Map<string, number>()
+    for (const t of gastosMovs) carteras.set(t.cartera, (carteras.get(t.cartera) || 0) + t.monto)
+    const porCartera = [...carteras.entries()]
+      .map(([nombre, total]) => ({ nombre, total, pct: gastos > 0 ? (total / gastos) * 100 : 0 }))
+      .sort((a, b) => b.total - a.total)
 
-  const totalGastos = transacciones
-    .filter(t => t.tipo === 'gasto')
-    .reduce((acc, t) => acc + Number(t.monto), 0)
+    // Categorías que más cambiaron respecto al periodo anterior: es lo que
+    // explica por qué un mes salió distinto del otro.
+    const cambios = porCategoria
+      .filter(c => c.previo > 0 || c.total > 0)
+      .map(c => ({ ...c, dif: c.total - c.previo }))
+      .sort((a, b) => Math.abs(b.dif) - Math.abs(a.dif))
 
-  const ahorro = totalIngresos - totalGastos
-  const tasaAhorro = totalIngresos > 0
-    ? ((ahorro / totalIngresos) * 100).toFixed(1)
-    : '0'
+    const mesCaro = [...evolucion].sort((a, b) => b.gastos - a.gastos)[0] || null
 
-  const promedioGastoMensual = evolucionMensual.length > 0
-    ? totalGastos / evolucionMensual.length
-    : 0
+    return {
+      ingresos, gastos, balance, tasaAhorro, tasaPrevia,
+      evolucion, porDia, porCategoria, porIngreso, porCartera, cambios, mesCaro,
+      dias,
+      gastoDiario: dias > 0 ? gastos / dias : 0,
+      gastoMedioPorCubo: evolucion.length > 0 ? gastos / evolucion.length : 0,
+      movimientos: trans.length,
+    }
+  }, [datos])
 
-  // ── Día de la semana con más gastos ──
-  const gastosPorDia = (() => {
-    const dias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
-    const totales = Array(7).fill(0)
-    transacciones
-      .filter(t => t.tipo === 'gasto')
-      .forEach(t => {
-        const dia = new Date(t.fecha + 'T12:00:00').getDay()
-        totales[dia] += Number(t.monto)
-      })
-    return dias.map((nombre, i) => ({ nombre, total: totales[i] }))
-  })()
+  const varIngresos = variacion(analisis.ingresos, datos.anterior.ingresos)
+  const varGastos = variacion(analisis.gastos, datos.anterior.gastos)
+  const varBalance = variacion(analisis.balance, datos.anterior.ingresos - datos.anterior.gastos)
 
-  const diaMasGasto = gastosPorDia.reduce(
-    (max, d) => d.total > max.total ? d : max,
-    { nombre: '-', total: 0 }
-  )
-
-  if (loading) {
+  // En gastos, subir es malo; en ingresos y ahorro, es bueno.
+  const Delta = ({ v, invertido = false }: { v: ReturnType<typeof variacion>; invertido?: boolean }) => {
+    if (v.signo === 0) return <span className="text-white/50">Igual que el periodo anterior</span>
+    // Sin nada con qué comparar no hay mejora ni empeoramiento: ni flecha ni color.
+    if (v.pct === null) return <span className="text-white/50">Sin datos en el periodo anterior</span>
+    const bueno = invertido ? v.signo < 0 : v.signo > 0
+    const Icono = v.signo > 0 ? ArrowUpRight : ArrowDownRight
     return (
-      <AppLayout usuario={usuario}>
-        <div className="max-w-[1728px] px-6 py-8 mx-auto space-y-6">
-          <div className="w-48 h-8 rounded bg-fog animate-pulse" />
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} className="p-5 border bg-snow border-fog rounded-card animate-pulse">
-                <div className="w-2/3 h-3 mb-4 rounded bg-fog" />
-                <div className="w-1/2 rounded h-7 bg-fog" />
-              </div>
-            ))}
-          </div>
-          <SkeletonChart />
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <SkeletonList items={4} />
-            <SkeletonChart />
-          </div>
-        </div>
-      </AppLayout>
+      <span className={`inline-flex items-center gap-1 ${bueno ? 'text-emerald-300' : 'text-red-300'}`}>
+        <Icono size={14} strokeWidth={2.5} />
+        {Math.abs(v.pct).toFixed(1)}% vs. periodo anterior
+      </span>
     )
   }
+
+  const categoriasVista = verCategorias === 'gasto' ? analisis.porCategoria : analisis.porIngreso
+  const visibles = todasLasCategorias ? categoriasVista : categoriasVista.slice(0, 6)
+  const totalVista = verCategorias === 'gasto' ? analisis.gastos : analisis.ingresos
+
+  const etiquetaLinea = analisis.porDia ? 'Acumulado' : 'Ahorro'
+  const rangoInvalido = !desde || !hasta || desde > hasta
+  const sinDatos = analisis.movimientos === 0
+
+  const etiquetaPeriodo = `${fechaCorta(datos.desde)} — ${fechaCorta(datos.hasta)}`
+
+  const tooltipComun = {
+    contentStyle: {
+      backgroundColor: '#ffffff', border: '1px solid #ececee',
+      borderRadius: 14, color: '#18181b', fontSize: 12,
+    },
+    labelStyle: { color: '#71717a', marginBottom: 4 },
+  }
+
+  const PRESETS: { id: Preset; label: string }[] = [
+    { id: '1', label: '1M' },
+    { id: '3', label: '3M' },
+    { id: '6', label: '6M' },
+    { id: '12', label: '1A' },
+  ]
 
   return (
     <AppLayout usuario={usuario}>
@@ -154,205 +257,388 @@ export default function ReportesCliente({ usuario, transaccionesIniciales }: Pro
           seccion="Reportes"
           titulo="Análisis de tus finanzas"
           acciones={
-            <div className="flex p-1 border bg-snow border-fog rounded-full">
-              {[
-                { valor: '1', label: '1M' },
-                { valor: '3', label: '3M' },
-                { valor: '6', label: '6M' },
-                { valor: '12', label: '1A' },
-              ].map(op => (
-                <button
-                  key={op.valor}
-                  onClick={() => setPeriodo(op.valor)}
-                  className={`px-3 sm:px-4 py-2.5 rounded-full text-sm font-medium sm:py-2 transition-all ${periodo === op.valor
-                    ? 'bg-obsidian text-snow shadow-pill'
-                    : 'text-steel hover:text-ink'
+            <div className="flex items-center gap-2">
+              {cargando && <Loader2 size={16} className="animate-spin text-steel" />}
+              <div className="flex p-1 border bg-snow border-fog rounded-full">
+                {PRESETS.map(op => (
+                  <button
+                    key={op.id}
+                    onClick={() => aplicarPreset(op.id)}
+                    className={`px-3 sm:px-4 py-2.5 rounded-full text-sm font-medium sm:py-2 transition-all ${
+                      preset === op.id ? 'bg-obsidian text-snow shadow-pill' : 'text-steel hover:text-ink'
                     }`}
+                  >
+                    {op.label}
+                  </button>
+                ))}
+                <button
+                  onClick={() => aplicarPreset('personalizado')}
+                  aria-label="Periodo personalizado"
+                  className={`px-3 py-2.5 rounded-full sm:py-2 transition-all ${
+                    preset === 'personalizado' ? 'bg-obsidian text-snow shadow-pill' : 'text-steel hover:text-ink'
+                  }`}
                 >
-                  {op.label}
+                  <CalendarRange size={16} />
                 </button>
-              ))}
+              </div>
             </div>
           }
         />
 
+        {preset === 'personalizado' && (
+          <div className="flex flex-wrap items-end gap-3 p-4 mb-5 border bg-snow border-fog rounded-card sm:mb-8">
+            <label className="flex-1 min-w-[9rem]">
+              <span className="block mb-1.5 text-xs font-medium text-steel">Desde</span>
+              <input
+                type="date" value={desde} max={hasta || undefined}
+                onChange={e => cambiarFecha('desde', e.target.value)}
+                className="w-full px-3 py-2.5 text-sm border bg-mist border-fog text-ink rounded-input focus:outline-none focus:border-obsidian"
+              />
+            </label>
+            <label className="flex-1 min-w-[9rem]">
+              <span className="block mb-1.5 text-xs font-medium text-steel">Hasta</span>
+              <input
+                type="date" value={hasta} min={desde || undefined}
+                onChange={e => cambiarFecha('hasta', e.target.value)}
+                className="w-full px-3 py-2.5 text-sm border bg-mist border-fog text-ink rounded-input focus:outline-none focus:border-obsidian"
+              />
+            </label>
+            {rangoInvalido && (
+              <p className="text-xs font-medium text-red-500">La fecha inicial debe ser anterior a la final.</p>
+            )}
+          </div>
+        )}
+
         <Hero
           titulo="Resumen del periodo"
-          subtitulo={`Últimos ${periodo === '12' ? '12' : periodo} ${periodo === '1' ? 'mes' : 'meses'}`}
+          subtitulo={`${etiquetaPeriodo} · ${analisis.movimientos} ${analisis.movimientos === 1 ? 'movimiento' : 'movimientos'}`}
           metricas={[
             {
               icon: TrendingUp,
-              label: 'Total ingresos',
-              valor: `${simbolo} ${formatMonto(totalIngresos)}`,
-              nota: <span className="text-emerald-300">Recibido en el periodo</span>,
+              label: 'Ingresos',
+              valor: `${simbolo}${fmt(analisis.ingresos)}`,
+              nota: <Delta v={varIngresos} />,
             },
             {
               icon: TrendingDown,
-              label: 'Total gastos',
-              valor: `${simbolo} ${formatMonto(totalGastos)}`,
-              nota: <span className="text-red-300">Gastado en el periodo</span>,
+              label: 'Gastos',
+              valor: `${simbolo}${fmt(analisis.gastos)}`,
+              nota: <Delta v={varGastos} invertido />,
+            },
+            {
+              icon: Scale,
+              label: 'Balance',
+              valor: `${simbolo}${fmt(analisis.balance)}`,
+              nota: <Delta v={varBalance} />,
             },
             {
               icon: PiggyBank,
               label: 'Tasa de ahorro',
-              valor: `${tasaAhorro}%`,
+              valor: `${analisis.tasaAhorro.toFixed(1)}%`,
               nota: (
-                <span className={parseFloat(tasaAhorro) >= 0 ? 'text-emerald-300' : 'text-red-300'}>
-                  {parseFloat(tasaAhorro) >= 0 ? 'Estás ahorrando' : 'Gastas más de lo que entra'}
+                <span className={analisis.tasaAhorro >= analisis.tasaPrevia ? 'text-emerald-300' : 'text-red-300'}>
+                  Antes {analisis.tasaPrevia.toFixed(1)}%
                 </span>
               ),
-            },
-            {
-              icon: Scale,
-              label: 'Gasto promedio',
-              valor: `${simbolo} ${formatMonto(promedioGastoMensual)}`,
-              nota: <span className="text-white/50">por mes</span>,
             },
           ]}
         />
 
-        {/* Evolución mensual */}
-        <div className="p-6 mb-6 border bg-snow border-fog rounded-card-lg">
-          <h2 className="mb-1 font-semibold text-obsidian">Evolución mensual</h2>
-          <p className="mb-6 text-xs text-steel">Ingresos, gastos y ahorro por mes</p>
-          {evolucionMensual.length === 0 ? (
-            <p className="py-8 text-sm text-center text-steel">Sin datos para mostrar</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={evolucionMensual}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#ececee" />
-                <XAxis dataKey="label" tick={{ fill: '#71717a', fontSize: 12 }} axisLine={{ stroke: '#ececee' }} tickLine={false} />
-                <YAxis tick={{ fill: '#71717a', fontSize: 12 }} axisLine={{ stroke: '#ececee' }} tickLine={false} tickFormatter={(v) => `${simbolo}${formatMonto(v)}`} width={75} />
-                <Tooltip
-                  formatter={(value: number | undefined, name: string | undefined) => [
-                    `${simbolo} ${formatMontoCompleto(Number(value) || 0)}`,
-                    name === 'ingresos' ? '💰 Ingresos' : name === 'gastos' ? '💸 Gastos' : '💧 Ahorro'
-                  ]}
-                  contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #ececee', borderRadius: 16, color: '#18181b' }}
-                  labelStyle={{ color: '#71717a' }}
-                />
-                <Legend formatter={(v) => v === 'ingresos' ? '💰 Ingresos' : v === 'gastos' ? '💸 Gastos' : '💧 Ahorro'} wrapperStyle={{ color: '#71717a', fontSize: '12px' }} />
-                <Line type="monotone" dataKey="ingresos" stroke="#059669" strokeWidth={2} dot={{ fill: '#059669', r: 4 }} />
-                <Line type="monotone" dataKey="gastos" stroke="#ef4444" strokeWidth={2} dot={{ fill: '#ef4444', r: 4 }} />
-                <Line type="monotone" dataKey="ahorro" stroke="#09090b" strokeWidth={2} strokeDasharray="5 5" dot={{ fill: '#09090b', r: 4 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+        {sinDatos ? (
+          <div className="p-12 text-center border bg-snow border-fog rounded-card">
+            <p className="font-medium text-graphite">No hay movimientos en este periodo</p>
+            <p className="mt-1 text-sm text-ash">
+              Prueba con un rango más amplio o registra algún movimiento.
+            </p>
+          </div>
+        ) : (
+          <div className={`space-y-5 transition-opacity ${cargando ? 'opacity-50' : ''}`}>
 
-        <div className="grid grid-cols-1 gap-6 mb-6 lg:grid-cols-2">
+            {/* Evolución */}
+            <section className="p-5 border bg-snow border-fog rounded-card sm:p-6">
+              <div className="flex flex-wrap items-baseline justify-between gap-2 mb-5">
+                <div>
+                  <h2 className="font-semibold text-obsidian">
+                    Evolución {analisis.porDia ? 'diaria' : 'mensual'}
+                  </h2>
+                  <p className="text-xs text-steel">
+                    Barras de ingresos y gastos, línea de {etiquetaLinea.toLowerCase()}. La raya marca
+                    el gasto medio ({simbolo}{fmt(analisis.gastoMedioPorCubo)}).
+                  </p>
+                </div>
+                <p className="text-xs text-ash">
+                  Gasto medio diario: <span className="font-medium text-graphite">{simbolo}{fmt(analisis.gastoDiario)}</span>
+                </p>
+              </div>
+              <ResponsiveContainer width="100%" height={280}>
+                <ComposedChart data={analisis.evolucion} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#ececee" vertical={false} />
+                  <XAxis
+                    dataKey="label" tick={{ fill: '#71717a', fontSize: 11 }}
+                    axisLine={{ stroke: '#ececee' }} tickLine={false}
+                    interval="preserveStartEnd" minTickGap={16}
+                  />
+                  <YAxis
+                    tick={{ fill: '#71717a', fontSize: 11 }} axisLine={false}
+                    tickLine={false} tickFormatter={fmtEje} width={58}
+                  />
+                  <Tooltip
+                    {...tooltipComun}
+                    formatter={(value: any, name: any) => [
+                      `${simbolo}${fmtExacto(Number(value) || 0)}`,
+                      name === 'ingresos' ? 'Ingresos' : name === 'gastos' ? 'Gastos' : etiquetaLinea,
+                    ]}
+                  />
+                  <ReferenceLine y={analisis.gastoMedioPorCubo} stroke="#a1a1aa" strokeDasharray="4 4" />
+                  {/* La animación por defecto de recharts dura 1,5 s por serie y se
+                      reinicia con cada cambio de periodo: deja el gráfico ilegible
+                      justo cuando se acaba de pedir el dato. */}
+                  <Bar dataKey="ingresos" fill="#059669" radius={[3, 3, 0, 0]} maxBarSize={28} animationDuration={ANIM} />
+                  <Bar dataKey="gastos" fill="#ef4444" radius={[3, 3, 0, 0]} maxBarSize={28} animationDuration={ANIM} />
+                  <Line type="monotone" dataKey="linea" stroke="#09090b" strokeWidth={2} dot={{ r: 3, fill: '#09090b' }} animationDuration={ANIM} />
+                </ComposedChart>
+              </ResponsiveContainer>
+              <div className="flex flex-wrap gap-4 mt-3 text-xs text-steel">
+                <span className="inline-flex items-center gap-1.5">
+                  <i className="w-2.5 h-2.5 rounded-sm bg-emerald-600" /> Ingresos
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <i className="w-2.5 h-2.5 rounded-sm bg-red-500" /> Gastos
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <i className="w-4 h-0.5 bg-obsidian" /> {etiquetaLinea}
+                </span>
+              </div>
+            </section>
 
-          {/* Top categorías */}
-          <div className="p-6 border bg-snow border-fog rounded-card">
-            <h2 className="mb-1 font-semibold text-obsidian">Top categorías de gasto</h2>
-            <p className="mb-4 text-xs text-steel">Las que más consumen tu dinero</p>
-            {topCategorias.length === 0 ? (
-              <p className="py-8 text-sm text-center text-steel">Sin datos</p>
-            ) : (
-              <div className="space-y-3">
-                {(topCategorias as any[]).map((cat: any, i: number) => {
-                  const porcentaje = totalGastos > 0
-                    ? (cat.total / totalGastos) * 100
-                    : 0
-                  return (
-                    <div key={cat.nombre}>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-base">{cat.icono}</span>
-                          <span className="text-sm text-graphite">{cat.nombre}</span>
-                          <span className="text-xs text-ash">({cat.count})</span>
-                        </div>
-                        <span className="text-sm font-medium text-ink">
-                          {simbolo} {formatMonto(cat.total)}
-                        </span>
-                      </div>
-                      <div className="w-full bg-fog rounded-full h-1.5">
-                        <div
-                          className="h-1.5 rounded-full transition-all duration-500"
-                          style={{
-                            width: `${porcentaje}%`,
-                            backgroundColor: COLORES[i % COLORES.length]
-                          }}
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-5">
+
+              {/* Distribución por categoría */}
+              <section className="p-5 border lg:col-span-3 bg-snow border-fog rounded-card sm:p-6">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+                  <div>
+                    <h2 className="font-semibold text-obsidian">Distribución por categoría</h2>
+                    <p className="text-xs text-steel">
+                      {categoriasVista.length} {categoriasVista.length === 1 ? 'categoría' : 'categorías'} en el periodo
+                    </p>
+                  </div>
+                  <div className="flex gap-1 p-1 bg-mist rounded-full">
+                    {(['gasto', 'ingreso'] as const).map(t => (
+                      <button
+                        key={t}
+                        onClick={() => setVerCategorias(t)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                          verCategorias === t ? 'bg-obsidian text-snow' : 'text-steel hover:text-ink'
+                        }`}
+                      >
+                        {t === 'gasto' ? 'Gastos' : 'Ingresos'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {categoriasVista.length === 0 ? (
+                  <p className="py-10 text-sm text-center text-steel">
+                    Sin {verCategorias === 'gasto' ? 'gastos' : 'ingresos'} en el periodo
+                  </p>
+                ) : (
+                  <div className="grid items-center grid-cols-1 gap-5 sm:grid-cols-2">
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie
+                          // Al alternar gastos/ingresos cambia el número de porciones y
+                          // la animación de recharts deja el anillo colapsado a medias.
+                          // Con la clave se remonta limpio y sin animar no hay estado
+                          // intermedio que se pueda quedar atascado.
+                          key={verCategorias}
+                          isAnimationActive={false}
+                          data={categoriasVista} dataKey="total" nameKey="nombre"
+                          cx="50%" cy="50%" innerRadius={58} outerRadius={92}
+                          // Con una sola categoría el hueco se come el anillo entero.
+                          paddingAngle={categoriasVista.length > 1 ? 2 : 0}
+                        >
+                          {categoriasVista.map(c => <Cell key={c.nombre} fill={c.color} />)}
+                        </Pie>
+                        <Tooltip
+                          {...tooltipComun}
+                          formatter={(value: any, name: any) => [`${simbolo}${fmtExacto(Number(value) || 0)}`, name]}
                         />
-                      </div>
-                      <p className="text-ash text-xs mt-0.5">
-                        {porcentaje.toFixed(1)}% del total
+                      </PieChart>
+                    </ResponsiveContainer>
+
+                    <div className="space-y-2.5">
+                      {visibles.map(c => (
+                        <div key={c.nombre} className="flex items-center gap-2.5">
+                          <i className="flex-shrink-0 w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: c.color }} />
+                          <span className="text-sm truncate text-graphite">
+                            {c.icono} {c.nombre}
+                          </span>
+                          <span className="ml-auto text-xs whitespace-nowrap text-ash">{c.pct.toFixed(1)}%</span>
+                          <span className="text-sm font-medium whitespace-nowrap text-ink w-[7.5rem] text-right">
+                            {simbolo}{fmt(c.total)}
+                          </span>
+                        </div>
+                      ))}
+                      {categoriasVista.length > 6 && (
+                        <button
+                          onClick={() => setTodasLasCategorias(v => !v)}
+                          className="pt-1 text-xs font-medium text-steel hover:text-ink"
+                        >
+                          {todasLasCategorias
+                            ? 'Ver solo las 6 principales'
+                            : `Ver las ${categoriasVista.length} categorías`}
+                        </button>
+                      )}
+                      <p className="pt-2 text-xs border-t text-ash border-fog">
+                        Total: <span className="font-medium text-graphite">{simbolo}{fmtExacto(totalVista)}</span>
                       </p>
                     </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+                  </div>
+                )}
+              </section>
 
-          {/* Gastos por día de la semana */}
-          <div className="p-6 border bg-snow border-fog rounded-card">
-            <h2 className="mb-1 font-semibold text-obsidian">Gastos por día</h2>
-            <p className="mb-4 text-xs text-steel">
-              Día con más gastos: <span className="font-medium text-ink">{diaMasGasto.nombre}</span>
-            </p>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={gastosPorDia}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#ececee" />
-                <XAxis dataKey="nombre" tick={{ fill: '#71717a', fontSize: 12 }} axisLine={{ stroke: '#ececee' }} tickLine={false} />
-                <YAxis tick={{ fill: '#71717a', fontSize: 12 }} axisLine={{ stroke: '#ececee' }} tickLine={false} tickFormatter={(v) => `${simbolo}${formatMonto(v)}`} width={65} />
-                <Tooltip
-                  formatter={(value: number | undefined) => [`${simbolo} ${formatMontoCompleto(Number(value) || 0)}`, 'Gastos']}
-                  contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #ececee', borderRadius: 16, color: '#18181b' }}
-                  labelStyle={{ color: '#71717a' }}
-                />
-                <Bar dataKey="total" radius={[4, 4, 0, 0]}>
-                  {gastosPorDia.map((entry, index) => (
-                    <Cell
-                      key={index}
-                      fill={entry.nombre === diaMasGasto.nombre ? '#09090b' : '#d4d4d8'}
-                    />
+              {/* Qué cambió respecto al periodo anterior */}
+              <section className="p-5 border lg:col-span-2 bg-snow border-fog rounded-card sm:p-6">
+                <h2 className="font-semibold text-obsidian">Qué cambió</h2>
+                <p className="mb-5 text-xs text-steel">
+                  Gasto por categoría contra {fechaCorta(datos.anterior.desde)} — {fechaCorta(datos.anterior.hasta)}
+                </p>
+                {analisis.cambios.length === 0 ? (
+                  <p className="py-10 text-sm text-center text-steel">Sin gastos que comparar</p>
+                ) : (
+                  <div className="space-y-3">
+                    {analisis.cambios.slice(0, 7).map(c => {
+                      const sube = c.dif > 0
+                      const nuevo = c.previo === 0
+                      const desaparece = c.total === 0
+                      return (
+                        <div key={c.nombre} className="flex items-center gap-3">
+                          <span className="text-sm truncate text-graphite">{c.icono} {c.nombre}</span>
+                          <span className="flex-1" />
+                          <span className={`inline-flex items-center gap-1 text-xs font-medium whitespace-nowrap ${
+                            desaparece ? 'text-steel' : sube ? 'text-red-500' : 'text-emerald-600'
+                          }`}>
+                            {Math.abs(c.dif) < 0.005
+                              ? <Minus size={13} />
+                              : sube ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
+                            {simbolo}{fmt(Math.abs(c.dif))}
+                          </span>
+                          <span className="text-xs whitespace-nowrap text-ash w-14 text-right">
+                            {Math.abs(c.dif) < 0.005
+                              ? 'igual'
+                              : nuevo ? 'nueva'
+                              : desaparece ? 'sin gasto'
+                              : `${c.dif > 0 ? '+' : ''}${((c.dif / c.previo) * 100).toFixed(0)}%`}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </section>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+
+              {/* Gasto por cartera */}
+              <section className="p-5 border bg-snow border-fog rounded-card sm:p-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <Wallet size={16} className="text-steel" />
+                  <h2 className="font-semibold text-obsidian">De dónde sale el gasto</h2>
+                </div>
+                <p className="mb-5 text-xs text-steel">Reparto del gasto entre tus carteras</p>
+                {analisis.porCartera.length === 0 ? (
+                  <p className="py-8 text-sm text-center text-steel">Sin gastos en el periodo</p>
+                ) : (
+                  <div className="space-y-3.5">
+                    {analisis.porCartera.map(c => (
+                      <div key={c.nombre}>
+                        <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                          <span className="text-sm truncate text-graphite">{c.nombre}</span>
+                          <span className="text-sm font-medium whitespace-nowrap text-ink">
+                            {simbolo}{fmt(c.total)}
+                            <span className="ml-2 text-xs font-normal text-ash">{c.pct.toFixed(0)}%</span>
+                          </span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-mist">
+                          <div className="h-full rounded-full bg-obsidian" style={{ width: `${Math.max(c.pct, 1.5)}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* Lecturas del periodo */}
+              <section className="p-5 border bg-snow border-fog rounded-card sm:p-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <Lightbulb size={16} className="text-steel" />
+                  <h2 className="font-semibold text-obsidian">Lecturas del periodo</h2>
+                </div>
+                <p className="mb-5 text-xs text-steel">Lo que dicen los números, en una línea cada uno</p>
+                <ul className="space-y-3">
+                  {lecturas({ analisis, datos, simbolo, fmt }).map((l, i) => (
+                    <li key={i} className="flex gap-2.5 text-sm text-graphite">
+                      <Info size={15} className="flex-shrink-0 mt-0.5 text-ash" />
+                      <span>{l}</span>
+                    </li>
                   ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+                </ul>
+              </section>
+            </div>
           </div>
-
-        </div>
-
-        {/* Insight automático */}
-        <div className="p-6 border bg-snow border-fog rounded-card">
-          <p className="mb-3 font-semibold text-obsidian">💡 Análisis automático</p>
-          <div className="space-y-2">
-            {parseFloat(tasaAhorro) >= 20 && (
-              <p className="text-sm text-graphite">
-                ✅ Excelente — estás ahorrando el <span className="font-medium text-emerald-600">{tasaAhorro}%</span> de tus ingresos. Sigue así.
-              </p>
-            )}
-            {parseFloat(tasaAhorro) >= 0 && parseFloat(tasaAhorro) < 20 && (
-              <p className="text-sm text-graphite">
-                ⚠️ Tu tasa de ahorro es <span className="font-medium text-amber-600">{tasaAhorro}%</span>. Lo ideal es ahorrar al menos el 20% de tus ingresos.
-              </p>
-            )}
-            {parseFloat(tasaAhorro) < 0 && (
-              <p className="text-sm text-graphite">
-                🚨 Estás gastando más de lo que ganas. Considera revisar tus gastos en <span className="font-medium text-red-500">{(topCategorias[0] as any)?.nombre || 'tus categorías principales'}</span>.
-              </p>
-            )}
-            {topCategorias.length > 0 && (
-              <p className="text-sm text-graphite">
-                📊 Tu mayor gasto es en <span className="font-medium text-ink">{(topCategorias[0] as any).icono} {(topCategorias[0] as any).nombre}</span> con <span className="font-medium text-red-500">{simbolo} {formatMontoCompleto((topCategorias[0] as any).total)}</span> en el período.
-              </p>
-            )}
-            {diaMasGasto.total > 0 && (
-              <p className="text-sm text-graphite">
-                📅 Gastas más los <span className="font-medium text-ink">{diaMasGasto.nombre}</span>.
-              </p>
-            )}
-            {transacciones.length === 0 && (
-              <p className="text-sm text-steel">
-                No hay suficientes datos para el período seleccionado.
-              </p>
-            )}
-          </div>
-        </div>
-
+        )}
       </div>
     </AppLayout>
   )
+}
+
+// Frases derivadas de los propios datos. Solo se emiten las que aplican, para
+// que no aparezcan consejos genéricos cuando no hay nada que decir.
+function lecturas({ analisis, datos, simbolo, fmt }: {
+  analisis: any
+  datos: DatosReportes
+  simbolo: string
+  fmt: (n: number) => string
+}) {
+  const out: React.ReactNode[] = []
+  const dinero = (n: number) => <span className="font-medium text-ink">{simbolo}{fmt(n)}</span>
+  const fuerte = (t: string) => <span className="font-medium text-ink">{t}</span>
+
+  if (analisis.tasaAhorro >= 20) {
+    out.push(<>Estás ahorrando el {fuerte(`${analisis.tasaAhorro.toFixed(1)}%`)} de lo que entra, por encima del 20% que se suele recomendar.</>)
+  } else if (analisis.tasaAhorro >= 0) {
+    out.push(<>Ahorras el {fuerte(`${analisis.tasaAhorro.toFixed(1)}%`)} de tus ingresos. Llegar al 20% supondría apartar {dinero(analisis.ingresos * 0.2 - analisis.balance)} más.</>)
+  } else {
+    out.push(<>Gastaste {dinero(-analisis.balance)} más de lo que ingresaste en este periodo.</>)
+  }
+
+  const top = analisis.porCategoria[0]
+  if (top) {
+    out.push(<>Tu mayor gasto es {fuerte(`${top.icono ?? ''} ${top.nombre}`)} con {dinero(top.total)}, el {fuerte(`${top.pct.toFixed(1)}%`)} del total.</>)
+  }
+  const tresPrimeras = analisis.porCategoria.slice(0, 3).reduce((s: number, c: any) => s + c.pct, 0)
+  if (analisis.porCategoria.length >= 4 && tresPrimeras >= 60) {
+    out.push(<>Tres categorías concentran el {fuerte(`${tresPrimeras.toFixed(0)}%`)} de tu gasto: ahí es donde un recorte se nota.</>)
+  }
+
+  const mayorSubida = analisis.cambios.find((c: any) => c.dif > 0 && c.previo > 0)
+  if (mayorSubida) {
+    out.push(<>Lo que más subió es {fuerte(mayorSubida.nombre)}: {dinero(mayorSubida.dif)} más que el periodo anterior ({fuerte(`+${((mayorSubida.dif / mayorSubida.previo) * 100).toFixed(0)}%`)}).</>)
+  }
+  const mayorBajada = analisis.cambios.find((c: any) => c.dif < 0 && c.previo > 0)
+  if (mayorBajada) {
+    out.push(<>Donde más recortaste fue {fuerte(mayorBajada.nombre)}: {dinero(-mayorBajada.dif)} menos que antes.</>)
+  }
+
+  if (!analisis.porDia && analisis.mesCaro && analisis.evolucion.length > 1) {
+    out.push(<>El periodo más caro fue {fuerte(analisis.mesCaro.label)} con {dinero(analisis.mesCaro.gastos)} de gasto.</>)
+  }
+  if (analisis.gastoDiario > 0) {
+    out.push(<>A este ritmo gastas {dinero(analisis.gastoDiario)} al día, unos {dinero(analisis.gastoDiario * 30)} cada 30 días.</>)
+  }
+  if (datos.anterior.ingresos === 0 && datos.anterior.gastos === 0) {
+    out.push(<>No hay movimientos en el periodo anterior, así que las comparaciones quedan sin base.</>)
+  }
+  return out
 }

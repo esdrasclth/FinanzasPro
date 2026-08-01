@@ -1,11 +1,11 @@
 import { redirect } from 'next/navigation'
 import { getSessionUser } from '../lib/auth-server'
 import { prisma } from '../lib/prisma'
-import { datosReportes } from '../lib/reportes-server'
+import { datosReportes, rangoPorDefecto } from '../lib/reportes-server'
 import ReportesCliente from './ReportesCliente'
 
-// Server Component: los movimientos del periodo llegan ya filtrados y
-// normalizados a la moneda principal.
+// Server Component: los movimientos del periodo llegan ya filtrados,
+// normalizados a la moneda principal y con los totales del periodo anterior.
 export default async function ReportesPage() {
   const session = await getSessionUser()
   if (!session) redirect('/login')
@@ -13,7 +13,7 @@ export default async function ReportesPage() {
   const perfil = await prisma.profiles.findUnique({ where: { id: session.id } })
   if (!perfil || !perfil.onboarding_completado) redirect('/onboarding')
 
-  const { transacciones } = await datosReportes(session.id, 3)
+  const datos = await datosReportes(session.id, await rangoPorDefecto())
 
   return (
     <ReportesCliente
@@ -23,7 +23,7 @@ export default async function ReportesPage() {
         moneda_default: perfil.moneda_default,
         onboarding_completado: perfil.onboarding_completado,
       }}
-      transaccionesIniciales={transacciones}
+      datosIniciales={datos}
     />
   )
 }
