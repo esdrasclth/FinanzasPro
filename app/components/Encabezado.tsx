@@ -74,7 +74,10 @@ export function Hero({
       <div className="relative px-5 py-6 sm:px-6 sm:py-9 lg:px-8 lg:py-12">
         <div className="mb-6 sm:mb-8">
           <h2 className="text-xl font-semibold">{titulo}</h2>
-          {subtitulo && <p className="text-base capitalize text-white/60">{subtitulo}</p>}
+          {/* Solo la inicial: `capitalize` ponía en mayúscula cada palabra, y así
+              el correo de Configuración salía como "Esdras.clother@…" y un rango
+              como "Junio A Agosto". */}
+          {subtitulo && <p className="text-base first-letter:uppercase text-white/60">{subtitulo}</p>}
         </div>
 
         <div className={`grid grid-cols-1 gap-5 sm:gap-6 ${cols}`}>
