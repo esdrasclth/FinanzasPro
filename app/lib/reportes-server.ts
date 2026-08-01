@@ -35,12 +35,22 @@ export interface TotalesPeriodo {
   porCategoria: Record<string, number>
 }
 
+export interface PresupuestoPeriodo {
+  // Límite del periodo por categoría, indexado por id de categoría.
+  porCategoria: Record<string, number>
+  mesesEnRango: number
+  mesesConPresupuesto: number
+  // El rango no cubre meses enteros, así que algún límite va prorrateado.
+  prorrateado: boolean
+}
+
 export interface DatosReportes {
   moneda: string
   desde: string
   hasta: string
   transacciones: MovimientoReporte[]
   anterior: TotalesPeriodo
+  presupuesto: PresupuestoPeriodo
 }
 
 const SIN_CATEGORIA: CategoriaReporte = {
@@ -63,6 +73,63 @@ export function periodoAnterior(desde: string, hasta: string): { desde: string; 
     (aFechaUTC(hasta).getTime() - aFechaUTC(desde).getTime()) / 86400000
   ) + 1
   return { desde: diasAntes(desde, dias), hasta: diasAntes(desde, 1) }
+}
+
+const diasEntre = (desde: string, hasta: string) =>
+  Math.round((aFechaUTC(hasta).getTime() - aFechaUTC(desde).getTime()) / 86400000) + 1
+
+// Los meses que toca el rango, con qué parte de cada uno queda dentro. Un
+// reporte del 10 al 20 no puede compararse contra el presupuesto entero del
+// mes, así que ese límite se prorratea por los días incluidos.
+function mesesDelRango(desde: string, hasta: string) {
+  const out: { anio: number; mes: number; fraccion: number }[] = []
+  let cursor = `${desde.slice(0, 7)}-01`
+  const tope = hasta.slice(0, 7)
+
+  while (cursor.slice(0, 7) <= tope && out.length < 36) {
+    const ultimo = finMesDesplazado(cursor)
+    const ini = cursor > desde ? cursor : desde
+    const fin = ultimo < hasta ? ultimo : hasta
+    const [anio, mes] = cursor.split('-').map(Number)
+    out.push({
+      anio,
+      mes,
+      fraccion: diasEntre(ini, fin) / diasEntre(cursor, ultimo),
+    })
+    cursor = inicioMesDesplazado(cursor, 1)
+  }
+  return out
+}
+
+async function presupuestoDelRango(
+  userId: string,
+  desde: string,
+  hasta: string
+): Promise<PresupuestoPeriodo> {
+  const meses = mesesDelRango(desde, hasta)
+  const filas = await prisma.budgets.findMany({
+    where: {
+      user_id: userId,
+      OR: meses.map(m => ({ mes: m.mes, anio: m.anio })),
+    },
+    select: { category_id: true, monto_limite: true, mes: true, anio: true },
+  })
+
+  const porCategoria: Record<string, number> = {}
+  const conPresupuesto = new Set<string>()
+  for (const b of filas) {
+    const m = meses.find(x => x.mes === b.mes && x.anio === b.anio)
+    if (!m) continue
+    porCategoria[b.category_id] = (porCategoria[b.category_id] || 0) + Number(b.monto_limite) * m.fraccion
+    conPresupuesto.add(`${b.anio}-${b.mes}`)
+  }
+
+  return {
+    porCategoria,
+    mesesEnRango: meses.length,
+    mesesConPresupuesto: conPresupuesto.size,
+    prorrateado: meses.some(m => m.fraccion < 0.999),
+  }
 }
 
 async function movimientosDe(userId: string, desde: string, hasta: string) {
@@ -94,9 +161,10 @@ export async function datosReportes(
   const moneda = perfil?.moneda_default || 'HNL'
   const previo = periodoAnterior(rango.desde, rango.hasta)
 
-  const [filas, filasPrevias, tasa] = await Promise.all([
+  const [filas, filasPrevias, presupuesto, tasa] = await Promise.all([
     movimientosDe(userId, rango.desde, rango.hasta),
     movimientosDe(userId, previo.desde, previo.hasta),
+    presupuestoDelRango(userId, rango.desde, rango.hasta),
     tasaVigente(userId),
   ])
 
@@ -134,6 +202,7 @@ export async function datosReportes(
     hasta: rango.hasta,
     transacciones,
     anterior: { ...previo, ingresos, gastos, porCategoria },
+    presupuesto,
   }
 }
 

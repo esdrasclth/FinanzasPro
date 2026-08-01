@@ -6,7 +6,7 @@ import { useMoneda } from '../lib/moneda-context'
 import { Encabezado, Hero } from '../components/Encabezado'
 import {
   TrendingUp, TrendingDown, PiggyBank, Scale, ArrowUpRight, ArrowDownRight,
-  Minus, CalendarRange, Wallet, Lightbulb, Loader2, Info,
+  Minus, CalendarRange, Wallet, Lightbulb, Loader2, Info, Target,
 } from 'lucide-react'
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -31,6 +31,7 @@ interface Props {
 type Preset = '1' | '3' | '6' | '12' | 'personalizado'
 
 interface Agrupado {
+  id: string | null
   nombre: string
   icono: string | null
   color: string
@@ -159,7 +160,11 @@ export default function ReportesCliente({ usuario, datosIniciales }: Props) {
       for (const t of trans) {
         if (t.tipo !== tipo) continue
         const nombre = t.categoria.nombre
-        const linea = mapa.get(nombre) || {
+        // Se agrupa por id, no por nombre: dos categorías pueden llamarse igual
+        // y el presupuesto se cruza justamente por id.
+        const clave = t.categoria.id ?? nombre
+        const linea = mapa.get(clave) || {
+          id: t.categoria.id,
           nombre,
           icono: t.categoria.icono,
           color: t.categoria.color || PALETA[i++ % PALETA.length],
@@ -170,7 +175,7 @@ export default function ReportesCliente({ usuario, datosIniciales }: Props) {
         }
         linea.total += t.monto
         linea.cantidad++
-        mapa.set(nombre, linea)
+        mapa.set(clave, linea)
       }
       return [...mapa.values()]
         .map(l => ({ ...l, pct: total > 0 ? (l.total / total) * 100 : 0 }))
@@ -195,9 +200,42 @@ export default function ReportesCliente({ usuario, datosIniciales }: Props) {
 
     const mesCaro = [...evolucion].sort((a, b) => b.gastos - a.gastos)[0] || null
 
+    // Presupuesto contra gasto real. Solo entran las categorías que tienen
+    // límite en el periodo: meter con cero las que no lo tienen daría un
+    // "vas sobrepasado" que no significa nada.
+    const limites = datos.presupuesto.porCategoria
+    const conLimite = porCategoria
+      .filter(c => c.id && limites[c.id] > 0)
+      .map(c => {
+        const limite = limites[c.id!]
+        return { ...c, limite, usado: (c.total / limite) * 100, resto: limite - c.total }
+      })
+      .sort((a, b) => b.usado - a.usado)
+    // Categorías presupuestadas en las que no se gastó nada: también cuentan.
+    const idsGastados = new Set(porCategoria.map(c => c.id).filter(Boolean))
+    const sinGasto = Object.keys(limites).filter(id => !idsGastados.has(id)).length
+
+    const presupuestado = conLimite.reduce((s, c) => s + c.limite, 0)
+      + Object.entries(limites)
+        .filter(([id]) => !idsGastados.has(id))
+        .reduce((s, [, v]) => s + v, 0)
+    const gastadoConLimite = conLimite.reduce((s, c) => s + c.total, 0)
+
+    const presupuesto = {
+      lineas: conLimite,
+      presupuestado,
+      gastado: gastadoConLimite,
+      // Lo que se fue por fuera de todo presupuesto.
+      fueraDePresupuesto: gastos - gastadoConLimite,
+      sinGasto,
+      sobrepasadas: conLimite.filter(c => c.usado > 100).length,
+      hay: presupuestado > 0,
+    }
+
     return {
       ingresos, gastos, balance, tasaAhorro, tasaPrevia,
       evolucion, porDia, porCategoria, porIngreso, porCartera, cambios, mesCaro,
+      presupuesto,
       dias,
       gastoDiario: dias > 0 ? gastos / dias : 0,
       gastoMedioPorCubo: evolucion.length > 0 ? gastos / evolucion.length : 0,
@@ -411,6 +449,95 @@ export default function ReportesCliente({ usuario, datosIniciales }: Props) {
               </div>
             </section>
 
+            {/* Presupuesto contra gasto real */}
+            <section className="p-5 border bg-snow border-fog rounded-card sm:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Target size={16} className="text-steel" />
+                    <h2 className="font-semibold text-obsidian">Presupuesto y gasto real</h2>
+                  </div>
+                  <p className="mt-1 text-xs text-steel">
+                    {analisis.presupuesto.hay
+                      ? <>
+                          {datos.presupuesto.mesesConPresupuesto} de {datos.presupuesto.mesesEnRango}{' '}
+                          {datos.presupuesto.mesesEnRango === 1 ? 'mes del periodo tiene' : 'meses del periodo tienen'} presupuesto
+                          {datos.presupuesto.prorrateado && ' · el límite va prorrateado por los días del rango'}
+                        </>
+                      : 'Aún no has definido presupuestos para este periodo'}
+                  </p>
+                </div>
+                <a
+                  href="/presupuesto"
+                  className="px-3.5 py-1.5 text-xs font-medium transition-colors border rounded-full text-graphite border-fog hover:border-pebble"
+                >
+                  Ir a presupuestos
+                </a>
+              </div>
+
+              {!analisis.presupuesto.hay ? (
+                <p className="py-8 text-sm text-center text-steel">
+                  Cuando pongas un límite a tus categorías, aquí verás cuánto llevas gastado de cada uno.
+                </p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 gap-4 mb-6 sm:grid-cols-3">
+                    {[
+                      { label: 'Presupuestado', valor: analisis.presupuesto.presupuestado, tono: 'text-ink' },
+                      { label: 'Gastado de ese presupuesto', valor: analisis.presupuesto.gastado, tono: analisis.presupuesto.gastado > analisis.presupuesto.presupuestado ? 'text-red-500' : 'text-ink' },
+                      { label: 'Fuera de presupuesto', valor: analisis.presupuesto.fueraDePresupuesto, tono: 'text-graphite' },
+                    ].map(k => (
+                      <div key={k.label} className="p-4 bg-mist rounded-input">
+                        <p className="mb-1 text-xs text-steel">{k.label}</p>
+                        <p className={`text-lg font-bold ${k.tono}`}>{simbolo}{fmt(k.valor)}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="space-y-4">
+                    {analisis.presupuesto.lineas.map((c: any) => {
+                      // Verde hasta el 80%, ámbar al acercarse y rojo al pasarse.
+                      const tono = c.usado > 100 ? 'bg-red-500' : c.usado >= 80 ? 'bg-amber-500' : 'bg-emerald-600'
+                      return (
+                        <div key={c.id}>
+                          <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                            <span className="text-sm truncate text-graphite">{c.icono} {c.nombre}</span>
+                            <span className="text-sm whitespace-nowrap text-ink">
+                              <span className="font-medium">{simbolo}{fmt(c.total)}</span>
+                              <span className="text-ash"> de {simbolo}{fmt(c.limite)}</span>
+                            </span>
+                          </div>
+                          <div className="h-2 overflow-hidden rounded-full bg-mist">
+                            <div className={`h-full rounded-full ${tono}`} style={{ width: `${Math.min(c.usado, 100)}%` }} />
+                          </div>
+                          <p className="mt-1 text-xs text-ash">
+                            {c.usado > 100
+                              ? <span className="font-medium text-red-500">Sobrepasado por {simbolo}{fmt(-c.resto)}</span>
+                              : <>Te quedan {simbolo}{fmt(c.resto)} · {c.usado.toFixed(0)}% usado</>}
+                          </p>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {analisis.presupuesto.sinGasto > 0 && (
+                    <p className="mt-5 text-xs text-ash">
+                      {analisis.presupuesto.sinGasto}{' '}
+                      {analisis.presupuesto.sinGasto === 1
+                        ? 'categoría presupuestada no registró gasto'
+                        : 'categorías presupuestadas no registraron gasto'} en el periodo.
+                    </p>
+                  )}
+                  {analisis.presupuesto.fueraDePresupuesto > 0 && (
+                    <p className="mt-1 text-xs text-ash">
+                      {simbolo}{fmt(analisis.presupuesto.fueraDePresupuesto)} se fueron en categorías sin
+                      presupuesto definido, así que no entran en las barras de arriba.
+                    </p>
+                  )}
+                </>
+              )}
+            </section>
+
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-5">
 
               {/* Distribución por categoría */}
@@ -620,6 +747,20 @@ function lecturas({ analisis, datos, simbolo, fmt }: {
   const tresPrimeras = analisis.porCategoria.slice(0, 3).reduce((s: number, c: any) => s + c.pct, 0)
   if (analisis.porCategoria.length >= 4 && tresPrimeras >= 60) {
     out.push(<>Tres categorías concentran el {fuerte(`${tresPrimeras.toFixed(0)}%`)} de tu gasto: ahí es donde un recorte se nota.</>)
+  }
+
+  const pre = analisis.presupuesto
+  if (pre.hay) {
+    if (pre.sobrepasadas > 0) {
+      const peor = pre.lineas[0]
+      out.push(<>Te pasaste del presupuesto en {fuerte(`${pre.sobrepasadas}`)} {pre.sobrepasadas === 1 ? 'categoría' : 'categorías'}; la que más, {fuerte(peor.nombre)}, por {dinero(-peor.resto)}.</>)
+    } else {
+      out.push(<>No te pasaste de ningún presupuesto: llevas {dinero(pre.gastado)} de {dinero(pre.presupuestado)}.</>)
+    }
+    if (pre.fueraDePresupuesto > 0) {
+      const pct = analisis.gastos > 0 ? (pre.fueraDePresupuesto / analisis.gastos) * 100 : 0
+      out.push(<>El {fuerte(`${pct.toFixed(0)}%`)} de tu gasto ({dinero(pre.fueraDePresupuesto)}) cayó en categorías sin presupuesto.</>)
+    }
   }
 
   const mayorSubida = analisis.cambios.find((c: any) => c.dif > 0 && c.previo > 0)
