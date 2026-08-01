@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '../../../../../lib/prisma'
 import { requireMiembro } from '../../../../../lib/grupos-server'
 import { prepararGasto, escribirPagosYDivisiones, borrarTransaccionesDeGasto } from '../../../../../lib/gastos-server'
-import { tasaVigente } from '../../../../../lib/tipoCambio-server'
+import { tasaVigente, ErrorDeConversion } from '../../../../../lib/tipoCambio-server'
 import { hoyUsuario } from '../../../../../lib/fecha-server'
 
 type Params = { params: Promise<{ id: string; gastoId: string }> }
@@ -45,7 +45,8 @@ export async function PUT(req: Request, { params }: Params) {
   // Una sola lectura de la tasa para todas las carteras que refleja el gasto.
   const tasa = await tasaVigente(az.auth.ctx.user.id)
 
-  await prisma.$transaction(async (tx) => {
+  try {
+    await prisma.$transaction(async (tx) => {
     // Revertir el estado anterior: transacciones reflejadas + pagos + divisiones.
     await borrarTransaccionesDeGasto(tx, gastoId)
     await tx.gasto_pagos.deleteMany({ where: { gasto_id: gastoId } })
@@ -76,9 +77,15 @@ export async function PUT(req: Request, { params }: Params) {
       monedaGrupo: az.grupo.moneda,
       tasa,
     })
-  })
+    })
 
-  return NextResponse.json({ id: gastoId })
+    return NextResponse.json({ id: gastoId })
+  } catch (e) {
+    if (e instanceof ErrorDeConversion) {
+      return NextResponse.json({ error: e.message }, { status: 400 })
+    }
+    throw e
+  }
 }
 
 // DELETE /api/grupos/[id]/gastos/[gastoId]  -> elimina el gasto y revierte las carteras.

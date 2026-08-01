@@ -222,6 +222,20 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
       if (dias >= DIAS_INACTIVA)
         alertas.push({ id: `${c.id}-inact`, icon: Moon, texto: `${c.nombre} sin actividad hace ${dias} días`, grave: false })
     }
+    // Saldo en una moneda que no es la de la cartera. Pasaba cuando un reparto o
+    // un gasto de grupo en otra moneda se registraba sin tasa de cambio: el
+    // monto se guardaba en la moneda de origen y la cartera acababa con, por
+    // ejemplo, dólares dentro de una cuenta en lempiras. Ya no puede ocurrir,
+    // pero lo que se registró así sigue ahí y conviene que se vea.
+    Object.entries((c.saldos || {}) as Record<string, number>).forEach(([m, v]) => {
+      if (m === (c.moneda || 'HNL') || Math.abs(Number(v)) < 0.005) return
+      alertas.push({
+        id: `${c.id}-moneda-${m}`,
+        icon: Coins,
+        texto: `${c.nombre} tiene ${simboloMoneda(m)}${formatMonto(Math.abs(Number(v)))} en ${m}, y la cartera es en ${c.moneda || 'HNL'}`,
+        grave: false,
+      })
+    })
   })
   const alertasGraves = alertas.filter(a => a.grave).length
 

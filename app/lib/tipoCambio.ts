@@ -46,6 +46,16 @@ export async function fijarTasaManual(tasa: number): Promise<TipoCambio | null> 
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
+// La tasa que maneja la app es HNL por USD, así que solo ese par (y la
+// identidad) se puede convertir de verdad. Quien vaya a escribir un movimiento
+// tiene que preguntar antes: `convertir` devuelve el monto intacto para los
+// pares que no soporta, y guardarlo así lo etiquetaría con una moneda que no le
+// corresponde.
+export const parSoportado = (origen: string, destino: string) =>
+  origen === destino ||
+  (origen === 'USD' && destino === 'HNL') ||
+  (origen === 'HNL' && destino === 'USD')
+
 // Convierte `monto` de `origen` a `destino` usando la tasa dada (HNL por USD).
 // Solo soporta el par USD/HNL; si origen === destino devuelve el mismo monto.
 export function convertir(

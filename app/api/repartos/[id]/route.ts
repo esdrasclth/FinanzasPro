@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '../../../lib/prisma'
 import { round2 } from '../../../lib/dinero'
 import { prepararReparto, requireReparto, walletDeUsuario } from '../../../lib/repartos-server'
-import { tasaVigente, montoParaCartera } from '../../../lib/tipoCambio-server'
+import { tasaVigente, montoParaCartera, exigirMontoParaCartera, ErrorDeConversion } from '../../../lib/tipoCambio-server'
 import { hoyUsuarioUTC } from '../../../lib/fecha-server'
 
 // GET /api/repartos/[id] -> detalle con participantes
@@ -91,10 +91,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     : []
   const monedaDeCartera = new Map(carterasCobro.map(w => [w.id, w.moneda]))
   const tasa = await tasaVigente(auth.userId)
-  const enCarteraGasto = wallet ? montoParaCartera(d.montoTotal, d.moneda, wallet.moneda, tasa) : null
+  let enCarteraGasto = null
+  if (wallet) {
+    const conversion = montoParaCartera(d.montoTotal, d.moneda, wallet.moneda, tasa)
+    if (!conversion.ok) return NextResponse.json({ error: conversion.mensaje }, { status: 400 })
+    enCarteraGasto = conversion.valor
+  }
   const hoy = await hoyUsuarioUTC()
 
-  await prisma.$transaction(async (tx) => {
+  try {
+    await prisma.$transaction(async (tx) => {
     // Rehacer el gasto: borra las transacciones viejas y crea una nueva por el nuevo total.
     const aBorrar = [repartoPrev?.transaction_id, ...txIdsRecuperacion].filter((x): x is string => !!x)
     if (aBorrar.length > 0) await tx.transactions.deleteMany({ where: { id: { in: aBorrar } } })
@@ -140,7 +146,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       let txId: string | null = null
       let walletCobro: string | null = null
       if (!pagoAjeno && cobro && cobro.wallet_id && p.monto_asignado > 0) {
-        const enCartera = montoParaCartera(
+        const enCartera = exigirMontoParaCartera(
           p.monto_asignado, d.moneda, monedaDeCartera.get(cobro.wallet_id), tasa
         )
         const ingreso = await tx.transactions.create({
@@ -173,7 +179,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         },
       })
     }
-  })
+    })
+  } catch (e) {
+    // Si algún cobro no se pudo expresar en la moneda de su cartera, la
+    // transacción se deshace entera y se explica por qué.
+    if (e instanceof ErrorDeConversion) {
+      return NextResponse.json({ error: e.message }, { status: 400 })
+    }
+    throw e
+  }
 
   return NextResponse.json({ id })
 }

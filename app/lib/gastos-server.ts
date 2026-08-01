@@ -1,7 +1,7 @@
 // Lógica compartida de gastos compartidos: validación, reflejo en carteras y borrado.
 // Reutilizada por la creación (POST) y la edición (PUT) para mantener una sola fuente de verdad.
 import { calcularDivisiones, round2, DivisionCalculada, DivisionInput } from './dinero'
-import { montoParaCartera } from './tipoCambio-server'
+import { exigirMontoParaCartera } from './tipoCambio-server'
 
 const toDate = (s: string) => new Date(`${String(s).slice(0, 10)}T00:00:00.000Z`)
 
@@ -113,7 +113,7 @@ export async function escribirPagosYDivisiones(
     if (wallet) {
       // El gasto está en la moneda del grupo, pero el dinero sale de la cartera
       // en la moneda de la cartera.
-      const enCartera = montoParaCartera(monto, monedaGrupo, wallet.moneda, tasa)
+      const enCartera = exigirMontoParaCartera(monto, monedaGrupo, wallet.moneda, tasa)
       const trans = await tx.transactions.create({
         data: {
           user_id: p.user_id,

@@ -1,5 +1,5 @@
 import { prisma } from './prisma'
-import { convertir } from './tipoCambio'
+import { convertir, parSoportado } from './tipoCambio'
 import { round2 } from './dinero'
 import { hoyUsuarioUTC } from './fecha-server'
 
@@ -59,35 +59,86 @@ export interface MontoEnCartera {
   tasa_cambio: number | null
 }
 
+export type ConversionResultado =
+  | { ok: true; valor: MontoEnCartera }
+  | { ok: false; mensaje: string }
+
+// Se lanza dentro de las transacciones, donde no se puede devolver un 400 a
+// medias. Quien abre la transacción la convierte en respuesta.
+export class ErrorDeConversion extends Error {
+  constructor(mensaje: string) {
+    super(mensaje)
+    this.name = 'ErrorDeConversion'
+  }
+}
+
 // Expresa un monto de un grupo o reparto en la moneda de la cartera donde se
 // refleja. El dinero sale (o entra) en la moneda de la cartera, no en la del
 // grupo, así que se convierte y se deja constancia del monto original.
 //
 // Antes los gastos y liquidaciones de grupo se guardaban sin `moneda`, es decir
 // como lempiras, aunque el grupo llevara la cuenta en dólares.
+//
+// Sin tasa NO se inventa nada. Antes se registraba en la moneda de origen para
+// no mentir sobre el monto, pero eso dejaba dólares dentro de carteras en
+// lempiras: la cartera acababa con un saldo en una moneda que no es la suya y
+// nadie se enteraba. Las transferencias y los aportes a metas ya avisaban en
+// ese caso; aquí se hace lo mismo. El usuario puede fijar una tasa manual y
+// repetir la operación, así que no queda nada bloqueado de forma permanente.
 export function montoParaCartera(
   monto: number,
   monedaGrupo: string | null | undefined,
   monedaCartera: string | null | undefined,
   tasa: number | null
-): MontoEnCartera {
+): ConversionResultado {
   const origen = monedaGrupo || 'HNL'
   const destino = monedaCartera || 'HNL'
 
   if (origen === destino) {
-    return { monto: round2(monto), moneda: destino, monto_original: null, tasa_cambio: tasa }
+    return {
+      ok: true,
+      valor: { monto: round2(monto), moneda: destino, monto_original: null, tasa_cambio: tasa },
+    }
   }
 
-  // Sin tasa no se puede convertir: se registra en la moneda de origen antes
-  // que mentir sobre en qué moneda está el movimiento.
+  // La app solo sabe convertir entre lempiras y dólares.
+  if (!parSoportado(origen, destino)) {
+    return {
+      ok: false,
+      mensaje:
+        `No se puede convertir de ${origen} a ${destino}: la app solo maneja el cambio entre ` +
+        `lempiras y dólares. Usa una cartera en ${origen} para reflejar este monto.`,
+    }
+  }
+
   if (!tasa || tasa <= 0) {
-    return { monto: round2(monto), moneda: origen, monto_original: null, tasa_cambio: null }
+    return {
+      ok: false,
+      mensaje:
+        `No hay tasa de cambio para pasar de ${origen} a ${destino}, así que el monto no se puede ` +
+        `reflejar en esa cartera. Actualiza el tipo de cambio o fija uno manual y vuelve a intentarlo.`,
+    }
   }
 
   return {
-    monto: convertir(monto, origen, destino, tasa),
-    moneda: destino,
-    monto_original: round2(monto),
-    tasa_cambio: tasa,
+    ok: true,
+    valor: {
+      monto: convertir(monto, origen, destino, tasa),
+      moneda: destino,
+      monto_original: round2(monto),
+      tasa_cambio: tasa,
+    },
   }
+}
+
+// Igual que la anterior, para usar dentro de una transacción ya abierta.
+export function exigirMontoParaCartera(
+  monto: number,
+  monedaGrupo: string | null | undefined,
+  monedaCartera: string | null | undefined,
+  tasa: number | null
+): MontoEnCartera {
+  const r = montoParaCartera(monto, monedaGrupo, monedaCartera, tasa)
+  if (!r.ok) throw new ErrorDeConversion(r.mensaje)
+  return r.valor
 }

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '../../../../lib/prisma'
 import { requireMiembro, nombresDeUsuarios } from '../../../../lib/grupos-server'
 import { prepararGasto, escribirPagosYDivisiones } from '../../../../lib/gastos-server'
-import { tasaVigente } from '../../../../lib/tipoCambio-server'
+import { tasaVigente, ErrorDeConversion } from '../../../../lib/tipoCambio-server'
 import { hoyUsuario } from '../../../../lib/fecha-server'
 
 // GET /api/grupos/[id]/gastos?mes=&anio=
@@ -86,7 +86,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // Una sola lectura de la tasa para todas las carteras que refleja el gasto.
   const tasa = await tasaVigente(auth.ctx.user.id)
 
-  const resultado = await prisma.$transaction(async (tx) => {
+  try {
+    const resultado = await prisma.$transaction(async (tx) => {
     const gasto = await tx.gastos_compartidos.create({
       data: {
         grupo_id: id,
@@ -115,7 +116,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     })
 
     return gasto
-  })
+    })
 
-  return NextResponse.json({ id: resultado.id })
+    return NextResponse.json({ id: resultado.id })
+  } catch (e) {
+    // Sin tasa no se puede reflejar el gasto en la cartera de cada quien: se
+    // deshace todo y se dice por qué, en vez de guardarlo en otra moneda.
+    if (e instanceof ErrorDeConversion) {
+      return NextResponse.json({ error: e.message }, { status: 400 })
+    }
+    throw e
+  }
 }

@@ -62,6 +62,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const walletCobro = cartera?.id ?? null
   const tasa = await tasaVigente(auth.userId)
 
+  // Se comprueba antes de tocar nada: si el reparto va en una moneda distinta a
+  // la de la cartera y no hay tasa, el cobro no se registra a medias ni deja
+  // dólares dentro de una cartera en lempiras.
+  let enCartera = null
+  if (pagado && cartera && participante.monto_asignado > 0) {
+    const conversion = montoParaCartera(
+      participante.monto_asignado, reparto.moneda, cartera.moneda, tasa
+    )
+    if (!conversion.ok) return NextResponse.json({ error: conversion.mensaje }, { status: 400 })
+    enCartera = conversion.valor
+  }
+
   await prisma.$transaction(async (tx) => {
     // Revierte cualquier ingreso previo de este participante para no duplicar.
     if (participante.transaction_id) {
@@ -69,11 +81,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
 
     let txId: string | null = null
-    if (pagado && cartera && participante.monto_asignado > 0) {
+    if (enCartera && cartera) {
       // El cobro entra en la moneda de la cartera donde se recibió.
-      const enCartera = montoParaCartera(
-        participante.monto_asignado, reparto.moneda, cartera.moneda, tasa
-      )
       const ingreso = await tx.transactions.create({
         data: {
           user_id: auth.userId,

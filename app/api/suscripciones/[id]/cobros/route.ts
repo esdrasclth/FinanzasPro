@@ -73,7 +73,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   const tasa = await tasaVigente(session.id)
-  const enCartera = montoParaCartera(monto, sub.moneda, wallet.moneda, tasa)
+  const conversion = montoParaCartera(monto, sub.moneda, wallet.moneda, tasa)
+  if (!conversion.ok) return error(conversion.mensaje, 400)
+  const enCartera = conversion.valor
 
   // Siguiente ciclo a partir del que se acaba de cobrar.
   const siguiente = avanzarDesde(fechaStr, sub.frecuencia)

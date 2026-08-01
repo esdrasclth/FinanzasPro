@@ -58,9 +58,12 @@ export async function POST(req: Request) {
   }
   const walletId = wallet?.id ?? null
 
-  const enCartera = wallet
-    ? montoParaCartera(d.montoTotal, d.moneda, wallet.moneda, await tasaVigente(user.id))
-    : null
+  let enCartera = null
+  if (wallet) {
+    const conversion = montoParaCartera(d.montoTotal, d.moneda, wallet.moneda, await tasaVigente(user.id))
+    if (!conversion.ok) return NextResponse.json({ error: conversion.mensaje }, { status: 400 })
+    enCartera = conversion.valor
+  }
 
   const reparto = await prisma.$transaction(async (tx) => {
     // Gasto real: sale el monto total de la cartera elegida (solo si pagaste tú).

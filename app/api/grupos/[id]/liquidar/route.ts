@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '../../../../lib/prisma'
 import { requireMiembro, nombresDeUsuarios } from '../../../../lib/grupos-server'
 import { round2 } from '../../../../lib/dinero'
-import { tasaVigente, montoParaCartera } from '../../../../lib/tipoCambio-server'
+import { tasaVigente, exigirMontoParaCartera, ErrorDeConversion } from '../../../../lib/tipoCambio-server'
 import { hoyUsuario } from '../../../../lib/fecha-server'
 
 const toDate = (s: string) => new Date(`${String(s).slice(0, 10)}T00:00:00.000Z`)
@@ -55,7 +55,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return tx.wallets.findFirst({ where: { user_id: userId, activo: true }, orderBy: { created_at: 'asc' } })
   }
 
-  const liq = await prisma.$transaction(async (tx) => {
+  try {
+    const liq = await prisma.$transaction(async (tx) => {
     const data: any = {
       grupo_id: id,
       de_user_id: deUser,
@@ -69,7 +70,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // grupo; en la cartera se refleja en la moneda de la cartera.
     const walletDe = await elegirWallet(tx, deUser)
     if (walletDe) {
-      const enCartera = montoParaCartera(monto, grupo.moneda, walletDe.moneda, tasa)
+      const enCartera = exigirMontoParaCartera(monto, grupo.moneda, walletDe.moneda, tasa)
       const t = await tx.transactions.create({
         data: {
           user_id: deUser,
@@ -90,7 +91,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // El que recibe: ingreso en su cartera.
     const walletA = await elegirWallet(tx, aUser)
     if (walletA) {
-      const enCartera = montoParaCartera(monto, grupo.moneda, walletA.moneda, tasa)
+      const enCartera = exigirMontoParaCartera(monto, grupo.moneda, walletA.moneda, tasa)
       const t = await tx.transactions.create({
         data: {
           user_id: aUser,
@@ -109,7 +110,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     return tx.liquidaciones.create({ data })
-  })
+    })
 
-  return NextResponse.json({ id: liq.id })
+    return NextResponse.json({ id: liq.id })
+  } catch (e) {
+    if (e instanceof ErrorDeConversion) {
+      return NextResponse.json({ error: e.message }, { status: 400 })
+    }
+    throw e
+  }
 }
