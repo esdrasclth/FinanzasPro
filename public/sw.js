@@ -1,6 +1,13 @@
-const CACHE = 'caudal-v1'
+// v2: la v1 guardaba en caché, para siempre, los payloads de navegación del
+// router de Next. Al subir la versión, el handler de `activate` borra la caché
+// vieja y con ella las respuestas ya rancias.
+const CACHE = 'caudal-v2'
 const OFFLINE_URL = '/offline'
 const PRECACHE = ['/offline', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png']
+
+// Lo único que se sirve desde caché sin preguntar: assets con hash en el nombre
+// o que no cambian. Todo lo demás va a la red.
+const ESTATICO = /^\/(?:_next\/static|icons)\/|\.(?:js|css|woff2?|png|jpe?g|svg|ico|webp)$/
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -26,6 +33,12 @@ self.addEventListener('fetch', (event) => {
   // Don't cache API/auth calls — always hit network.
   if (url.pathname.startsWith('/api/')) return
 
+  // Payloads RSC: es lo que pide el router de Next al navegar dentro de la app
+  // (router.push). No llegan con mode 'navigate', así que caían en la rama de
+  // abajo y se servían desde caché para siempre: los saldos y los movimientos
+  // se quedaban congelados hasta recargar con F5.
+  if (request.headers.get('RSC') === '1' || url.searchParams.has('_rsc')) return
+
   // Navigations: network-first, fall back to cache, then offline page.
   if (request.mode === 'navigate') {
     event.respondWith(
@@ -43,6 +56,8 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Static assets: cache-first, then network.
+  if (!ESTATICO.test(url.pathname)) return
+
   event.respondWith(
     caches.match(request).then(
       (cached) =>
