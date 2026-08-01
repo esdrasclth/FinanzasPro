@@ -24,14 +24,17 @@ export interface PreparedGasto {
 }
 
 // Valida el cuerpo de un gasto contra los miembros del grupo y devuelve los datos listos.
+// `hoy` ('YYYY-MM-DD') lo pone la ruta con la fecha del usuario: aquí no se
+// puede leer la zona horaria y el reloj del servidor daría otro día.
 export function prepararGasto(
   body: any,
-  miembrosSet: Set<string>
+  miembrosSet: Set<string>,
+  hoy: string
 ): { ok: true; data: PreparedGasto } | { ok: false; status: number; error: string } {
   const descripcion = (body?.descripcion || '').trim()
   const montoTotal = round2(Number(body?.monto_total))
   const metodo = body?.metodo_division === 'porcentaje' || body?.metodo_division === 'partes' ? body.metodo_division : 'exacto'
-  const fechaStr = body?.fecha || new Date().toISOString().slice(0, 10)
+  const fechaStr = body?.fecha || hoy
   const pagos: PagoInput[] = Array.isArray(body?.pagos) ? body.pagos : []
   const divisiones: DivisionInput[] = Array.isArray(body?.divisiones) ? body.divisiones : []
 

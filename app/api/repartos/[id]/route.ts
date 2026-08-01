@@ -3,6 +3,7 @@ import { prisma } from '../../../lib/prisma'
 import { round2 } from '../../../lib/dinero'
 import { prepararReparto, requireReparto, walletDeUsuario } from '../../../lib/repartos-server'
 import { tasaVigente, montoParaCartera } from '../../../lib/tipoCambio-server'
+import { hoyUsuarioUTC } from '../../../lib/fecha-server'
 
 // GET /api/repartos/[id] -> detalle con participantes
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -91,6 +92,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const monedaDeCartera = new Map(carterasCobro.map(w => [w.id, w.moneda]))
   const tasa = await tasaVigente(auth.userId)
   const enCarteraGasto = wallet ? montoParaCartera(d.montoTotal, d.moneda, wallet.moneda, tasa) : null
+  const hoy = await hoyUsuarioUTC()
 
   await prisma.$transaction(async (tx) => {
     // Rehacer el gasto: borra las transacciones viejas y crea una nueva por el nuevo total.
@@ -151,7 +153,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             tasa_cambio: enCartera.tasa_cambio,
             tipo: 'ingreso',
             descripcion: `Cobro reparto: ${d.descripcion} — ${p.nombre}`,
-            fecha: cobro.fecha_pago ?? new Date(),
+            fecha: cobro.fecha_pago ?? hoy,
           },
         })
         txId = ingreso.id

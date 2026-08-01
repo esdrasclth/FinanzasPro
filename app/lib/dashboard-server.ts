@@ -1,5 +1,7 @@
 import { prisma } from './prisma'
 import { tasaVigente } from './tipoCambio-server'
+import { aFechaUTC, finMesDesplazado, inicioMesDesplazado } from './fecha'
+import { hoyUsuario } from './fecha-server'
 
 // Datos del primer render del dashboard, resueltos en el servidor.
 //
@@ -8,21 +10,12 @@ import { tasaVigente } from './tipoCambio-server'
 // transacciones del mes -> transacciones del mes anterior. Siete viajes en
 // serie antes de ver un dato.
 
-const rangoMes = (offset: number) => {
-  const base = new Date()
-  base.setDate(1)
-  base.setMonth(base.getMonth() + offset)
-  const anio = base.getFullYear()
-  const mes = base.getMonth()
-  const dosDig = (n: number) => String(n).padStart(2, '0')
-  const ultimo = new Date(anio, mes + 1, 0).getDate()
-  return {
-    inicio: `${anio}-${dosDig(mes + 1)}-01`,
-    fin: `${anio}-${dosDig(mes + 1)}-${dosDig(ultimo)}`,
-  }
-}
-
-const aFecha = (s: string) => new Date(`${s}T00:00:00.000Z`)
+// `hoy` es la fecha del usuario ('YYYY-MM-DD'), no la del reloj del servidor:
+// en UTC el mes cambia horas antes y el dashboard saltaba de mes.
+const rangoMes = (hoy: string, offset: number) => ({
+  inicio: inicioMesDesplazado(hoy, offset),
+  fin: finMesDesplazado(hoy, offset),
+})
 
 // Se devuelven los campos con la misma forma que produce el cliente de datos
 // (fecha como 'YYYY-MM-DD' y la categoría bajo `categories`) para que el
@@ -40,14 +33,15 @@ function serializar(t: any) {
 }
 
 export async function datosDashboard(userId: string, offset = 0) {
-  const actual = rangoMes(offset)
-  const previo = rangoMes(offset - 1)
+  const hoy = await hoyUsuario()
+  const actual = rangoMes(hoy, offset)
+  const previo = rangoMes(hoy, offset - 1)
 
   const [transacciones, previas, tasa] = await Promise.all([
     prisma.transactions.findMany({
       where: {
         user_id: userId,
-        fecha: { gte: aFecha(actual.inicio), lte: aFecha(actual.fin) },
+        fecha: { gte: aFechaUTC(actual.inicio), lte: aFechaUTC(actual.fin) },
       },
       include: { category: { select: { nombre: true, icono: true, color: true } } },
       orderBy: { fecha: 'desc' },
@@ -55,7 +49,7 @@ export async function datosDashboard(userId: string, offset = 0) {
     prisma.transactions.findMany({
       where: {
         user_id: userId,
-        fecha: { gte: aFecha(previo.inicio), lte: aFecha(previo.fin) },
+        fecha: { gte: aFechaUTC(previo.inicio), lte: aFechaUTC(previo.fin) },
       },
       select: {
         monto: true, moneda: true, tasa_cambio: true, tipo: true,

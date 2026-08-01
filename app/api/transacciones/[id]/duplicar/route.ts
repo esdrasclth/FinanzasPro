@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '../../../../lib/prisma'
 import { getSessionUser } from '../../../../lib/auth-server'
 import { serializarMovimiento } from '../../../../lib/transacciones-mes-server'
+import { hoyUsuario } from '../../../../lib/fecha-server'
 
 // POST /api/transacciones/[id]/duplicar   { fecha? }
 //
@@ -41,7 +42,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   const body = await req.json().catch(() => null)
-  const fecha = toDate(body?.fecha || new Date().toISOString().slice(0, 10))
+  const fecha = toDate(body?.fecha || (await hoyUsuario()))
 
   const copia = await prisma.transactions.create({
     data: {

@@ -1,10 +1,9 @@
 import { redirect } from 'next/navigation'
 import { getSessionUser } from '../lib/auth-server'
 import { prisma } from '../lib/prisma'
+import { aFechaUTC, finMesDesplazado, inicioMesDesplazado } from '../lib/fecha'
+import { hoyUsuario } from '../lib/fecha-server'
 import ExportarCliente from './ExportarCliente'
-
-const dosDig = (n: number) => String(n).padStart(2, '0')
-const aFecha = (s: string) => new Date(`${s}T00:00:00.000Z`)
 
 // Server Component: el mes en curso y las categorías llegan con el HTML.
 export default async function ExportarPage() {
@@ -14,15 +13,17 @@ export default async function ExportarPage() {
   const perfil = await prisma.profiles.findUnique({ where: { id: session.id } })
   if (!perfil || !perfil.onboarding_completado) redirect('/onboarding')
 
-  const hoy = new Date()
-  const mes = `${hoy.getFullYear()}-${dosDig(hoy.getMonth() + 1)}`
-  const ultimo = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).getDate()
+  const hoy = await hoyUsuario()
+  const mes = hoy.slice(0, 7)
 
   const [filas, categorias] = await Promise.all([
     prisma.transactions.findMany({
       where: {
         user_id: session.id,
-        fecha: { gte: aFecha(`${mes}-01`), lte: aFecha(`${mes}-${dosDig(ultimo)}`) },
+        fecha: {
+          gte: aFechaUTC(inicioMesDesplazado(hoy)),
+          lte: aFechaUTC(finMesDesplazado(hoy)),
+        },
       },
       include: {
         category: { select: { nombre: true } },

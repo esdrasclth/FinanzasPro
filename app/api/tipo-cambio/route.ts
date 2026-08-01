@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '../../lib/prisma'
 import { getSessionUser } from '../../lib/auth-server'
+import { ZONA_POR_DEFECTO, aFechaUTC, diasAntes, fechaEnZona } from '../../lib/fecha'
+import { hoyUsuario, hoyUsuarioUTC } from '../../lib/fecha-server'
 
 // Tipo de cambio del Banco Central de Honduras.
 // Indicador 620 (EC-TCN-01-2): "Tipo de Cambio Nominal - Venta", HNL por 1 USD.
@@ -13,9 +15,10 @@ const INDICADOR_VENTA = 620
 const ORIGEN = 'USD'
 const DESTINO = 'HNL'
 
-const hoyISO = () => new Date().toISOString().slice(0, 10)
-const diasAtrasISO = (n: number) =>
-  new Date(Date.now() - n * 86400000).toISOString().slice(0, 10)
+// La cifra del BCH es global y la publica un banco hondureño: su "hoy" es el de
+// Honduras, no el del reloj del servidor (UTC) ni el del usuario que consulta.
+// El override manual sí va con la fecha del usuario, que es quien lo fija.
+const hoyBCH = () => fechaEnZona(ZONA_POR_DEFECTO)
 const spreadVenta = () => Number(process.env.BCH_SPREAD_VENTA || '0') || 0
 
 interface RateRow {
@@ -47,16 +50,20 @@ function responder(row: RateRow, stale: boolean) {
 // La tasa manual es de cada usuario; la del BCH es global (es la cifra que
 // publica el banco central). Por eso se buscan por separado: antes vivían
 // mezcladas y la manual de un usuario se le aplicaba a todos.
-async function cacheHoy(userId: string): Promise<RateRow | null> {
-  const fecha = new Date(`${hoyISO()}T00:00:00.000Z`)
-
+async function cacheHoy(userId: string, hoyDelUsuario: string): Promise<RateRow | null> {
   const manual = await prisma.exchange_rates.findFirst({
-    where: { moneda_origen: ORIGEN, moneda_destino: DESTINO, fecha, fuente: 'manual', user_id: userId },
+    where: {
+      moneda_origen: ORIGEN, moneda_destino: DESTINO,
+      fecha: aFechaUTC(hoyDelUsuario), fuente: 'manual', user_id: userId,
+    },
   })
   if (manual) return manual
 
   return prisma.exchange_rates.findFirst({
-    where: { moneda_origen: ORIGEN, moneda_destino: DESTINO, fecha, fuente: 'BCH', user_id: null },
+    where: {
+      moneda_origen: ORIGEN, moneda_destino: DESTINO,
+      fecha: aFechaUTC(hoyBCH()), fuente: 'BCH', user_id: null,
+    },
   })
 }
 
@@ -79,7 +86,7 @@ async function consultarBCH(): Promise<RateRow | null> {
     const url =
       `${BCH_BASE}/indicadores/${INDICADOR_VENTA}/cifras` +
       `?clave=${encodeURIComponent(key)}` +
-      `&fechainicio=${diasAtrasISO(7)}&fechafinal=${hoyISO()}`
+      `&fechainicio=${diasAntes(hoyBCH(), 7)}&fechafinal=${hoyBCH()}`
     const res = await fetch(url, {
       cache: 'no-store',
       signal: AbortSignal.timeout(8000),
@@ -98,7 +105,7 @@ async function consultarBCH(): Promise<RateRow | null> {
     // Guardar en caché con la fecha de hoy (venta vigente). La unicidad de la
     // fila global vive en un índice parcial, que upsert() no puede usar; si dos
     // peticiones compiten, una choca y se ignora porque el valor es el mismo.
-    const fecha = new Date(`${hoyISO()}T00:00:00.000Z`)
+    const fecha = aFechaUTC(hoyBCH())
     try {
       const existente = await prisma.exchange_rates.findFirst({
         where: { moneda_origen: ORIGEN, moneda_destino: DESTINO, fecha, fuente: 'BCH', user_id: null },
@@ -133,7 +140,7 @@ export async function GET() {
     return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
   }
 
-  const enCache = await cacheHoy(session.id)
+  const enCache = await cacheHoy(session.id, await hoyUsuario())
   if (enCache) return responder(enCache, false)
 
   const bch = await consultarBCH()
@@ -169,7 +176,7 @@ export async function POST(req: Request) {
 
   // El override manual queda a nombre de quien lo fija: ya no se le impone a
   // los demás usuarios de la instancia.
-  const fecha = new Date(`${hoyISO()}T00:00:00.000Z`)
+  const fecha = await hoyUsuarioUTC()
   const existente = await prisma.exchange_rates.findFirst({
     where: {
       moneda_origen: ORIGEN,

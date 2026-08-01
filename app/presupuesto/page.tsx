@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getSessionUser } from '../lib/auth-server'
 import { prisma } from '../lib/prisma'
 import { datosPresupuesto } from '../lib/presupuesto-server'
+import { hoyUsuarioPartes } from '../lib/fecha-server'
 import PresupuestoCliente from './PresupuestoCliente'
 
 // Server Component: presupuestos con lo gastado ya normalizado, gasto del mes
@@ -14,11 +15,11 @@ export default async function PresupuestoPage() {
   const perfil = await prisma.profiles.findUnique({ where: { id: session.id } })
   if (!perfil || !perfil.onboarding_completado) redirect('/onboarding')
 
-  const hoy = new Date()
+  const { anio, mes } = await hoyUsuarioPartes()
   const { presupuestos, gastoPrev, categorias, metas } = await datosPresupuesto(
     session.id,
-    hoy.getMonth() + 1,
-    hoy.getFullYear(),
+    mes,
+    anio,
     true
   )
 

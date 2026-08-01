@@ -3,6 +3,7 @@ import { prisma } from '../../../../../lib/prisma'
 import { requireMiembro } from '../../../../../lib/grupos-server'
 import { prepararGasto, escribirPagosYDivisiones, borrarTransaccionesDeGasto } from '../../../../../lib/gastos-server'
 import { tasaVigente } from '../../../../../lib/tipoCambio-server'
+import { hoyUsuario } from '../../../../../lib/fecha-server'
 
 type Params = { params: Promise<{ id: string; gastoId: string }> }
 
@@ -37,7 +38,7 @@ export async function PUT(req: Request, { params }: Params) {
   })
   const setMiembros = new Set(miembros.map(m => m.user_id))
 
-  const prep = prepararGasto(body, setMiembros)
+  const prep = prepararGasto(body, setMiembros, await hoyUsuario())
   if (!prep.ok) return NextResponse.json({ error: prep.error }, { status: prep.status })
   const d = prep.data
 

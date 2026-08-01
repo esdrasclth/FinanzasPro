@@ -3,6 +3,7 @@ import { prisma } from '../../lib/prisma'
 import { getSessionUser } from '../../lib/auth-server'
 import { carterasConSaldo, carterasArchivadas } from '../../lib/carteras-server'
 import { tasaVigente } from '../../lib/tipoCambio-server'
+import { hoyUsuarioUTC } from '../../lib/fecha-server'
 
 // GET /api/carteras
 // Carteras activas con su saldo ya calculado, más las archivadas.
@@ -149,7 +150,7 @@ export async function POST(req: Request) {
   if (usd !== 0 && r.datos!.tipo === 'credito') aperturas.push({ monto: usd, moneda: 'USD' })
 
   const tasa = await tasaVigente(session.id)
-  const hoy = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`)
+  const hoy = await hoyUsuarioUTC()
 
   const cartera = await prisma.$transaction(async (tx) => {
     const ultima = await tx.wallets.aggregate({

@@ -4,6 +4,7 @@ import { getSessionUser } from '../../lib/auth-server'
 import { tasaVigente } from '../../lib/tipoCambio-server'
 import { serializarMovimiento } from '../../lib/transacciones-mes-server'
 import { round2 } from '../../lib/dinero'
+import { hoyUsuario } from '../../lib/fecha-server'
 
 // POST /api/transacciones  -> crea un movimiento simple (gasto o ingreso)
 // PUT  /api/transacciones  -> { id, ... } edita uno simple
@@ -83,7 +84,7 @@ export async function POST(req: Request) {
       tasa_cambio: tasa,
       tipo,
       descripcion: body?.descripcion || null,
-      fecha: toDate(body?.fecha || new Date().toISOString().slice(0, 10)),
+      fecha: toDate(body?.fecha || (await hoyUsuario())),
     },
     include: {
       category: { select: { nombre: true, icono: true, color: true } },

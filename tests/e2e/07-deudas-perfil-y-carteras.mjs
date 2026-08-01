@@ -17,6 +17,11 @@ async function req(path, opts = {}) {
   try { j = JSON.parse(txt) } catch {}
   return { st: res.status, txt, j }
 }
+// La fecha local, no la de UTC: en la noche del último día del mes toISOString()
+// ya devuelve el mes siguiente y las aserciones por mes fallan sin motivo.
+const fechaLocal = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
 const db = (t, op, e = {}) => req('/api/db', { method: 'POST', body: JSON.stringify({ table: t, op, ...e }) })
 
 await req('/api/auth/register', { method: 'POST', body: JSON.stringify({ email: `m2-${Date.now()}@t.local`, password: 'prueba123', nombre: 'M2' }) })
@@ -24,7 +29,7 @@ await db('profiles', 'upsert', { payload: { nombre: 'M2', moneda_default: 'HNL',
 
 const w = (await db('wallets', 'insert', { single: true, payload: { nombre: 'Banco', tipo: 'banco', moneda: 'HNL', saldo_inicial: 0, activo: true } })).j.data
 const w2 = (await db('wallets', 'insert', { single: true, payload: { nombre: 'Vacia', tipo: 'efectivo', moneda: 'HNL', saldo_inicial: 0, activo: true } })).j.data
-const hoyISO = new Date().toISOString().slice(0, 10)
+const hoyISO = fechaLocal()
 
 // ---------- Perfil ----------
 await db('transactions', 'insert', { payload: { wallet_id: w.id, monto: 100, tipo: 'gasto', moneda: 'HNL', fecha: hoyISO, descripcion: 'x' } })

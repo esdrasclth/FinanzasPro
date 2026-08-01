@@ -5,6 +5,7 @@ import { getSessionUser } from '../../lib/auth-server'
 import { tasaVigente } from '../../lib/tipoCambio-server'
 import { convertir } from '../../lib/tipoCambio'
 import { round2 } from '../../lib/dinero'
+import { hoyUsuario } from '../../lib/fecha-server'
 
 // POST /api/transferencias
 // { wallet_id, wallet_destino_id, monto, moneda_destino?, tasa_cambio?, descripcion?, fecha? }
@@ -57,7 +58,7 @@ export async function POST(req: Request) {
   const destinoId = body?.wallet_destino_id
   const monto = round2(Number(body?.monto))
   const descripcion = (body?.descripcion || '').trim()
-  const fecha = toDate(body?.fecha || new Date().toISOString().slice(0, 10))
+  const fecha = toDate(body?.fecha || (await hoyUsuario()))
 
   if (!walletId || !destinoId) return error('Selecciona la cartera de origen y la de destino', 400)
   if (walletId === destinoId) return error('El origen y el destino deben ser carteras distintas', 400)

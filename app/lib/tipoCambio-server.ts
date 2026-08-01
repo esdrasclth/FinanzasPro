@@ -1,6 +1,7 @@
 import { prisma } from './prisma'
 import { convertir } from './tipoCambio'
 import { round2 } from './dinero'
+import { hoyUsuarioUTC } from './fecha-server'
 
 // Tasa HNL por 1 USD vigente, leída desde el servidor.
 //
@@ -19,7 +20,7 @@ const DESTINO = 'HNL'
 // `userId` permite respetar el override manual de ese usuario; sin él solo se
 // consideran las tasas globales del BCH.
 export async function tasaVigente(userId?: string | null): Promise<number | null> {
-  const hoy = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`)
+  const hoy = await hoyUsuarioUTC()
 
   // La tasa manual propia del día tiene prioridad sobre la del BCH.
   if (userId) {

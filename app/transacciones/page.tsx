@@ -2,9 +2,8 @@ import { redirect } from 'next/navigation'
 import { getSessionUser } from '../lib/auth-server'
 import { prisma } from '../lib/prisma'
 import { datosMesTransacciones } from '../lib/transacciones-mes-server'
+import { mesUsuario } from '../lib/fecha-server'
 import TransaccionesCliente from './TransaccionesCliente'
-
-const dosDig = (n: number) => String(n).padStart(2, '0')
 
 // Server Component: los movimientos del mes, las categorías, las carteras y la
 // tasa se resuelven en paralelo antes de mandar el HTML.
@@ -15,8 +14,7 @@ export default async function TransaccionesPage() {
   const perfil = await prisma.profiles.findUnique({ where: { id: session.id } })
   if (!perfil || !perfil.onboarding_completado) redirect('/onboarding')
 
-  const hoy = new Date()
-  const mes = `${hoy.getFullYear()}-${dosDig(hoy.getMonth() + 1)}`
+  const mes = await mesUsuario()
   const { transacciones, categorias, carteras, tasa } = await datosMesTransacciones(session.id, mes)
 
   return (

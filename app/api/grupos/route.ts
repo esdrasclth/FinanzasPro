@@ -3,6 +3,7 @@ import { prisma } from '../../lib/prisma'
 import { getSessionUser } from '../../lib/auth-server'
 import { generarCodigoUnico, nombresDeUsuarios } from '../../lib/grupos-server'
 import { round2 } from '../../lib/dinero'
+import { hoyUsuarioPartes } from '../../lib/fecha-server'
 
 // GET /api/grupos  -> grupos donde el usuario es miembro, con saldo y total del mes
 export async function GET() {
@@ -31,9 +32,7 @@ export async function GET() {
     prisma.liquidaciones.findMany({ where: { grupo_id: { in: ids } } }),
   ])
 
-  const now = new Date()
-  const mesActual = now.getMonth() + 1
-  const anioActual = now.getFullYear()
+  const { anio: anioActual, mes: mesActual } = await hoyUsuarioPartes()
   const net: Record<string, number> = {}
   const totalMes: Record<string, number> = {}
   const ultima: Record<string, { descripcion: string; fecha: Date }> = {}

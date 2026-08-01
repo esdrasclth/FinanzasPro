@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '../../../../../lib/prisma'
 import { requireReparto, walletDeUsuario } from '../../../../../lib/repartos-server'
 import { tasaVigente, montoParaCartera } from '../../../../../lib/tipoCambio-server'
+import { hoyUsuarioUTC } from '../../../../../lib/fecha-server'
 
 // PATCH /api/repartos/[id]/participantes/[pid]  { pagado: boolean, wallet_id?: string }
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string; pid: string }> }) {
@@ -33,6 +34,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const mueveMiDinero = pagoAjeno ? participante.es_yo : !participante.es_yo
   const tipoMovimiento = pagoAjeno ? 'gasto' : 'ingreso'
 
+  const hoy = await hoyUsuarioUTC()
+
   if (!mueveMiDinero) {
     await prisma.$transaction(async (tx) => {
       if (participante.transaction_id) {
@@ -40,7 +43,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       }
       await tx.reparto_participantes.update({
         where: { id: pid },
-        data: { pagado, fecha_pago: pagado ? new Date() : null, wallet_id: null, transaction_id: null },
+        data: { pagado, fecha_pago: pagado ? hoy : null, wallet_id: null, transaction_id: null },
       })
     })
     return NextResponse.json({ ok: true })
@@ -83,7 +86,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           descripcion: pagoAjeno
             ? `Mi parte del reparto: ${reparto.descripcion} — pagué a ${reparto.pagado_por}`
             : `Cobro reparto: ${reparto.descripcion} — ${participante.nombre}`,
-          fecha: new Date(),
+          fecha: hoy,
         },
       })
       txId = ingreso.id
@@ -93,7 +96,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       where: { id: pid },
       data: {
         pagado,
-        fecha_pago: pagado ? new Date() : null,
+        fecha_pago: pagado ? hoy : null,
         wallet_id: pagado ? walletCobro : null,
         transaction_id: txId,
       },

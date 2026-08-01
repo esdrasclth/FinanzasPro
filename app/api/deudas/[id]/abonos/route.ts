@@ -3,6 +3,7 @@ import { prisma } from '../../../../lib/prisma'
 import { getSessionUser } from '../../../../lib/auth-server'
 import { tasaVigente } from '../../../../lib/tipoCambio-server'
 import { round2 } from '../../../../lib/dinero'
+import { hoyUsuario } from '../../../../lib/fecha-server'
 
 // POST /api/deudas/[id]/abonos
 // { monto, wallet_id, fecha?, nota?, category_id?, moneda?, descripcion? }
@@ -38,7 +39,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const nota = (body?.nota || '').trim() || null
   const descripcion = (body?.descripcion || '').trim()
   const categoryId = body?.category_id || null
-  const fecha = toDate(body?.fecha || new Date().toISOString().slice(0, 10))
+  const fecha = toDate(body?.fecha || (await hoyUsuario()))
 
   if (!(monto > 0)) return error('El monto debe ser mayor a 0', 400)
 

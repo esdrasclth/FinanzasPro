@@ -7,6 +7,7 @@ import FormReparto from '../components/FormReparto'
 import Notificaciones from '../components/Notificaciones'
 import { SkeletonCard } from '../components/Skeleton'
 import { formatoMoneda, simboloMoneda } from '../lib/dinero'
+import { diasAntes, fechaHoyLocal } from '../lib/fecha'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   Plus, Search, X, ChevronDown, Users, Receipt, Coins, HandCoins, KeyRound,
@@ -520,8 +521,8 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
   const totalPagado = repartos.reduce((s, r) => s + r.monto_pagado, 0)
   // Liquidación del periodo: es lo que se comparte con el grupo al cerrar la
   // quincena o la semana.
-  const hoyISO = new Date().toISOString().slice(0, 10)
-  const haceUnMes = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
+  const hoyISO = fechaHoyLocal()
+  const haceUnMes = diasAntes(hoyISO, 30)
   const [expAbierto, setExpAbierto] = useState(false)
   const [expDesde, setExpDesde] = useState(haceUnMes)
   const [expHasta, setExpHasta] = useState(hoyISO)
@@ -547,7 +548,7 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
 
   const atajoRango = (dias: number) => {
     setExpHasta(hoyISO)
-    setExpDesde(new Date(Date.now() - dias * 86400000).toISOString().slice(0, 10))
+    setExpDesde(diasAntes(hoyISO, dias))
   }
 
   const totalPendiente = Math.max(0, totalMonto - totalPagado)

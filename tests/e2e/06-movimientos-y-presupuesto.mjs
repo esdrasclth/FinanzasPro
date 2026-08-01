@@ -17,6 +17,11 @@ async function req(path, opts = {}) {
   try { j = JSON.parse(txt) } catch {}
   return { st: res.status, txt, j }
 }
+// La fecha local, no la de UTC: en la noche del último día del mes toISOString()
+// ya devuelve el mes siguiente y las aserciones por mes fallan sin motivo.
+const fechaLocal = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
 const db = (t, op, e = {}) => req('/api/db', { method: 'POST', body: JSON.stringify({ table: t, op, ...e }) })
 
 const email = `mig-${Date.now()}@t.local`
@@ -29,7 +34,7 @@ const cat = (await db('categories', 'insert', { single: true, payload: { nombre:
 const hoy = new Date()
 const m = hoy.getMonth() + 1, a = hoy.getFullYear()
 const pm = m === 1 ? 12 : m - 1, pa = m === 1 ? a - 1 : a
-const hoyISO = hoy.toISOString().slice(0, 10)
+const hoyISO = fechaLocal(hoy)
 
 // Presupuesto SOLO en el mes anterior: el traspaso debe copiarlo al actual.
 await db('budgets', 'insert', { payload: { category_id: cat.id, monto_limite: 400, mes: pm, 'año': pa } })

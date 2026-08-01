@@ -5,6 +5,7 @@ import { getSessionUser } from '../../../../lib/auth-server'
 import { tasaVigente } from '../../../../lib/tipoCambio-server'
 import { convertir } from '../../../../lib/tipoCambio'
 import { round2 } from '../../../../lib/dinero'
+import { hoyUsuario } from '../../../../lib/fecha-server'
 
 // POST /api/metas/[id]/aportes
 // { monto, wallet_id, wallet_destino_id, fecha?, nota? }
@@ -32,7 +33,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const body = await req.json().catch(() => null)
   const monto = round2(Number(body?.monto))
   const nota = (body?.nota || '').trim() || null
-  const fecha = toDate(body?.fecha || new Date().toISOString().slice(0, 10))
+  const fecha = toDate(body?.fecha || (await hoyUsuario()))
 
   if (!(monto > 0)) return error('El monto debe ser mayor a 0', 400)
 

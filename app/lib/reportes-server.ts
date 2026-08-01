@@ -1,6 +1,8 @@
 import { prisma } from './prisma'
 import { tasaVigente } from './tipoCambio-server'
 import { soloMovimientosReales, montoNormalizado } from './finanzas'
+import { aFechaUTC, inicioMesDesplazado } from './fecha'
+import { hoyUsuario } from './fecha-server'
 
 // Datos de Reportes resueltos en el servidor.
 //
@@ -22,10 +24,7 @@ export async function datosReportes(
   const perfil = await prisma.profiles.findUnique({ where: { id: userId } })
   const moneda = perfil?.moneda_default || 'HNL'
 
-  const inicio = new Date()
-  inicio.setMonth(inicio.getMonth() - meses)
-  inicio.setDate(1)
-  const desde = new Date(`${inicio.toISOString().slice(0, 10)}T00:00:00.000Z`)
+  const desde = aFechaUTC(inicioMesDesplazado(await hoyUsuario(), -meses))
 
   const [filas, tasa] = await Promise.all([
     prisma.transactions.findMany({

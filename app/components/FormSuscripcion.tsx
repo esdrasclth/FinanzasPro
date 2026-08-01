@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, TrendingUp, TrendingDown } from 'lucide-react'
+import { fechaHoyLocal } from '../lib/fecha'
 
 interface Props {
   suscripcion?: any
@@ -14,12 +15,6 @@ const COLORES = [
   '#EC4899', '#10B981', '#6366F1', '#2c6e49',
 ]
 
-const hoyLocal = () => {
-  const d = new Date()
-  const off = d.getTimezoneOffset() * 60000
-  return new Date(d.getTime() - off).toISOString().split('T')[0]
-}
-
 export default function FormSuscripcion({ suscripcion, onClose, onSuccess }: Props) {
   const [categorias, setCategorias] = useState<any[]>([])
   const [nombre, setNombre] = useState(suscripcion?.nombre || '')
@@ -30,7 +25,7 @@ export default function FormSuscripcion({ suscripcion, onClose, onSuccess }: Pro
   const [frecuencia, setFrecuencia] = useState<'semanal' | 'mensual' | 'trimestral' | 'anual'>(
     suscripcion?.frecuencia || 'mensual'
   )
-  const [fechaInicio, setFechaInicio] = useState(suscripcion?.fecha_inicio || hoyLocal())
+  const [fechaInicio, setFechaInicio] = useState(suscripcion?.fecha_inicio || fechaHoyLocal())
   const [categoriaId, setCategoriaId] = useState(suscripcion?.category_id || '')
   const [color, setColor] = useState(suscripcion?.color || COLORES[7])
   const [notas, setNotas] = useState(suscripcion?.notas || '')

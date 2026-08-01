@@ -5,6 +5,8 @@ import { tasaVigente } from '../../../../lib/tipoCambio-server'
 import { montoParaCartera } from '../../../../lib/tipoCambio-server'
 import { calcularSuscripcion, avanzarDesde } from '../../../../lib/suscripciones'
 import { round2 } from '../../../../lib/dinero'
+import { aMediodiaLocal } from '../../../../lib/fecha'
+import { hoyUsuario } from '../../../../lib/fecha-server'
 
 // POST /api/suscripciones/[id]/cobros
 // { fecha?, wallet_id?, monto? }
@@ -37,14 +39,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const body = await req.json().catch(() => null)
 
   // Por defecto se cobra el ciclo que toca según el cálculo de la suscripción.
+  // El "hoy" del cálculo es el del usuario, no el del reloj del servidor.
+  const hoy = await hoyUsuario()
   const calc = calcularSuscripcion({
     monto: sub.monto,
     frecuencia: sub.frecuencia,
     estado: sub.estado,
     fecha_inicio: sub.fecha_inicio ? aISO(sub.fecha_inicio) : null,
     proximo_cobro: sub.proximo_cobro ? aISO(sub.proximo_cobro) : null,
-  })
-  const fechaStr = body?.fecha || calc.proximoCobro || new Date().toISOString().slice(0, 10)
+  }, aMediodiaLocal(hoy))
+  const fechaStr = body?.fecha || calc.proximoCobro || hoy
   const fecha = toDate(fechaStr)
 
   const monto = round2(Number(body?.monto ?? sub.monto))

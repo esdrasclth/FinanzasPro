@@ -4,6 +4,8 @@ import { getSessionUser } from '../../lib/auth-server'
 import { tasaVigente } from '../../lib/tipoCambio-server'
 import { porCategoria } from '../../lib/finanzas'
 import { simboloMoneda } from '../../lib/dinero'
+import { aFechaUTC, finMesDesplazado, inicioMesDesplazado, partesFecha, ultimoDiaMes } from '../../lib/fecha'
+import { hoyUsuario } from '../../lib/fecha-server'
 
 // Avisos de la campana, calculados en el servidor.
 //
@@ -20,8 +22,6 @@ export interface Aviso {
   href: string
 }
 
-const dosDig = (n: number) => String(n).padStart(2, '0')
-const aFecha = (s: string) => new Date(`${s}T00:00:00.000Z`)
 const fmt = (n: number, moneda: string) =>
   `${simboloMoneda(moneda)} ${n.toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
@@ -34,13 +34,11 @@ export async function GET() {
   const perfil = await prisma.profiles.findUnique({ where: { id: session.id } })
   const moneda = perfil?.moneda_default || 'HNL'
 
-  const hoy = new Date()
-  const anio = hoy.getFullYear()
-  const mes = hoy.getMonth() + 1
-  const periodoMes = `${anio}-${dosDig(mes)}`
-  const inicioMes = `${periodoMes}-01`
-  const finMes = `${periodoMes}-${dosDig(new Date(anio, mes, 0).getDate())}`
-  const hoyISO = `${anio}-${dosDig(mes)}-${dosDig(hoy.getDate())}`
+  const hoyISO = await hoyUsuario()
+  const { anio, mes } = partesFecha(hoyISO)
+  const periodoMes = hoyISO.slice(0, 7)
+  const inicioMes = inicioMesDesplazado(hoyISO)
+  const finMes = finMesDesplazado(hoyISO)
 
   const [budgets, descartes, deudas, tarjetas, tasa] = await Promise.all([
     prisma.budgets.findMany({
@@ -52,7 +50,7 @@ export async function GET() {
       select: { clave: true, periodo: true },
     }),
     prisma.debts.findMany({
-      where: { user_id: session.id, completada: false, fecha_limite: { lt: aFecha(hoyISO) } },
+      where: { user_id: session.id, completada: false, fecha_limite: { lt: aFechaUTC(hoyISO) } },
     }),
     prisma.wallets.findMany({
       where: { user_id: session.id, tipo: 'credito', activo: true },
@@ -66,7 +64,7 @@ export async function GET() {
     const transMes = await prisma.transactions.findMany({
       where: {
         user_id: session.id,
-        fecha: { gte: aFecha(inicioMes), lte: aFecha(finMes) },
+        fecha: { gte: aFechaUTC(inicioMes), lte: aFechaUTC(finMes) },
       },
       select: {
         monto: true, moneda: true, tasa_cambio: true, tipo: true,
@@ -126,8 +124,8 @@ export async function GET() {
     })
   }
 
-  const diaHoy = hoy.getDate()
-  const diasEnMes = new Date(anio, mes, 0).getDate()
+  const diaHoy = partesFecha(hoyISO).dia
+  const diasEnMes = ultimoDiaMes(anio, mes)
   for (const t of tarjetas) {
     if (!t.fecha_pago) continue
     let dias = t.fecha_pago - diaHoy

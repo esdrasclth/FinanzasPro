@@ -3,6 +3,7 @@ import { prisma } from '../../../../lib/prisma'
 import { requireMiembro, nombresDeUsuarios } from '../../../../lib/grupos-server'
 import { round2 } from '../../../../lib/dinero'
 import { tasaVigente, montoParaCartera } from '../../../../lib/tipoCambio-server'
+import { hoyUsuario } from '../../../../lib/fecha-server'
 
 const toDate = (s: string) => new Date(`${String(s).slice(0, 10)}T00:00:00.000Z`)
 
@@ -21,7 +22,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const deUser = body?.de_user_id
   const aUser = body?.a_user_id
   const monto = round2(Number(body?.monto))
-  const fechaStr = body?.fecha || new Date().toISOString().slice(0, 10)
+  const fechaStr = body?.fecha || (await hoyUsuario())
   const nota = (body?.nota || '').trim() || null
   const walletId = body?.wallet_id || null
 
