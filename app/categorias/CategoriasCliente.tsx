@@ -184,8 +184,9 @@ export default function CategoriasCliente({ usuario, categoriasIniciales }: Prop
                       <span className="text-xs text-ash">La usa la app</span>
                     ) : (
                       <>
-                        {/* Las predeterminadas no se editan ni se borran, pero sí
-                            admiten subcategorías propias. */}
+                        {/* Las predeterminadas son de todas las cuentas: se
+                            pueden editar (se crea una copia propia) y admiten
+                            subcategorías, pero no se borran. */}
                         {cat.es_sistema && (
                           <span className="text-xs text-ash">Predeterminada</span>
                         )}
@@ -200,27 +201,25 @@ export default function CategoriasCliente({ usuario, categoriasIniciales }: Prop
                         >
                           + Sub
                         </button>
+                        <button
+                          onClick={() => {
+                            setCategoriaEditar(cat)
+                            setCategoriaParent(null)
+                            setShowForm(true)
+                          }}
+                          className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1 text-ash hover:text-ink transition-colors"
+                          title={cat.es_sistema ? 'Editar (crea tu propia copia)' : 'Editar'}
+                        >
+                          <Pencil size={16} strokeWidth={2} />
+                        </button>
                         {!cat.es_sistema && (
-                          <>
-                            <button
-                              onClick={() => {
-                                setCategoriaEditar(cat)
-                                setCategoriaParent(null)
-                                setShowForm(true)
-                              }}
-                              className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1 text-ash hover:text-ink transition-colors"
-                              title="Editar"
-                            >
-                              <Pencil size={16} strokeWidth={2} />
-                            </button>
-                            <button
-                              onClick={() => handleEliminar(cat.id)}
-                              className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1 text-ash hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                              title="Eliminar"
-                            >
-                              <Trash2 size={16} strokeWidth={2} />
-                            </button>
-                          </>
+                          <button
+                            onClick={() => handleEliminar(cat.id)}
+                            className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1 text-ash hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                            title="Eliminar"
+                          >
+                            <Trash2 size={16} strokeWidth={2} />
+                          </button>
                         )}
                       </>
                     )}

@@ -47,9 +47,21 @@ export async function DELETE(req: Request) {
   if (!cat) {
     return NextResponse.json({ error: { message: 'Categoría no encontrada' } }, { status: 404 })
   }
-  if (cat.es_sistema || cat.protegida) {
+  if (cat.protegida) {
     return NextResponse.json(
-      { error: { message: 'Esta categoría es del sistema y no se puede eliminar' } },
+      { error: { message: 'Esta categoría se administra desde la pantalla de Deudas' } },
+      { status: 409 }
+    )
+  }
+  if (cat.es_sistema || !cat.user_id) {
+    return NextResponse.json(
+      {
+        error: {
+          message: esCategoriaInterna(cat.nombre)
+            ? `"${cat.nombre}" la usa la app para su propia mecánica y no se puede eliminar`
+            : `"${cat.nombre}" es una categoría predeterminada, compartida por todas las cuentas. Edítala para quedarte con una copia tuya; esa sí puedes borrarla.`,
+        },
+      },
       { status: 409 }
     )
   }
@@ -156,8 +168,15 @@ export async function PUT(req: Request) {
 
   const actual = await prisma.categories.findFirst({ where: { id, ...categoriasVisibles(s.id) } })
   if (!actual) return NextResponse.json({ error: { message: 'Categoría no encontrada' } }, { status: 404 })
-  if (actual.es_sistema) {
-    return NextResponse.json({ error: { message: 'Las categorías del sistema no se editan' } }, { status: 409 })
+  if (esCategoriaInterna(actual.nombre)) {
+    return NextResponse.json(
+      {
+        error: {
+          message: `"${actual.nombre}" la usa la app para registrar aperturas, traspasos y ajustes, y la reconoce por su nombre: cambiárselo descuadraría los saldos.`,
+        },
+      },
+      { status: 409 }
+    )
   }
   if (actual.protegida) {
     return NextResponse.json(
@@ -183,6 +202,32 @@ export async function PUT(req: Request) {
         { status: 409 }
       )
     }
+  }
+
+  // Editar una predeterminada no la cambia para todos: el usuario se lleva una
+  // copia propia y con ella lo suyo —movimientos, presupuestos, deudas,
+  // suscripciones y sus subcategorías—, que siguen siendo las mismas filas y
+  // conservan su historial. Lo de las demás cuentas se queda en la global.
+  //
+  // Los gastos de grupo se quedan fuera a propósito: son de un grupo, no de una
+  // persona, y moverlos metería la categoría privada de uno en el gasto de otro.
+  if (!actual.user_id) {
+    const copia = await prisma.$transaction(async (tx) => {
+      const nueva = await tx.categories.create({
+        data: { user_id: s.id, origen_id: actual.id, ...r.datos! },
+      })
+      const mio = { user_id: s.id, category_id: actual.id }
+      await tx.transactions.updateMany({ where: mio, data: { category_id: nueva.id } })
+      await tx.budgets.updateMany({ where: mio, data: { category_id: nueva.id } })
+      await tx.debts.updateMany({ where: mio, data: { category_id: nueva.id } })
+      await tx.subscriptions.updateMany({ where: mio, data: { category_id: nueva.id } })
+      await tx.categories.updateMany({
+        where: { user_id: s.id, parent_id: actual.id },
+        data: { parent_id: nueva.id },
+      })
+      return nueva
+    })
+    return NextResponse.json({ categoria: { ...copia, created_at: copia.created_at.toISOString() } })
   }
 
   const cat = await prisma.categories.update({ where: { id }, data: r.datos! })

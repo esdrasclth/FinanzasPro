@@ -77,15 +77,22 @@ model categories {
   es_sistema  Boolean  @default(false)
   protegida   Boolean  @default(false)
   archivada   Boolean  @default(false)
+  // Copia personal de una predeterminada: al editar "Supermercado" el usuario
+  // se lleva una propia y esta apunta a la global que sustituye, para que la
+  // original deje de aparecerle a él (y solo a él).
+  origen_id   String?  @db.Uuid
   created_at  DateTime @default(now())
 
   parent        categories?    @relation("subcategorias", fields: [parent_id], references: [id], onDelete: Cascade)
   subcategorias categories[]   @relation("subcategorias")
+  origen        categories?    @relation("copias", fields: [origen_id], references: [id], onDelete: SetNull)
+  copias        categories[]   @relation("copias")
   transactions  transactions[]
   budgets       budgets[]
   deudas        debts[]        @relation("deuda_categoria")
 
   @@index([user_id])
+  @@index([origen_id])
 }
 
 model transactions {

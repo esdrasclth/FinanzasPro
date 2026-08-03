@@ -44,6 +44,8 @@ export default function FormCategoria({
 
   const esEdicion = !!categoria
   const esSubcategoria = !!categoriaParent
+  // Global: sin dueño, compartida por todas las cuentas.
+  const esPredeterminada = esEdicion && !categoria.user_id
 
   const tipoBase = categoriaParent?.tipo || categoria?.tipo || tipo
 
@@ -107,6 +109,17 @@ export default function FormCategoria({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+
+          {/* Editar una predeterminada no la cambia para las demás cuentas:
+              el usuario se queda con una copia suya y sus datos dentro. */}
+          {esPredeterminada && (
+            <div className="bg-mist text-graphite text-xs rounded-input px-4 py-3">
+              <span className="font-medium">Categoría predeterminada.</span> La comparten
+              todas las cuentas, así que al guardar se creará <span className="font-medium">tu
+              propia copia</span> y se moverán a ella tus movimientos, presupuestos y
+              subcategorías. Nadie más verá el cambio.
+            </div>
+          )}
 
           {/* Preview */}
           <div className="flex items-center justify-center">

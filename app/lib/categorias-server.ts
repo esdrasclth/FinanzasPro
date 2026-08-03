@@ -11,8 +11,15 @@ import { prisma } from './prisma'
 // del sistema y, además, de otra cuenta.
 //
 // Regla: de sistema solo cuentan las globales. Lo demás, del propio usuario.
+//
+// Una global desaparece para quien ya tiene su copia personal (ver el editar de
+// /api/categorias): si no, vería dos "Supermercado", la suya con sus datos y la
+// original vacía.
 export const categoriasVisibles = (userId: string) => ({
-  OR: [{ user_id: userId }, { user_id: null, es_sistema: true }],
+  OR: [
+    { user_id: userId },
+    { user_id: null, es_sistema: true, copias: { none: { user_id: userId } } },
+  ],
 })
 
 // Las internas y su aspecto. La lista de nombres vive en finanzas.ts porque
