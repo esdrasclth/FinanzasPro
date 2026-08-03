@@ -37,12 +37,13 @@ export default function GraficaGastos({ transacciones, vista, onVistaChange }: P
     .filter(t => t.tipo === vista && !t.wallet_destino_id && t.categories?.nombre !== 'Saldo inicial')
     .reduce((acc: any[], t) => {
       const nombre = t.categories?.nombre || 'Sin categoría'
-      const icono = t.categories?.icono || '💸'
       const existing = acc.find(a => a.key === nombre)
       if (existing) {
         existing.valor += conv(t)
       } else {
-        acc.push({ key: nombre, nombre: `${icono} ${nombre}`, valor: conv(t) })
+        // La leyenda va sin ícono: los de categoría ya no son texto que se
+        // pueda meter dentro de una etiqueta de la gráfica.
+        acc.push({ key: nombre, nombre, valor: conv(t) })
       }
       return acc
     }, [])

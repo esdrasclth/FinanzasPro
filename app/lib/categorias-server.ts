@@ -25,9 +25,9 @@ export const categoriasVisibles = (userId: string) => ({
 // Las internas y su aspecto. La lista de nombres vive en finanzas.ts porque
 // también la necesitan las pantallas.
 const SISTEMA: Record<string, { icono: string; color: string }> = {
-  'Saldo inicial': { icono: '🏦', color: '#64748B' },
-  'Ajuste de saldo': { icono: '⚖️', color: '#64748B' },
-  Transferencia: { icono: '↔️', color: '#6366F1' },
+  'Saldo inicial': { icono: 'Landmark', color: '#64748B' },
+  'Ajuste de saldo': { icono: 'Scale', color: '#64748B' },
+  Transferencia: { icono: 'ArrowLeftRight', color: '#6366F1' },
 }
 
 // Id de una categoría de sistema por nombre y tipo. El seed y la migración las

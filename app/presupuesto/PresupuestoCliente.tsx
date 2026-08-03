@@ -10,6 +10,7 @@ import Notificaciones from '../components/Notificaciones'
 import { SkeletonList } from '../components/Skeleton'
 import { useMoneda } from '../lib/moneda-context'
 import { round2 } from '../lib/dinero'
+import IconoCategoria from '../components/IconoCategoria'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   Plus, ChevronLeft, ChevronRight, ChevronDown, Calendar, SlidersHorizontal,
@@ -935,10 +936,10 @@ function FilaPresupuesto({ p, est, esSub, esPadre = false, esIngreso, formatMont
       <div className={`flex items-center gap-3 sm:col-span-3 ${esSub ? 'sm:pl-6' : ''}`}>
         {esSub && <span className="flex-shrink-0 w-1 h-1 rounded-full bg-pebble" />}
         <span
-          className={`flex items-center justify-center flex-shrink-0 rounded-xl ${esSub ? 'w-8 h-8 text-base' : 'w-11 h-11 text-lg'}`}
-          style={{ backgroundColor: color + '15' }}
+          className={`flex items-center justify-center flex-shrink-0 rounded-xl ${esSub ? 'w-8 h-8' : 'w-11 h-11'}`}
+          style={{ backgroundColor: color + '15', color }}
         >
-          {p.categories?.icono || '📦'}
+          <IconoCategoria nombre={p.categories?.icono} size={esSub ? 16 : 20} />
         </span>
         <p className={`truncate ${esSub ? 'text-sm text-graphite' : 'text-sm font-medium text-ink'}`}>{p.categories?.nombre}</p>
       </div>
@@ -985,8 +986,8 @@ function FilaGrupoPadre({ g, esIngreso, formatMonto }: {
     <div className="grid items-center grid-cols-1 gap-3 px-6 py-4 border-b sm:grid-cols-12 border-fog bg-indigo-50/60">
       {/* Categoría */}
       <div className="flex items-center gap-3 sm:col-span-3">
-        <span className="flex items-center justify-center flex-shrink-0 rounded-xl w-11 h-11 text-lg" style={{ backgroundColor: color + '15' }}>
-          {g.info.icono || '📦'}
+        <span className="flex items-center justify-center flex-shrink-0 rounded-xl w-11 h-11" style={{ backgroundColor: color + '15', color }}>
+          <IconoCategoria nombre={g.info.icono} size={20} />
         </span>
         <div className="min-w-0">
           <p className="text-sm font-medium truncate text-ink">{g.info.nombre}</p>

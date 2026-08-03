@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { esCategoriaInterna } from '../lib/finanzas'
+import IconoCategoria, { ICONOS_CATEGORIA } from './IconoCategoria'
 
 interface Props {
   categoria?: any
@@ -14,13 +15,6 @@ interface Props {
   onSuccess: () => void
 }
 
-const ICONOS = [
-  '🍔','🍕','🍜','☕','🥤','🛒','🚗','🚌','✈️','🏠','💡','💧',
-  '📱','💻','🎮','🎬','🎵','📚','🏥','💊','👕','👟','💄','🐾',
-  '💰','💳','📈','🏦','💸','🎁','🏋️','⚽','🌴','🎓','🔧','🧹',
-  '🍺','🍷','🎂','🛍️','🚿','⚡','📦','🏷️','💼','🌐','🔑','🎯'
-]
-
 const COLORES = [
   '#0D9488','#3B82F6','#8B5CF6','#F59E0B','#EF4444',
   '#EC4899','#10B981','#F97316','#06B6D4','#84CC16',
@@ -31,7 +25,7 @@ export default function FormCategoria({
   categoria, categoriaParent, categorias = [], tipo, onClose, onSuccess
 }: Props) {
   const [nombre, setNombre] = useState(categoria?.nombre || '')
-  const [icono, setIcono] = useState(categoria?.icono || '📦')
+  const [icono, setIcono] = useState(categoria?.icono || 'Tag')
   const [color, setColor] = useState(categoria?.color || '#0D9488')
   // Al editar se parte del padre que ya tiene: antes el formulario mandaba
   // siempre parent_id null y cambiarle el nombre a una subcategoría la sacaba
@@ -124,10 +118,10 @@ export default function FormCategoria({
           {/* Preview */}
           <div className="flex items-center justify-center">
             <div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl"
-              style={{ backgroundColor: color + '30', border: `2px solid ${color}50` }}
+              className="w-16 h-16 rounded-2xl flex items-center justify-center"
+              style={{ backgroundColor: color + '30', border: `2px solid ${color}50`, color }}
             >
-              {icono}
+              <IconoCategoria nombre={icono} size={28} />
             </div>
           </div>
 
@@ -189,18 +183,19 @@ export default function FormCategoria({
               Ícono
             </label>
             <div className="grid grid-cols-8 gap-2 max-h-36 overflow-y-auto bg-mist rounded-input p-3">
-              {ICONOS.map(i => (
+              {ICONOS_CATEGORIA.map(({ clave, etiqueta, Icono }) => (
                 <button
-                  key={i}
+                  key={clave}
                   type="button"
-                  onClick={() => setIcono(i)}
-                  className={`w-9 h-9 rounded-lg flex items-center justify-center text-lg transition-all ${
-                    icono === i
-                      ? 'bg-obsidian/5 ring-2 ring-obsidian'
-                      : 'hover:bg-fog'
+                  onClick={() => setIcono(clave)}
+                  title={etiqueta}
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
+                    icono === clave
+                      ? 'bg-obsidian/5 ring-2 ring-obsidian text-ink'
+                      : 'text-graphite hover:bg-fog'
                   }`}
                 >
-                  {i}
+                  <Icono size={18} strokeWidth={2} />
                 </button>
               ))}
             </div>

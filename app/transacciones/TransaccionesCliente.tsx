@@ -11,6 +11,7 @@ import { useMoneda } from '../lib/moneda-context'
 import { totales, soloMovimientosReales, montoNormalizado } from '../lib/finanzas'
 import { simboloMoneda } from '../lib/dinero'
 import { eliminarTransaccion, tipoCompuesto, avisoBorrado } from '../lib/transacciones'
+import IconoCategoria from '../components/IconoCategoria'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   Plus, Calendar, ChevronLeft, ChevronRight, ChevronDown, Search, X,
@@ -413,7 +414,7 @@ export default function TransaccionesCliente({
               { value: 'todas', label: 'Todas las categorías' },
               ...categoriasUnicas.map(c => ({
                 value: (c.nombre || '').trim().toLowerCase(),
-                label: `${c.icono || '📦'} ${c.nombre}`,
+                label: c.nombre,
               })),
             ]}
           />
@@ -547,7 +548,7 @@ export default function TransaccionesCliente({
                     <option value="" className="text-ink">Cambiar categoría…</option>
                     {categoriasUnicas.map(c => (
                       <option key={c.id} value={c.id} className="text-ink">
-                        {c.icono || '📦'} {c.nombre}
+                        {c.nombre}
                       </option>
                     ))}
                   </select>
@@ -818,10 +819,10 @@ function FilaTransaccion({ t, formatMonto, seleccionada, onSeleccionar, onEdit, 
       {/* Descripción */}
       <div className="flex items-center flex-1 min-w-0 gap-3 sm:flex-none sm:col-span-2">
         <span
-          className="flex items-center justify-center flex-shrink-0 text-lg w-11 h-11 rounded-xl"
-          style={{ backgroundColor: catColor + '18' }}
+          className="flex items-center justify-center flex-shrink-0 w-11 h-11 rounded-xl"
+          style={{ backgroundColor: catColor + '18', color: catColor }}
         >
-          {t.categories?.icono || '💸'}
+          <IconoCategoria nombre={t.categories?.icono} size={20} />
         </span>
         <div className="min-w-0">
           <p className="text-sm font-medium truncate text-ink">{t.descripcion || t.categories?.nombre || 'Movimiento'}</p>

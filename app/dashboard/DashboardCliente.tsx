@@ -13,6 +13,7 @@ import { useMoneda } from '../lib/moneda-context'
 import { type Totales } from '../lib/finanzas'
 import { simboloMoneda } from '../lib/dinero'
 import { TrendingUp, TrendingDown, Wallet, ChevronLeft, ChevronRight, Calendar, ArrowLeftRight, PieChart, BarChart3, Download, Plus } from 'lucide-react'
+import IconoCategoria from '../components/IconoCategoria'
 
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
@@ -449,8 +450,8 @@ export default function DashboardCliente({
               {transacciones.slice(0, 6).map(t => (
                 <div key={t.id} className="flex items-center justify-between p-3.5 hover:bg-mist rounded-xl transition-colors">
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center justify-center text-lg w-9 h-9 bg-mist rounded-badge">
-                      {t.categories?.icono || '💸'}
+                    <div className="flex items-center justify-center w-9 h-9 bg-mist rounded-badge text-graphite">
+                      <IconoCategoria nombre={t.categories?.icono} size={18} />
                     </div>
                     <div>
                       <p className="text-sm font-medium leading-none text-ink">

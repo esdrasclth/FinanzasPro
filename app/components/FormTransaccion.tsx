@@ -9,6 +9,7 @@ import { simboloMoneda } from '../lib/dinero'
 import FormGastoCompartido from './FormGastoCompartido'
 import FormReparto from './FormReparto'
 import { X, TrendingUp, TrendingDown, ArrowLeftRight, ArrowDown, Users, Split, RefreshCw } from 'lucide-react'
+import IconoCategoria from './IconoCategoria'
 
 interface Props {
   onClose: () => void
@@ -549,7 +550,7 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
                   {categoriasPrincipales.map(cat => (
                     <button key={cat.id} type="button" onClick={() => setCategoriaId(cat.id)}
                       className={`p-2.5 rounded-xl text-xs text-center transition-all border ${categoriaId === cat.id ? 'border-obsidian bg-obsidian/5 text-ink' : 'border-fog text-steel hover:border-pebble'}`}>
-                      <div className="mb-1 text-lg">{cat.icono || '📦'}</div>
+                      <div className="flex justify-center mb-1"><IconoCategoria nombre={cat.icono} size={18} /></div>
                       <div className="leading-tight">{cat.nombre}</div>
                     </button>
                   ))}
@@ -566,7 +567,7 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
                     {subcategorias.map(sub => (
                       <button key={sub.id} type="button" onClick={() => setSubcategoriaId(sub.id)}
                         className={`p-2.5 rounded-xl text-xs text-center transition-all border ${subcategoriaId === sub.id ? 'border-obsidian bg-obsidian/5 text-ink' : 'border-fog text-steel hover:border-pebble'}`}>
-                        <div className="mb-1 text-lg">{sub.icono || '📦'}</div>
+                        <div className="flex justify-center mb-1"><IconoCategoria nombre={sub.icono} size={18} /></div>
                         <div className="leading-tight">{sub.nombre}</div>
                       </button>
                     ))}

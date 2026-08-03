@@ -197,7 +197,7 @@ async function crearSubcategoria(tx: any, userId: string, nombre: string): Promi
   if (!raiz) {
     raiz = await tx.categories.create({
       data: {
-        user_id: userId, nombre: 'Deudas', tipo: 'gasto', icono: '🤝',
+        user_id: userId, nombre: 'Deudas', tipo: 'gasto', icono: 'Handshake',
         color: '#0EA5E9', protegida: true, es_sistema: false,
       },
       select: { id: true },
@@ -205,7 +205,7 @@ async function crearSubcategoria(tx: any, userId: string, nombre: string): Promi
   }
   const sub = await tx.categories.create({
     data: {
-      user_id: userId, nombre, tipo: 'gasto', icono: '💸',
+      user_id: userId, nombre, tipo: 'gasto', icono: 'Banknote',
       color: '#EF4444', parent_id: raiz.id,
     },
     select: { id: true },

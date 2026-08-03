@@ -43,7 +43,7 @@ export async function GET() {
   const [budgets, descartes, deudas, tarjetas, tasa] = await Promise.all([
     prisma.budgets.findMany({
       where: { user_id: session.id, mes, anio },
-      include: { category: { select: { nombre: true, icono: true } } },
+      include: { category: { select: { nombre: true } } },
     }),
     prisma.notificaciones_descartadas.findMany({
       where: { user_id: session.id },
@@ -86,7 +86,6 @@ export async function GET() {
       const gastado = round2(gastoPorCat[b.category_id] || 0)
       const limite = round2(Number(b.monto_limite))
       const pct = limite > 0 ? (gastado / limite) * 100 : 0
-      const icono = b.category?.icono || '📦'
       const nombre = b.category?.nombre || 'Categoría'
 
       if (gastado > limite) {
@@ -95,7 +94,7 @@ export async function GET() {
           clave: `presupuesto:${b.id}:sobrepasado`,
           periodo: periodoMes,
           tipo: 'peligro',
-          titulo: `${icono} Presupuesto sobrepasado`,
+          titulo: `Presupuesto sobrepasado`,
           mensaje: `${nombre}: gastaste ${fmt(gastado, moneda)} de ${fmt(limite, moneda)}`,
           href: '/presupuesto',
         })
@@ -105,7 +104,7 @@ export async function GET() {
           clave: `presupuesto:${b.id}:al-limite`,
           periodo: periodoMes,
           tipo: 'advertencia',
-          titulo: `${icono} Presupuesto al límite`,
+          titulo: `Presupuesto al límite`,
           mensaje: `${nombre}: gastaste los ${fmt(limite, moneda)} del presupuesto`,
           href: '/presupuesto',
         })
@@ -115,7 +114,7 @@ export async function GET() {
           clave: `presupuesto:${b.id}:aviso`,
           periodo: periodoMes,
           tipo: 'advertencia',
-          titulo: `${icono} Presupuesto al ${Math.round(pct)}%`,
+          titulo: `Presupuesto al ${Math.round(pct)}%`,
           mensaje: `${nombre}: te quedan ${fmt(limite - gastado, moneda)}`,
           href: '/presupuesto',
         })

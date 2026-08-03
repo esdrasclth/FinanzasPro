@@ -70,7 +70,7 @@ export async function asegurarRaizDeudas(userId: string): Promise<string | null>
     .insert({
       nombre: DEUDAS_ROOT_NOMBRE,
       tipo: 'gasto',
-      icono: '🤝',
+      icono: 'Handshake',
       color: '#0EA5E9',
       parent_id: null,
       es_sistema: false,
@@ -96,7 +96,7 @@ export async function crearSubcategoriaDeuda(
     .insert({
       nombre: deuda.nombre,
       tipo: 'gasto',
-      icono: '💸',
+      icono: 'Banknote',
       color: '#EF4444',
       parent_id: rootId,
       es_sistema: false,

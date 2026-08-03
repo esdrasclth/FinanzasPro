@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { eliminarTransaccion, tipoCompuesto, avisoBorrado } from '../lib/transacciones'
 import { Trash2, Info } from 'lucide-react'
+import IconoCategoria from './IconoCategoria'
 
 interface Props {
   transaccion: any
@@ -215,7 +216,7 @@ export default function FormEditarTransaccion({ transaccion, onClose, onSuccess 
                       : 'border-fog text-steel hover:border-pebble'
                   }`}
                 >
-                  <div className="text-lg mb-1">{cat.icono || '📦'}</div>
+                  <div className="flex justify-center mb-1"><IconoCategoria nombre={cat.icono} size={18} /></div>
                   <div className="leading-tight">{cat.nombre}</div>
                 </button>
               ))}
@@ -240,7 +241,7 @@ export default function FormEditarTransaccion({ transaccion, onClose, onSuccess 
                         : 'border-fog text-steel hover:border-pebble'
                     }`}
                   >
-                    <div className="text-lg mb-1">{sub.icono || '📦'}</div>
+                    <div className="flex justify-center mb-1"><IconoCategoria nombre={sub.icono} size={18} /></div>
                     <div className="leading-tight">{sub.nombre}</div>
                   </button>
                 ))}

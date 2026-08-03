@@ -6,6 +6,7 @@ import { Encabezado, Hero } from '../components/Encabezado'
 import FormCategoria from '../components/FormCategoria'
 import { Pencil, Trash2, Tag, TrendingUp, TrendingDown } from 'lucide-react'
 import { esCategoriaInterna } from '../lib/finanzas'
+import IconoCategoria from '../components/IconoCategoria'
 
 interface Props {
   usuario: any
@@ -164,10 +165,10 @@ export default function CategoriasCliente({ usuario, categoriasIniciales }: Prop
                 <div className="flex items-center justify-between p-4">
                   <div className="flex items-center gap-3">
                     <div
-                      className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl"
-                      style={{ backgroundColor: cat.color + '15' }}
+                      className="w-10 h-10 rounded-2xl flex items-center justify-center"
+                      style={{ backgroundColor: cat.color + '15', color: cat.color || undefined }}
                     >
-                      {cat.icono || '📦'}
+                      <IconoCategoria nombre={cat.icono} size={20} />
                     </div>
                     <div>
                       <p className="text-ink font-medium">{cat.nombre}</p>
@@ -240,10 +241,10 @@ export default function CategoriasCliente({ usuario, categoriasIniciales }: Prop
                         <div className="flex items-center gap-3 ml-6">
                           <div className="w-1 h-1 bg-pebble rounded-full" />
                           <div
-                            className="w-8 h-8 rounded-badge flex items-center justify-center text-base"
-                            style={{ backgroundColor: sub.color + '15' }}
+                            className="w-8 h-8 rounded-badge flex items-center justify-center"
+                            style={{ backgroundColor: sub.color + '15', color: sub.color || undefined }}
                           >
-                            {sub.icono || '📦'}
+                            <IconoCategoria nombre={sub.icono} size={16} />
                           </div>
                           <p className="text-graphite text-sm">{sub.nombre}</p>
                         </div>

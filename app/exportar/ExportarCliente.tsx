@@ -385,7 +385,7 @@ export default function ExportarCliente({
                 >
                   <option value="todas">Todas las categorías</option>
                   {categorias.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.icono} {cat.nombre}</option>
+                    <option key={cat.id} value={cat.id}>{cat.nombre}</option>
                   ))}
                 </select>
 

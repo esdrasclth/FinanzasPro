@@ -54,7 +54,7 @@ export interface DatosReportes {
 }
 
 const SIN_CATEGORIA: CategoriaReporte = {
-  id: null, nombre: 'Sin categoría', icono: '📦', color: '#a1a1aa',
+  id: null, nombre: 'Sin categoría', icono: 'Tag', color: '#a1a1aa',
 }
 
 // "Últimos 3 meses" son este mes y los dos anteriores, no cuatro: `-meses`

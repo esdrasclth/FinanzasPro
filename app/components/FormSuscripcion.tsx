@@ -207,7 +207,7 @@ export default function FormSuscripcion({ suscripcion, onClose, onSuccess }: Pro
             >
               <option value="">Sin categoría</option>
               {categorias.map(c => (
-                <option key={c.id} value={c.id}>{c.icono ? `${c.icono} ` : ''}{c.nombre}</option>
+                <option key={c.id} value={c.id}>{c.nombre}</option>
               ))}
             </select>
           </div>

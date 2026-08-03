@@ -14,6 +14,7 @@ import {
 } from 'recharts'
 import { finMesDesplazado, inicioMesDesplazado, fechaHoyLocal } from '../lib/fecha'
 import type { DatosReportes, MovimientoReporte } from '../lib/reportes-server'
+import IconoCategoria from '../components/IconoCategoria'
 
 const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
@@ -501,7 +502,7 @@ export default function ReportesCliente({ usuario, datosIniciales }: Props) {
                       return (
                         <div key={c.id}>
                           <div className="flex items-baseline justify-between gap-2 mb-1.5">
-                            <span className="text-sm truncate text-graphite">{c.icono} {c.nombre}</span>
+                            <span className="text-sm truncate text-graphite"><IconoCategoria nombre={c.icono} size={15} className="inline-block flex-shrink-0 align-[-2px]" /> {c.nombre}</span>
                             <span className="text-sm whitespace-nowrap text-ink">
                               <span className="font-medium">{simbolo}{fmt(c.total)}</span>
                               <span className="text-ash"> de {simbolo}{fmt(c.limite)}</span>
@@ -598,7 +599,7 @@ export default function ReportesCliente({ usuario, datosIniciales }: Props) {
                         <div key={c.nombre} className="flex items-center gap-2.5">
                           <i className="flex-shrink-0 w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: c.color }} />
                           <span className="text-sm truncate text-graphite">
-                            {c.icono} {c.nombre}
+                            <IconoCategoria nombre={c.icono} size={15} className="inline-block flex-shrink-0 align-[-2px]" /> {c.nombre}
                           </span>
                           <span className="ml-auto text-xs whitespace-nowrap text-ash">{c.pct.toFixed(1)}%</span>
                           <span className="text-sm font-medium whitespace-nowrap text-ink w-[7.5rem] text-right">
@@ -640,7 +641,7 @@ export default function ReportesCliente({ usuario, datosIniciales }: Props) {
                       const desaparece = c.total === 0
                       return (
                         <div key={c.nombre} className="flex items-center gap-3">
-                          <span className="text-sm truncate text-graphite">{c.icono} {c.nombre}</span>
+                          <span className="text-sm truncate text-graphite"><IconoCategoria nombre={c.icono} size={15} className="inline-block flex-shrink-0 align-[-2px]" /> {c.nombre}</span>
                           <span className="flex-1" />
                           <span className={`inline-flex items-center gap-1 text-xs font-medium whitespace-nowrap ${
                             desaparece ? 'text-steel' : sube ? 'text-red-500' : 'text-emerald-600'

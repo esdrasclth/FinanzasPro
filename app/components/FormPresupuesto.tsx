@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
+import IconoCategoria from './IconoCategoria'
 
 interface Props {
   presupuesto?: any
@@ -139,7 +140,7 @@ export default function FormPresupuesto({ presupuesto, tipo = 'gasto', mes, anio
                             : 'border-fog text-steel hover:border-pebble'
                         }`}
                       >
-                        <span className="text-lg">{cat.icono || '📦'}</span>
+                        <IconoCategoria nombre={cat.icono} size={18} />
                         <span className="truncate">{cat.nombre}</span>
                         {tieneSubs && (
                           <span className="ml-auto text-xs text-ash whitespace-nowrap">Elige una subcategoría</span>
@@ -157,7 +158,7 @@ export default function FormPresupuesto({ presupuesto, tipo = 'gasto', mes, anio
                           }`}
                         >
                           <span className="flex-shrink-0 w-1 h-1 rounded-full bg-pebble" />
-                          <span className="text-base">{sub.icono || '📦'}</span>
+                          <IconoCategoria nombre={sub.icono} size={16} />
                           <span className="truncate">{sub.nombre}</span>
                         </button>
                       ))}
@@ -170,7 +171,7 @@ export default function FormPresupuesto({ presupuesto, tipo = 'gasto', mes, anio
 
           {esEdicion && (
             <div className="flex items-center gap-3 p-4 bg-mist rounded-input">
-              <span className="text-2xl">{presupuesto.categories?.icono}</span>
+              <IconoCategoria nombre={presupuesto.categories?.icono} size={24} />
               <div>
                 <p className="font-medium text-ink">{presupuesto.categories?.nombre}</p>
                 <p className="text-xs text-steel">Categoría seleccionada</p>
