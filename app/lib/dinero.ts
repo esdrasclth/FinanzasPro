@@ -7,8 +7,12 @@ const SIMBOLOS: Record<string, string> = { USD: '$', HNL: 'L', EUR: '€', MXN: 
 export const simboloMoneda = (moneda: string) => SIMBOLOS[moneda] || (moneda ? moneda + ' ' : '$')
 
 export function formatoMoneda(n: number, moneda: string) {
-  const s = new Intl.NumberFormat('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(n))
-  return `${n < 0 ? '-' : ''}${simboloMoneda(moneda)}${s}`
+  // El signo se decide sobre el valor ya redondeado a centavos, no sobre el
+  // número crudo: sumar decimales en coma flotante deja residuos como
+  // -9.09e-13, que no son un saldo negativo pero se imprimían como "-L0.00".
+  const v = round2(n)
+  const s = new Intl.NumberFormat('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(v))
+  return `${v < 0 ? '-' : ''}${simboloMoneda(moneda)}${s}`
 }
 
 export interface DivisionInput {

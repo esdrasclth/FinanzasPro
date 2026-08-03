@@ -1,5 +1,6 @@
 import { prisma } from './prisma'
 import { CAT_SALDO_INICIAL } from './finanzas'
+import { round2 } from './dinero'
 
 // Saldos de las carteras calculados en la base de datos.
 //
@@ -84,7 +85,11 @@ export async function carterasConSaldo(userId: string): Promise<CarteraConSaldo[
       // Las transacciones antiguas sin moneda son de la moneda primaria.
       const m = f.moneda || w.moneda || 'HNL'
       const actual = destino.get(f.wallet_id) || {}
-      actual[m] = (actual[m] || 0) + signo(f.tipo) * Number(f._sum.monto || 0)
+      // A centavos en cada paso: los montos son DOUBLE PRECISION y sumar
+      // ingresos contra gastos deja residuos (una cuenta que quedó en cero
+      // acababa valiendo -9.09e-13, y la pantalla la mostraba como "-L0.00",
+      // en rojo y con aviso de saldo negativo).
+      actual[m] = round2((actual[m] || 0) + signo(f.tipo) * Number(f._sum.monto || 0))
       destino.set(f.wallet_id, actual)
     }
   }
@@ -101,9 +106,9 @@ export async function carterasConSaldo(userId: string): Promise<CarteraConSaldo[
     // El campo saldo_inicial es la base de las carteras antiguas; las nuevas
     // registran la apertura como una transacción de categoría "Saldo inicial".
     const acumulado = saldos.get(w.id) || {}
-    const conBase: Record<string, number> = { [primaria]: Number(w.saldo_inicial) }
+    const conBase: Record<string, number> = { [primaria]: round2(Number(w.saldo_inicial)) }
     for (const [m, v] of Object.entries(acumulado)) {
-      conBase[m] = (conBase[m] || 0) + v
+      conBase[m] = round2((conBase[m] || 0) + v)
     }
 
     const apertura = aperturaPorCartera.get(w.id) || {}
@@ -125,7 +130,7 @@ export async function carterasConSaldo(userId: string): Promise<CarteraConSaldo[
       saldo_inicial: Number(w.saldo_inicial),
       saldos: conBase,
       saldo_actual: conBase[primaria] || 0,
-      saldo_inicial_real: Number(w.saldo_inicial) + (apertura[primaria] || 0),
+      saldo_inicial_real: round2(Number(w.saldo_inicial) + (apertura[primaria] || 0)),
       ultimo_movimiento: act?.ultimo ? new Date(act.ultimo).getTime() : null,
       movimientos: act?.n ?? 0,
     }

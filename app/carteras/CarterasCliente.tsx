@@ -23,6 +23,7 @@ import {
   Filter, Coins, Check, Lightbulb, CalendarClock, Archive, RotateCcw,
   TrendingDown, Moon, GripVertical, type LucideIcon,
 } from 'lucide-react'
+import { round2 } from '../lib/dinero'
 
 interface Props {
   // Primer render servido desde el servidor: la pantalla ya llega con datos.
@@ -135,9 +136,11 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
     const esCred = c.tipo === 'credito'
     Object.entries((c.saldos || {}) as Record<string, number>).forEach(([m, vRaw]) => {
       const v = Number(vRaw)
-      netoPorMoneda[m] = (netoPorMoneda[m] || 0) + v
-      if (!esCred && v > 0) disponiblePorMoneda[m] = (disponiblePorMoneda[m] || 0) + v
-      if (esCred && v < 0) creditoUtilPorMoneda[m] = (creditoUtilPorMoneda[m] || 0) + Math.abs(v)
+      // Cada total se redondea a centavos: sumar saldos en coma flotante
+      // vuelve a dejar residuos que se imprimirían con signo ("-L0.00").
+      netoPorMoneda[m] = round2((netoPorMoneda[m] || 0) + v)
+      if (!esCred && v > 0) disponiblePorMoneda[m] = round2((disponiblePorMoneda[m] || 0) + v)
+      if (esCred && v < 0) creditoUtilPorMoneda[m] = round2((creditoUtilPorMoneda[m] || 0) + Math.abs(v))
     })
   })
 

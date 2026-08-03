@@ -6,6 +6,7 @@
 // mirara. Todo agregado de dinero debe pasar por aquí.
 
 import { convertir } from './tipoCambio'
+import { round2 } from './dinero'
 
 // Categoría de sistema con la que se registra la apertura de una cartera.
 // Es un saldo de partida, no un ingreso ni un gasto del periodo.
@@ -77,7 +78,9 @@ export function totales(
     if (t.tipo === 'ingreso') ingresos += m
     else if (t.tipo === 'gasto') gastos += m
   }
-  return { ingresos, gastos, neto: ingresos - gastos }
+  // A centavos: acumular decimales en coma flotante deja residuos, y un neto
+  // de -9.09e-13 se pinta en rojo y con signo como si fuera un número rojo.
+  return { ingresos: round2(ingresos), gastos: round2(gastos), neto: round2(ingresos - gastos) }
 }
 
 // Suma por category_id separando gasto de ingreso, normalizada y sin
@@ -92,8 +95,9 @@ export function porCategoria(
     if (!esMovimientoReal(t)) continue
     const tipo = t.tipo || ''
     if (!acc[tipo] || !t.category_id) continue
-    acc[tipo][t.category_id] =
+    acc[tipo][t.category_id] = round2(
       (acc[tipo][t.category_id] || 0) + montoNormalizado(t, monedaPrincipal, tasaActual)
+    )
   }
   return acc
 }
