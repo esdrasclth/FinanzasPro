@@ -9,6 +9,7 @@ import AppLayout from '../components/AppLayout'
 import Notificaciones from '../components/Notificaciones'
 import { SkeletonList } from '../components/Skeleton'
 import { useMoneda } from '../lib/moneda-context'
+import { round2 } from '../lib/dinero'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   Plus, ChevronLeft, ChevronRight, ChevronDown, Calendar, SlidersHorizontal,
@@ -151,29 +152,41 @@ export default function PresupuestoCliente({
   const proyeccion = diaActual > 0 ? (totalGastado / diaActual) * diasMes : totalGastado
   const proyeccionDentro = proyeccion <= totalPresupuestado
 
+  // Los estados se deciden sobre importes redondeados a centavos, no sobre el
+  // porcentaje: gastar 2000 de 2000 no es "casi" el límite, es exactamente el
+  // límite, y un residuo de coma flotante no debe leerse como sobrepasado.
+  const cifras = (p: any) => ({
+    gastado: round2(Number(p.gastado) || 0),
+    limite: round2(Number(p.monto_limite) || 0),
+  })
+
   // ----- Estado por categoría -----
   const estadoInfo = (p: any) => {
+    const { gastado, limite } = cifras(p)
     if (esIngreso) {
-      if (p.gastado >= p.monto_limite) return { label: 'Meta cumplida', badge: 'text-emerald-600 bg-emerald-50', barra: 'bg-emerald-500' }
+      if (gastado >= limite) return { label: 'Meta cumplida', badge: 'text-emerald-600 bg-emerald-50', barra: 'bg-emerald-500' }
       if (p.porcentaje >= 60) return { label: 'En progreso', badge: 'text-blue-600 bg-blue-50', barra: 'bg-blue-500' }
       return { label: 'Por debajo', badge: 'text-amber-600 bg-amber-50', barra: 'bg-amber-500' }
     }
-    if (p.gastado > p.monto_limite) return { label: 'Sobrepasado', badge: 'text-red-600 bg-red-50', barra: 'bg-red-500' }
+    if (gastado > limite) return { label: 'Sobrepasado', badge: 'text-red-600 bg-red-50', barra: 'bg-red-500' }
+    if (limite > 0 && gastado === limite) return { label: 'Límite alcanzado', badge: 'text-orange-600 bg-orange-50', barra: 'bg-orange-500' }
     if (p.porcentaje >= 90) return { label: 'Casi límite', badge: 'text-amber-600 bg-amber-50', barra: 'bg-amber-500' }
     return { label: 'En buen camino', badge: 'text-emerald-600 bg-emerald-50', barra: 'bg-emerald-500' }
   }
 
   const presupuestosFiltrados = presupuestosTipo.filter(p => {
     if (filtroEstado === 'todos') return true
+    const { gastado, limite } = cifras(p)
     if (esIngreso) {
-      if (filtroEstado === 'cumplida') return p.gastado >= p.monto_limite
-      if (filtroEstado === 'progreso') return p.porcentaje >= 60 && p.gastado < p.monto_limite
+      if (filtroEstado === 'cumplida') return gastado >= limite
+      if (filtroEstado === 'progreso') return p.porcentaje >= 60 && gastado < limite
       if (filtroEstado === 'debajo') return p.porcentaje < 60
       return true
     }
-    if (filtroEstado === 'sobre') return p.gastado > p.monto_limite
-    if (filtroEstado === 'casi') return p.porcentaje >= 90 && p.gastado <= p.monto_limite
-    if (filtroEstado === 'buen') return p.porcentaje < 90 && p.gastado <= p.monto_limite
+    if (filtroEstado === 'sobre') return gastado > limite
+    if (filtroEstado === 'alcanzado') return limite > 0 && gastado === limite
+    if (filtroEstado === 'casi') return p.porcentaje >= 90 && gastado < limite
+    if (filtroEstado === 'buen') return p.porcentaje < 90 && gastado <= limite
     return true
   })
 
@@ -239,9 +252,13 @@ export default function PresupuestoCliente({
   } else {
     presupuestosTipo.forEach(p => {
       const nombre = p.categories?.nombre || 'Categoría'
-      if (p.gastado > p.monto_limite) {
+      const { gastado, limite } = cifras(p)
+      if (gastado > limite) {
         alertas.push({ id: `${p.id}-over`, icon: AlertTriangle, tono: 'alerta',
-          titulo: `${nombre} sobrepasó el presupuesto`, detalle: `${simbolo} ${formatMonto(p.gastado - p.monto_limite)} por encima del límite` })
+          titulo: `${nombre} sobrepasó el presupuesto`, detalle: `${simbolo} ${formatMonto(gastado - limite)} por encima del límite` })
+      } else if (limite > 0 && gastado === limite) {
+        alertas.push({ id: `${p.id}-full`, icon: AlertTriangle, tono: 'alerta',
+          titulo: `${nombre} llegó a su límite`, detalle: `Gastaste los ${simbolo} ${formatMonto(limite)} del presupuesto, ni un centavo más` })
       } else if (p.porcentaje >= 90) {
         alertas.push({ id: `${p.id}-near`, icon: AlertTriangle, tono: 'alerta',
           titulo: `${nombre} está por exceder el presupuesto`, detalle: `Llevas el ${Math.round(p.porcentaje)}% del presupuesto` })
@@ -484,6 +501,7 @@ export default function PresupuestoCliente({
                 { value: 'todos', label: 'Todos los estados' },
                 { value: 'buen', label: 'En buen camino' },
                 { value: 'casi', label: 'Casi al límite' },
+                { value: 'alcanzado', label: 'Límite alcanzado' },
                 { value: 'sobre', label: 'Sobrepasados' },
               ]}
             />

@@ -3,7 +3,7 @@ import { prisma } from '../../lib/prisma'
 import { getSessionUser } from '../../lib/auth-server'
 import { tasaVigente } from '../../lib/tipoCambio-server'
 import { porCategoria } from '../../lib/finanzas'
-import { simboloMoneda } from '../../lib/dinero'
+import { simboloMoneda, round2 } from '../../lib/dinero'
 import { aFechaUTC, finMesDesplazado, inicioMesDesplazado, partesFecha, ultimoDiaMes } from '../../lib/fecha'
 import { hoyUsuario } from '../../lib/fecha-server'
 
@@ -80,13 +80,16 @@ export async function GET() {
     const gastoPorCat = porCategoria(normalizadas, moneda, tasa).gasto
 
     for (const b of budgets) {
-      const gastado = gastoPorCat[b.category_id] || 0
-      const limite = Number(b.monto_limite)
+      // Se comparan importes en centavos, no porcentajes: gastar justo el
+      // presupuesto no es sobrepasarlo, y así ningún residuo de coma flotante
+      // decide de qué lado del límite cae el aviso.
+      const gastado = round2(gastoPorCat[b.category_id] || 0)
+      const limite = round2(Number(b.monto_limite))
       const pct = limite > 0 ? (gastado / limite) * 100 : 0
       const icono = b.category?.icono || '📦'
       const nombre = b.category?.nombre || 'Categoría'
 
-      if (pct >= 100) {
+      if (gastado > limite) {
         avisos.push({
           id: b.id,
           clave: `presupuesto:${b.id}:sobrepasado`,
@@ -94,6 +97,16 @@ export async function GET() {
           tipo: 'peligro',
           titulo: `${icono} Presupuesto sobrepasado`,
           mensaje: `${nombre}: gastaste ${fmt(gastado, moneda)} de ${fmt(limite, moneda)}`,
+          href: '/presupuesto',
+        })
+      } else if (limite > 0 && gastado === limite) {
+        avisos.push({
+          id: b.id,
+          clave: `presupuesto:${b.id}:al-limite`,
+          periodo: periodoMes,
+          tipo: 'advertencia',
+          titulo: `${icono} Presupuesto al límite`,
+          mensaje: `${nombre}: gastaste los ${fmt(limite, moneda)} del presupuesto`,
           href: '/presupuesto',
         })
       } else if (pct >= 80) {
