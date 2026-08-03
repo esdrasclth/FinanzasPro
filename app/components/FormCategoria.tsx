@@ -1,10 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { esCategoriaInterna } from '../lib/finanzas'
 
 interface Props {
   categoria?: any
   categoriaParent?: any
+  // Todas las categorías visibles: de ahí salen los padres a los que se puede
+  // mover esta. Mover conserva el historial; borrar y volver a crear no.
+  categorias?: any[]
   tipo: 'gasto' | 'ingreso'
   onClose: () => void
   onSuccess: () => void
@@ -24,28 +28,51 @@ const COLORES = [
 ]
 
 export default function FormCategoria({
-  categoria, categoriaParent, tipo, onClose, onSuccess
+  categoria, categoriaParent, categorias = [], tipo, onClose, onSuccess
 }: Props) {
   const [nombre, setNombre] = useState(categoria?.nombre || '')
   const [icono, setIcono] = useState(categoria?.icono || '📦')
   const [color, setColor] = useState(categoria?.color || '#0D9488')
+  // Al editar se parte del padre que ya tiene: antes el formulario mandaba
+  // siempre parent_id null y cambiarle el nombre a una subcategoría la sacaba
+  // de su padre sin avisar.
+  const [parentId, setParentId] = useState<string>(
+    categoriaParent?.id || categoria?.parent_id || ''
+  )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const esEdicion = !!categoria
   const esSubcategoria = !!categoriaParent
 
+  const tipoBase = categoriaParent?.tipo || categoria?.tipo || tipo
+
+  // Solo se puede colgar de una categoría principal del mismo tipo. Quedan
+  // fuera ella misma, el árbol de Deudas —que se administra en su pantalla— y
+  // las internas de la app ("Transferencia", "Saldo inicial"...), que no son
+  // categorías de gasto de nadie.
+  const padresPosibles = categorias.filter(c =>
+    !c.parent_id && c.tipo === tipoBase && c.id !== categoria?.id &&
+    !c.protegida && !esCategoriaInterna(c.nombre)
+  )
+
+  // Una categoría con subcategorías no puede volverse subcategoría: el árbol
+  // es de dos niveles.
+  const tieneSubcategorias = esEdicion && categorias.some(c => c.parent_id === categoria.id)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
+    const padre = padresPosibles.find(c => c.id === parentId)
+
     const res = await fetch('/api/categorias', {
       method: esEdicion ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: categoria?.id, nombre, icono, color,
-        tipo: esSubcategoria ? categoriaParent.tipo : tipo,
-        parent_id: esSubcategoria ? categoriaParent.id : null }),
+        tipo: padre ? padre.tipo : tipoBase,
+        parent_id: padre ? padre.id : null }),
     })
     if (!res.ok) {
       const json = await res.json().catch(() => null)
@@ -105,6 +132,43 @@ export default function FormCategoria({
               className="w-full bg-mist border border-transparent text-ink placeholder-ash rounded-input px-4 py-3 focus:outline-none focus:border-obsidian focus:bg-snow transition-colors"
             />
           </div>
+
+          {/* Categoría padre: mover una subcategoría de sitio sin perder sus
+              movimientos ni sus presupuestos. */}
+          {tieneSubcategorias ? (
+            <div>
+              <label className="text-graphite text-sm font-medium block mb-2">
+                Categoría padre
+              </label>
+              <p className="text-steel text-xs bg-mist rounded-input px-4 py-3">
+                Es una categoría principal con subcategorías propias, así que no puede
+                colgar de otra. Mueve antes sus subcategorías si quieres reorganizarla.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <label className="text-graphite text-sm font-medium block mb-2">
+                Categoría padre
+              </label>
+              <select
+                value={parentId}
+                onChange={(e) => setParentId(e.target.value)}
+                className="w-full bg-mist border border-transparent text-ink rounded-input px-4 py-3 focus:outline-none focus:border-obsidian focus:bg-snow transition-colors"
+              >
+                <option value="">Ninguna — que sea categoría principal</option>
+                {padresPosibles.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.icono || '📦'} {c.nombre}
+                  </option>
+                ))}
+              </select>
+              <p className="text-ash text-xs mt-1.5">
+                {esEdicion
+                  ? 'Cambiarla la mueve de sitio y conserva sus movimientos y presupuestos.'
+                  : 'Déjala en "Ninguna" para crear una categoría principal.'}
+              </p>
+            </div>
+          )}
 
           {/* Selector de ícono */}
           <div>

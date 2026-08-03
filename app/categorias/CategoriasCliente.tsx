@@ -5,6 +5,7 @@ import AppLayout from '../components/AppLayout'
 import { Encabezado, Hero } from '../components/Encabezado'
 import FormCategoria from '../components/FormCategoria'
 import { Pencil, Trash2, Tag, TrendingUp, TrendingDown } from 'lucide-react'
+import { esCategoriaInterna } from '../lib/finanzas'
 
 interface Props {
   usuario: any
@@ -39,9 +40,12 @@ export default function CategoriasCliente({ usuario, categoriasIniciales }: Prop
   const esGestionDeuda = (c: any) =>
     c.protegida || (!!deudasRoot && c.parent_id === deudasRoot.id)
 
-  // Las de sistema ("Saldo inicial", "Transferencia", "Ajuste de saldo") las
-  // usa la app para sus propios movimientos: se muestran, pero no se tocan.
-  const esDeSistema = (c: any) => !!c.es_sistema
+  // Dos cosas distintas se marcan igual con es_sistema:
+  //  - las internas ("Saldo inicial", "Transferencia", "Ajuste de saldo"), que
+  //    la app usa para su mecánica y no se tocan de ninguna forma;
+  //  - las predeterminadas ("Comida", "Salud"...), que son de todos y no se
+  //    editan ni se borran, pero sí admiten subcategorías propias.
+  const esInterna = (c: any) => esCategoriaInterna(c.nombre)
 
   const handleEliminar = async (id: string) => {
     const cat = categorias.find(c => c.id === id)
@@ -176,10 +180,15 @@ export default function CategoriasCliente({ usuario, categoriasIniciales }: Prop
                   <div className="flex items-center gap-2">
                     {esGestionDeuda(cat) ? (
                       <span className="text-xs text-ash">Gestionar en Deudas</span>
-                    ) : esDeSistema(cat) ? (
+                    ) : esInterna(cat) ? (
                       <span className="text-xs text-ash">La usa la app</span>
                     ) : (
                       <>
+                        {/* Las predeterminadas no se editan ni se borran, pero sí
+                            admiten subcategorías propias. */}
+                        {cat.es_sistema && (
+                          <span className="text-xs text-ash">Predeterminada</span>
+                        )}
                         {/* Agregar subcategoría */}
                         <button
                           onClick={() => {
@@ -191,24 +200,28 @@ export default function CategoriasCliente({ usuario, categoriasIniciales }: Prop
                         >
                           + Sub
                         </button>
-                        <button
-                          onClick={() => {
-                            setCategoriaEditar(cat)
-                            setCategoriaParent(null)
-                            setShowForm(true)
-                          }}
-                          className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1 text-ash hover:text-ink transition-colors"
-                          title="Editar"
-                        >
-                          <Pencil size={16} strokeWidth={2} />
-                        </button>
-                        <button
-                          onClick={() => handleEliminar(cat.id)}
-                          className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1 text-ash hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                          title="Eliminar"
-                        >
-                          <Trash2 size={16} strokeWidth={2} />
-                        </button>
+                        {!cat.es_sistema && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setCategoriaEditar(cat)
+                                setCategoriaParent(null)
+                                setShowForm(true)
+                              }}
+                              className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1 text-ash hover:text-ink transition-colors"
+                              title="Editar"
+                            >
+                              <Pencil size={16} strokeWidth={2} />
+                            </button>
+                            <button
+                              onClick={() => handleEliminar(cat.id)}
+                              className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1 text-ash hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                              title="Eliminar"
+                            >
+                              <Trash2 size={16} strokeWidth={2} />
+                            </button>
+                          </>
+                        )}
                       </>
                     )}
                   </div>
@@ -237,8 +250,10 @@ export default function CategoriasCliente({ usuario, categoriasIniciales }: Prop
                         </div>
                         {esGestionDeuda(sub) ? (
                           <span className="text-xs text-ash">Deuda</span>
-                        ) : esDeSistema(sub) ? (
-                          <span className="text-xs text-ash">La usa la app</span>
+                        ) : esInterna(sub) || sub.es_sistema ? (
+                          <span className="text-xs text-ash">
+                            {esInterna(sub) ? 'La usa la app' : 'Predeterminada'}
+                          </span>
                         ) : (
                           <div className="flex gap-2">
                             <button
@@ -248,7 +263,7 @@ export default function CategoriasCliente({ usuario, categoriasIniciales }: Prop
                                 setShowForm(true)
                               }}
                               className="text-ash hover:text-ink transition-colors p-1 text-sm"
-                              title="Editar"
+                              title="Editar o mover a otra categoría"
                             >
                               <Pencil size={14} strokeWidth={2} />
                             </button>
@@ -289,6 +304,7 @@ export default function CategoriasCliente({ usuario, categoriasIniciales }: Prop
         <FormCategoria
           categoria={categoriaEditar}
           categoriaParent={categoriaParent}
+          categorias={categorias}
           tipo={filtroTipo}
           onClose={() => {
             setShowForm(false)

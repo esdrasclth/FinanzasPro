@@ -12,6 +12,14 @@ import { round2 } from './dinero'
 // Es un saldo de partida, no un ingreso ni un gasto del periodo.
 export const CAT_SALDO_INICIAL = 'Saldo inicial'
 
+// Categorías que la app usa para su propia mecánica. Se muestran para que los
+// movimientos se entiendan, pero no son categorías de gasto del usuario: no se
+// editan, no se borran y no sirven de categoría padre.
+export const CATEGORIAS_INTERNAS = [CAT_SALDO_INICIAL, 'Ajuste de saldo', 'Transferencia']
+
+export const esCategoriaInterna = (nombre?: string | null) =>
+  CATEGORIAS_INTERNAS.includes(nombre || '')
+
 export interface MovimientoLike {
   monto: number | string
   tipo?: string | null

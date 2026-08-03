@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '../../lib/prisma'
 import { getSessionUser } from '../../lib/auth-server'
 import { categoriasVisibles } from '../../lib/categorias-server'
+import { esCategoriaInterna } from '../../lib/finanzas'
 
 // GET    /api/categorias        -> las del usuario más las de sistema
 // DELETE /api/categorias?id=... -> elimina una propia
@@ -94,6 +95,37 @@ function leerCategoria(body: any) {
   }
 }
 
+// Reglas del árbol de categorías, iguales al crear que al mover: el padre debe
+// existir y ser visible, ser una categoría principal (el árbol es de dos
+// niveles), del mismo tipo, y no ser una categoría propia de sí misma ni parte
+// del árbol de Deudas, que se administra en su propia pantalla.
+async function validarPadre(
+  userId: string,
+  padreId: string,
+  tipo: string,
+  idPropio?: string
+): Promise<string | null> {
+  if (idPropio && padreId === idPropio) return 'Una categoría no puede colgar de sí misma'
+
+  const padre = await prisma.categories.findFirst({
+    where: { id: padreId, ...categoriasVisibles(userId) },
+  })
+  if (!padre) return 'Categoría padre no válida'
+  if (padre.parent_id) {
+    return `"${padre.nombre}" ya es una subcategoría. Elige una categoría principal.`
+  }
+  if (padre.tipo !== tipo) {
+    return `"${padre.nombre}" es de ${padre.tipo} y esta categoría es de ${tipo}: no se pueden mezclar.`
+  }
+  if (padre.protegida) {
+    return 'Las categorías de deudas se administran desde la pantalla de Deudas'
+  }
+  if (esCategoriaInterna(padre.nombre)) {
+    return `"${padre.nombre}" la usa la app para su propia mecánica: no puede tener subcategorías.`
+  }
+  return null
+}
+
 export async function POST(req: Request) {
   const s = await getSessionUser()
   if (!s) return NextResponse.json({ error: { message: 'No autenticado' } }, { status: 401 })
@@ -102,14 +134,9 @@ export async function POST(req: Request) {
   const r = leerCategoria(body)
   if (r.error) return NextResponse.json({ error: { message: r.error } }, { status: 400 })
 
-  // La subcategoría debe colgar de una categoría propia del mismo tipo.
   if (r.datos!.parent_id) {
-    const padre = await prisma.categories.findFirst({
-      where: { id: r.datos!.parent_id, ...categoriasVisibles(s.id) },
-    })
-    if (!padre) {
-      return NextResponse.json({ error: { message: 'Categoría padre no válida' } }, { status: 400 })
-    }
+    const mal = await validarPadre(s.id, r.datos!.parent_id, r.datos!.tipo)
+    if (mal) return NextResponse.json({ error: { message: mal } }, { status: 400 })
   }
 
   const cat = await prisma.categories.create({ data: { user_id: s.id, ...r.datos! } })
@@ -131,6 +158,31 @@ export async function PUT(req: Request) {
   if (!actual) return NextResponse.json({ error: { message: 'Categoría no encontrada' } }, { status: 404 })
   if (actual.es_sistema) {
     return NextResponse.json({ error: { message: 'Las categorías del sistema no se editan' } }, { status: 409 })
+  }
+  if (actual.protegida) {
+    return NextResponse.json(
+      { error: { message: 'Esta categoría se administra desde la pantalla de Deudas' } },
+      { status: 409 }
+    )
+  }
+
+  if (r.datos!.parent_id) {
+    const mal = await validarPadre(s.id, r.datos!.parent_id, r.datos!.tipo, id)
+    if (mal) return NextResponse.json({ error: { message: mal } }, { status: 400 })
+
+    // Colgarla de otra la convertiría en subcategoría, y sus propias
+    // subcategorías quedarían en un tercer nivel que la pantalla no dibuja.
+    const hijas = await prisma.categories.count({ where: { parent_id: id } })
+    if (hijas > 0) {
+      return NextResponse.json(
+        {
+          error: {
+            message: `Esta categoría tiene ${hijas} ${hijas === 1 ? 'subcategoría' : 'subcategorías'}: muévelas antes de colgarla de otra.`,
+          },
+        },
+        { status: 409 }
+      )
+    }
   }
 
   const cat = await prisma.categories.update({ where: { id }, data: r.datos! })
