@@ -25,12 +25,18 @@ const categoriasSistema = [
   { nombre: 'Pago de deuda', icono: '🤝', color: '#0EA5E9', tipo: 'gasto' },
   { nombre: 'Ajuste de saldo', icono: '⚖️', color: '#64748B', tipo: 'gasto' },
   { nombre: 'Ajuste de saldo', icono: '⚖️', color: '#64748B', tipo: 'ingreso' },
+  // La apertura de una cartera: ingreso si empieza con saldo, gasto si empieza
+  // con deuda (una tarjeta, por ejemplo).
+  { nombre: 'Saldo inicial', icono: '🏦', color: '#64748B', tipo: 'gasto' },
+  { nombre: 'Saldo inicial', icono: '🏦', color: '#64748B', tipo: 'ingreso' },
 ]
 
 async function main() {
   for (const cat of categoriasSistema) {
+    // Solo cuentan las globales: una copia con dueño no sustituye a la de
+    // sistema (ver app/lib/categorias-server.ts).
     const existing = await prisma.categories.findFirst({
-      where: { nombre: cat.nombre, tipo: cat.tipo, es_sistema: true },
+      where: { nombre: cat.nombre, tipo: cat.tipo, es_sistema: true, user_id: null },
     })
     if (!existing) {
       await prisma.categories.create({

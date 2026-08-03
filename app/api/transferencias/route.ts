@@ -6,6 +6,7 @@ import { tasaVigente } from '../../lib/tipoCambio-server'
 import { convertir } from '../../lib/tipoCambio'
 import { round2 } from '../../lib/dinero'
 import { hoyUsuario } from '../../lib/fecha-server'
+import { categoriaSistema } from '../../lib/categorias-server'
 
 // POST /api/transferencias
 // { wallet_id, wallet_destino_id, monto, moneda_destino?, tasa_cambio?, descripcion?, fecha? }
@@ -22,32 +23,6 @@ const toDate = (s: string) => new Date(`${String(s).slice(0, 10)}T00:00:00.000Z`
 
 const error = (message: string, status: number) =>
   NextResponse.json({ error: { message } }, { status })
-
-// La categoría de sistema "Transferencia" agrupa ambas piernas.
-async function categoriaTransferencia(tx: any, userId: string): Promise<string> {
-  const existente = await tx.categories.findFirst({
-    where: {
-      nombre: 'Transferencia',
-      es_sistema: true,
-      OR: [{ user_id: userId }, { user_id: null }],
-    },
-    select: { id: true },
-  })
-  if (existente) return existente.id
-
-  const creada = await tx.categories.create({
-    data: {
-      nombre: 'Transferencia',
-      tipo: 'gasto',
-      icono: '↔️',
-      color: '#6366F1',
-      es_sistema: true,
-      user_id: userId,
-    },
-    select: { id: true },
-  })
-  return creada.id
-}
 
 export async function POST(req: Request) {
   const session = await getSessionUser()
@@ -106,10 +81,12 @@ export async function POST(req: Request) {
   // juntas sin tener que adivinar cuál era la pareja.
   const transferId = randomUUID()
 
+  // La categoría de sistema "Transferencia" agrupa ambas piernas. Es global, y
+  // se resuelve fuera de la transacción para no crearla dentro de ella.
+  const categoryId = await categoriaSistema('Transferencia', 'gasto')
+
   try {
     const resultado = await prisma.$transaction(async (tx) => {
-      const categoryId = await categoriaTransferencia(tx, session.id)
-
       const salida = await tx.transactions.create({
         data: {
           user_id: session.id,

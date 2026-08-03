@@ -5,6 +5,7 @@ import { tasaVigente } from '../../lib/tipoCambio-server'
 import { serializarMovimiento } from '../../lib/transacciones-mes-server'
 import { round2 } from '../../lib/dinero'
 import { hoyUsuario } from '../../lib/fecha-server'
+import { categoriaSistema, categoriasVisibles } from '../../lib/categorias-server'
 
 // POST /api/transacciones  -> crea un movimiento simple (gasto o ingreso)
 // PUT  /api/transacciones  -> { id, ... } edita uno simple
@@ -21,25 +22,6 @@ const toDate = (s: string) => new Date(`${String(s).slice(0, 10)}T00:00:00.000Z`
 
 const error = (message: string, status: number) =>
   NextResponse.json({ error: { message } }, { status })
-
-const ICONOS: Record<string, { icono: string; color: string }> = {
-  'Saldo inicial': { icono: '🏦', color: '#64748B' },
-  'Ajuste de saldo': { icono: '⚖️', color: '#8B5CF6' },
-}
-
-async function categoriaSistema(userId: string, nombre: string, tipo: string): Promise<string | null> {
-  if (!ICONOS[nombre]) return null
-  const existente = await prisma.categories.findFirst({
-    where: { nombre, tipo, es_sistema: true, OR: [{ user_id: userId }, { user_id: null }] },
-    select: { id: true },
-  })
-  if (existente) return existente.id
-  const creada = await prisma.categories.create({
-    data: { user_id: userId, nombre, tipo, es_sistema: true, ...ICONOS[nombre] },
-    select: { id: true },
-  })
-  return creada.id
-}
 
 export async function POST(req: Request) {
   const s = await getSessionUser()
@@ -59,11 +41,11 @@ export async function POST(req: Request) {
 
   let categoryId: string | null = body?.category_id || null
   if (!categoryId && body?.categoria_sistema) {
-    categoryId = await categoriaSistema(s.id, String(body.categoria_sistema), tipo)
+    categoryId = await categoriaSistema(String(body.categoria_sistema), tipo)
   }
   if (categoryId) {
     const cat = await prisma.categories.findFirst({
-      where: { id: categoryId, OR: [{ user_id: s.id }, { es_sistema: true }] },
+      where: { id: categoryId, ...categoriasVisibles(s.id) },
       select: { id: true },
     })
     if (!cat) return error('Categoría no válida', 400)
@@ -121,7 +103,7 @@ export async function PUT(req: Request) {
 
   if (body?.category_id) {
     const cat = await prisma.categories.findFirst({
-      where: { id: body.category_id, OR: [{ user_id: s.id }, { es_sistema: true }] },
+      where: { id: body.category_id, ...categoriasVisibles(s.id) },
       select: { id: true },
     })
     if (!cat) return error('Categoría no válida', 400)

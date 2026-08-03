@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '../../lib/prisma'
 import { getSessionUser } from '../../lib/auth-server'
 import { datosPresupuesto } from '../../lib/presupuesto-server'
+import { categoriasVisibles } from '../../lib/categorias-server'
 
 // GET    /api/presupuesto?mes=&anio=&actual=1
 // DELETE /api/presupuesto?id=...&tipo=presupuesto|meta
@@ -77,7 +78,7 @@ export async function POST(req: Request) {
   }
 
   const cat = await prisma.categories.findFirst({
-    where: { id: categoryId, OR: [{ user_id: s.id }, { es_sistema: true }] },
+    where: { id: categoryId, ...categoriasVisibles(s.id) },
     select: { id: true },
   })
   if (!cat) return NextResponse.json({ error: { message: 'Categoría no válida' } }, { status: 400 })

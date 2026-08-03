@@ -1,5 +1,6 @@
 import { prisma } from './prisma'
 import { tasaVigente } from './tipoCambio-server'
+import { categoriasVisibles } from './categorias-server'
 
 // Todo lo que la pantalla de Movimientos necesita de un mes, en una sola
 // resolución: los movimientos con su categoría y cartera, el catálogo de
@@ -45,7 +46,7 @@ export async function datosMesTransacciones(userId: string, mes: string) {
       orderBy: [{ fecha: 'desc' }, { created_at: 'desc' }],
     }),
     prisma.categories.findMany({
-      where: { OR: [{ user_id: userId }, { es_sistema: true }] },
+      where: categoriasVisibles(userId),
       orderBy: { nombre: 'asc' },
     }),
     prisma.wallets.findMany({

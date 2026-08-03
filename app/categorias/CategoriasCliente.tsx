@@ -39,6 +39,10 @@ export default function CategoriasCliente({ usuario, categoriasIniciales }: Prop
   const esGestionDeuda = (c: any) =>
     c.protegida || (!!deudasRoot && c.parent_id === deudasRoot.id)
 
+  // Las de sistema ("Saldo inicial", "Transferencia", "Ajuste de saldo") las
+  // usa la app para sus propios movimientos: se muestran, pero no se tocan.
+  const esDeSistema = (c: any) => !!c.es_sistema
+
   const handleEliminar = async (id: string) => {
     const cat = categorias.find(c => c.id === id)
     if (cat && esGestionDeuda(cat)) {
@@ -172,6 +176,8 @@ export default function CategoriasCliente({ usuario, categoriasIniciales }: Prop
                   <div className="flex items-center gap-2">
                     {esGestionDeuda(cat) ? (
                       <span className="text-xs text-ash">Gestionar en Deudas</span>
+                    ) : esDeSistema(cat) ? (
+                      <span className="text-xs text-ash">La usa la app</span>
                     ) : (
                       <>
                         {/* Agregar subcategoría */}
@@ -231,6 +237,8 @@ export default function CategoriasCliente({ usuario, categoriasIniciales }: Prop
                         </div>
                         {esGestionDeuda(sub) ? (
                           <span className="text-xs text-ash">Deuda</span>
+                        ) : esDeSistema(sub) ? (
+                          <span className="text-xs text-ash">La usa la app</span>
                         ) : (
                           <div className="flex gap-2">
                             <button

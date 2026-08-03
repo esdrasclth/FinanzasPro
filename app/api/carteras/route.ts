@@ -4,6 +4,7 @@ import { getSessionUser } from '../../lib/auth-server'
 import { carterasConSaldo, carterasArchivadas } from '../../lib/carteras-server'
 import { tasaVigente } from '../../lib/tipoCambio-server'
 import { hoyUsuarioUTC } from '../../lib/fecha-server'
+import { categoriaSistema } from '../../lib/categorias-server'
 
 // GET /api/carteras
 // Carteras activas con su saldo ya calculado, más las archivadas.
@@ -121,19 +122,6 @@ function leerCartera(body: any) {
   }
 }
 
-async function categoriaApertura(tx: any, userId: string, tipo: string): Promise<string> {
-  const existente = await tx.categories.findFirst({
-    where: { nombre: 'Saldo inicial', tipo, es_sistema: true, OR: [{ user_id: userId }, { user_id: null }] },
-    select: { id: true },
-  })
-  if (existente) return existente.id
-  const creada = await tx.categories.create({
-    data: { user_id: userId, nombre: 'Saldo inicial', tipo, icono: '🏦', color: '#64748B', es_sistema: true },
-    select: { id: true },
-  })
-  return creada.id
-}
-
 export async function POST(req: Request) {
   const session = await getSessionUser()
   if (!session) return NextResponse.json({ error: { message: 'No autenticado' } }, { status: 401 })
@@ -151,6 +139,14 @@ export async function POST(req: Request) {
 
   const tasa = await tasaVigente(session.id)
   const hoy = await hoyUsuarioUTC()
+
+  // La categoría de apertura es de sistema y global: se resuelve fuera de la
+  // transacción para no crearla dentro de ella.
+  const catApertura: Record<string, string | null> = {}
+  for (const ap of aperturas) {
+    const tipoMov = ap.monto > 0 ? 'ingreso' : 'gasto'
+    catApertura[tipoMov] ??= await categoriaSistema('Saldo inicial', tipoMov)
+  }
 
   const cartera = await prisma.$transaction(async (tx) => {
     const ultima = await tx.wallets.aggregate({
@@ -171,7 +167,7 @@ export async function POST(req: Request) {
         data: {
           user_id: session.id,
           wallet_id: w.id,
-          category_id: await categoriaApertura(tx, session.id, tipoMov),
+          category_id: catApertura[tipoMov],
           monto: Math.abs(ap.monto),
           moneda: ap.moneda,
           tasa_cambio: tasa,

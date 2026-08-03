@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSessionUser } from '../lib/auth-server'
 import { prisma } from '../lib/prisma'
+import { categoriasVisibles } from '../lib/categorias-server'
 import CategoriasCliente from './CategoriasCliente'
 
 // Server Component: las categorías llegan con el HTML.
@@ -12,7 +13,7 @@ export default async function CategoriasPage() {
   if (!perfil || !perfil.onboarding_completado) redirect('/onboarding')
 
   const filas = await prisma.categories.findMany({
-    where: { OR: [{ user_id: session.id }, { es_sistema: true }] },
+    where: categoriasVisibles(session.id),
     orderBy: { nombre: 'asc' },
   })
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '../../lib/prisma'
 import { getSessionUser } from '../../lib/auth-server'
+import { categoriasVisibles } from '../../lib/categorias-server'
 
 type Filter = { type: 'eq' | 'gte' | 'lte' | 'lt' | 'or'; column?: string; value?: any; raw?: string }
 type Order = { column: string; ascending: boolean }
@@ -144,7 +145,8 @@ function buildWhere(table: string, userId: string, filters: Filter[]): any {
   if (cfg.user === 'id') {
     conditions.push({ id: userId })
   } else if (cfg.allowSystem) {
-    conditions.push({ OR: [{ user_id: userId }, { es_sistema: true }] })
+    // De sistema solo las globales: las que tienen dueño son de otra cuenta.
+    conditions.push(categoriasVisibles(userId))
   } else {
     conditions.push({ user_id: userId })
   }

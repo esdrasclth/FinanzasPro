@@ -1,6 +1,7 @@
 import { prisma } from './prisma'
 import { tasaVigente } from './tipoCambio-server'
 import { porCategoria } from './finanzas'
+import { categoriasVisibles } from './categorias-server'
 
 // Datos de Presupuesto resueltos en el servidor: los presupuestos del mes con
 // lo gastado (ya normalizado a la moneda principal), el gasto del mes anterior
@@ -38,7 +39,7 @@ async function traspasar(userId: string, mes: number, anio: number): Promise<boo
 
   // No se traspasan subcategorías archivadas (deudas ya saldadas).
   const archivadas = await prisma.categories.findMany({
-    where: { archivada: true, OR: [{ user_id: userId }, { es_sistema: true }] },
+    where: { archivada: true, ...categoriasVisibles(userId) },
     select: { id: true },
   })
   const ids = new Set(archivadas.map(c => c.id))
@@ -103,7 +104,7 @@ export async function datosPresupuesto(userId: string, mes: number, anio: number
       select: seleccion,
     }),
     prisma.categories.findMany({
-      where: { OR: [{ user_id: userId }, { es_sistema: true }] },
+      where: categoriasVisibles(userId),
       select: { id: true, nombre: true, icono: true, color: true, tipo: true, parent_id: true },
     }),
     prisma.metas.findMany({ where: { user_id: userId }, orderBy: { created_at: 'desc' } }),

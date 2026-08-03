@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma'
 import { aFechaUTC, finMesDesplazado, inicioMesDesplazado } from '../lib/fecha'
 import { hoyUsuario } from '../lib/fecha-server'
 import { tasaVigente } from '../lib/tipoCambio-server'
+import { categoriasVisibles } from '../lib/categorias-server'
 import ExportarCliente from './ExportarCliente'
 
 // Server Component: el mes en curso, las categorías, las carteras y la tasa
@@ -38,7 +39,7 @@ export default async function ExportarPage() {
     // Para avisar cuando el periodo trae más de lo que cabe en el reporte.
     prisma.transactions.count({ where: rango }),
     prisma.categories.findMany({
-      where: { OR: [{ user_id: session.id }, { es_sistema: true }] },
+      where: categoriasVisibles(session.id),
       orderBy: { nombre: 'asc' },
     }),
     // También las archivadas: los movimientos viejos siguen apuntando a ellas.

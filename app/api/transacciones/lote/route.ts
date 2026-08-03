@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '../../../lib/prisma'
 import { getSessionUser } from '../../../lib/auth-server'
 import { eliminarMovimiento } from '../../../lib/transacciones-server'
+import { categoriasVisibles } from '../../../lib/categorias-server'
 
 // POST /api/transacciones/lote
 //   { accion: 'eliminar', ids: [...] }
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
 
     // La categoría debe ser del usuario o de sistema.
     const cat = await prisma.categories.findFirst({
-      where: { id: categoryId, OR: [{ user_id: session.id }, { es_sistema: true }] },
+      where: { id: categoryId, ...categoriasVisibles(session.id) },
       select: { id: true },
     })
     if (!cat) {

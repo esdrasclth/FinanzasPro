@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '../../lib/prisma'
 import { getSessionUser } from '../../lib/auth-server'
+import { categoriasVisibles } from '../../lib/categorias-server'
 
 // GET    /api/categorias        -> las del usuario más las de sistema
 // DELETE /api/categorias?id=... -> elimina una propia
@@ -16,7 +17,7 @@ export async function GET() {
   }
 
   const filas = await prisma.categories.findMany({
-    where: { OR: [{ user_id: session.id }, { es_sistema: true }] },
+    where: categoriasVisibles(session.id),
     orderBy: { nombre: 'asc' },
   })
 
@@ -36,7 +37,12 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: { message: 'Falta el identificador' } }, { status: 400 })
   }
 
-  const cat = await prisma.categories.findFirst({ where: { id, user_id: session.id } })
+  // Se busca entre las que el usuario ve —las suyas y las de sistema— para
+  // poder explicar por qué no se borra una del sistema en vez de decir que no
+  // existe.
+  const cat = await prisma.categories.findFirst({
+    where: { id, ...categoriasVisibles(session.id) },
+  })
   if (!cat) {
     return NextResponse.json({ error: { message: 'Categoría no encontrada' } }, { status: 404 })
   }
@@ -99,7 +105,7 @@ export async function POST(req: Request) {
   // La subcategoría debe colgar de una categoría propia del mismo tipo.
   if (r.datos!.parent_id) {
     const padre = await prisma.categories.findFirst({
-      where: { id: r.datos!.parent_id, OR: [{ user_id: s.id }, { es_sistema: true }] },
+      where: { id: r.datos!.parent_id, ...categoriasVisibles(s.id) },
     })
     if (!padre) {
       return NextResponse.json({ error: { message: 'Categoría padre no válida' } }, { status: 400 })
@@ -121,7 +127,7 @@ export async function PUT(req: Request) {
   const r = leerCategoria(body)
   if (r.error) return NextResponse.json({ error: { message: r.error } }, { status: 400 })
 
-  const actual = await prisma.categories.findFirst({ where: { id, user_id: s.id } })
+  const actual = await prisma.categories.findFirst({ where: { id, ...categoriasVisibles(s.id) } })
   if (!actual) return NextResponse.json({ error: { message: 'Categoría no encontrada' } }, { status: 404 })
   if (actual.es_sistema) {
     return NextResponse.json({ error: { message: 'Las categorías del sistema no se editan' } }, { status: 409 })
