@@ -413,6 +413,9 @@ model repartos {
   metodo_detalle String?
   wallet_id      String?  @db.Uuid // cartera de la que salió el gasto (si pagaste tú)
   transaction_id String?  @db.Uuid // transacción de gasto asociada
+  // Cierre manual: lo que quedó sin cobrar se da por perdido y el reparto deja
+  // de contar como pendiente. Null = sigue abierto.
+  cerrado_en     DateTime?
   created_at     DateTime @default(now())
 
   participantes reparto_participantes[]

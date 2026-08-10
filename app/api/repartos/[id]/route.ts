@@ -39,6 +39,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       monto_pagado: round2(cobrado),
       monto_recuperable: round2(recuperable),
       mi_parte: round2(miParte),
+      cerrado_en: reparto.cerrado_en ? reparto.cerrado_en.toISOString().slice(0, 10) : null,
       participantes: reparto.participantes.map(p => ({
         id: p.id,
         nombre: p.nombre,
@@ -49,6 +50,26 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       })),
     },
   })
+}
+
+// PATCH /api/repartos/[id]  { cerrado: boolean }
+//
+// Cierra el reparto dando por perdido lo que quede sin cobrar, o lo reabre. No
+// mueve dinero: lo que nunca se cobró nunca entró a ninguna cartera. Solo deja
+// de contarse como pendiente.
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const auth = await requireReparto(id)
+  if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status })
+
+  const body = await req.json().catch(() => null)
+  const cerrar = !!body?.cerrado
+
+  await prisma.repartos.update({
+    where: { id },
+    data: { cerrado_en: cerrar ? await hoyUsuarioUTC() : null },
+  })
+  return NextResponse.json({ ok: true })
 }
 
 // PUT /api/repartos/[id] -> reemplaza datos y participantes

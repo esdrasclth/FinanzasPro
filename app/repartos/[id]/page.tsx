@@ -8,7 +8,7 @@ import { formatoMoneda, simboloMoneda } from '../../lib/dinero'
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import {
   ArrowLeft, Share2, Copy, Check, Pencil, Trash2, MoreHorizontal,
-  Coins, CheckCircle2, HandCoins, Users, Send, CheckCheck, RotateCcw, X, FileDown,
+  Coins, CheckCircle2, HandCoins, Users, Send, CheckCheck, RotateCcw, X, FileDown, Ban,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -31,6 +31,8 @@ interface Reparto {
   monto_pagado: number
   monto_recuperable: number
   mi_parte: number
+  // Día en que se dio por cerrado (lo que faltaba se dio por perdido). Null = abierto.
+  cerrado_en: string | null
   participantes: Participante[]
 }
 interface WalletMini { id: string; nombre: string; moneda: string }
@@ -143,6 +145,25 @@ export default function RepartoDetalle() {
     setProcesando(false)
   }
 
+  // Dar por cerrado lo que ya no se va a cobrar (o volver a abrirlo).
+  const cambiarCierre = async (cerrado: boolean) => {
+    if (!reparto || procesando) return
+    if (cerrado) {
+      const falta = Math.max(0, reparto.monto_recuperable - reparto.monto_pagado)
+      const aviso = falta > 0
+        ? `Se dará por perdido lo que falta (${formatoMoneda(falta, reparto.moneda)}) y el reparto dejará de contar como pendiente. ¿Cerrarlo?`
+        : '¿Dar este reparto por cerrado?'
+      if (!confirm(aviso)) return
+    }
+    setProcesando(true)
+    await fetch(`/api/repartos/${repartoId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cerrado }),
+    })
+    await cargar()
+    setProcesando(false)
+  }
+
   const eliminar = async () => {
     if (!confirm(`¿Eliminar el reparto "${reparto?.descripcion}"?`)) return
     const res = await fetch(`/api/repartos/${repartoId}`, { method: 'DELETE' })
@@ -197,12 +218,23 @@ export default function RepartoDetalle() {
   const pct = recuperable > 0 ? Math.round((reparto.monto_pagado / recuperable) * 100) : 100
   const pagados = cobrables.filter(p => p.pagado).length
   const total = cobrables.length
-  const pendiente = Math.max(0, recuperable - reparto.monto_pagado)
+  const falta = Math.max(0, recuperable - reparto.monto_pagado)
   const liquidado = total > 0 && pagados === total
+  // Cerrado a mano: lo que faltaba se dio por perdido y ya no está por cobrar.
+  const cerrado = !!reparto.cerrado_en && !liquidado
+  const perdido = cerrado ? falta : 0
+  const pendiente = cerrado ? 0 : falta
   const fmt = (n: number) => formatoMoneda(n, reparto.moneda)
+  // Completación del gasto: tu parte ya está puesta y lo perdido ya no se
+  // espera, así que ambos cuentan como resueltos.
+  const cubiertoPct = reparto.monto_total > 0
+    ? Math.min(100, Math.round(((reparto.mi_parte + reparto.monto_pagado + perdido) / reparto.monto_total) * 100))
+    : 0
 
   const donut = [
+    { nombre: 'Tu parte', valor: reparto.mi_parte, color: '#14361f' },
     { nombre: 'Pagado', valor: reparto.monto_pagado, color: '#10b981' },
+    { nombre: 'Perdido', valor: perdido, color: '#a1a1aa' },
     { nombre: 'Pendiente', valor: pendiente, color: '#e4e4e7' },
   ].filter(d => d.valor > 0)
 
@@ -218,9 +250,11 @@ export default function RepartoDetalle() {
             </button>
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-bold truncate text-obsidian">{reparto.descripcion}</h1>
-              <span className={`inline-flex items-center gap-1 flex-shrink-0 px-2.5 py-1 text-xs font-medium rounded-badge ${liquidado ? 'text-emerald-600 bg-emerald-50' : 'text-amber-600 bg-amber-50'}`}>
-                {liquidado ? <CheckCircle2 size={12} strokeWidth={2.5} /> : null}
-                {liquidado ? 'Liquidado' : 'Pendiente'}
+              <span
+                title={cerrado ? `Cerrado el ${new Date(reparto.cerrado_en + 'T12:00:00').toLocaleDateString('es-HN', { day: 'numeric', month: 'long' })}` : undefined}
+                className={`inline-flex items-center gap-1 flex-shrink-0 px-2.5 py-1 text-xs font-medium rounded-badge ${liquidado ? 'text-emerald-600 bg-emerald-50' : cerrado ? 'text-graphite bg-mist' : 'text-amber-600 bg-amber-50'}`}>
+                {liquidado ? <CheckCircle2 size={12} strokeWidth={2.5} /> : cerrado ? <Ban size={12} strokeWidth={2.5} /> : null}
+                {liquidado ? 'Liquidado' : cerrado ? 'Cerrado' : 'Pendiente'}
               </span>
             </div>
             <p className="mt-1 text-sm text-steel">
@@ -246,7 +280,13 @@ export default function RepartoDetalle() {
               <FileDown size={14} strokeWidth={2} />
               {descargando === 'excel' ? 'Generando…' : 'Excel'}
             </button>
-            <RowMenu onEdit={() => setShowEditar(true)} onDelete={eliminar} />
+            <RowMenu
+              cerrado={cerrado}
+              puedeCerrar={!liquidado && !cerrado}
+              onCerrar={() => cambiarCierre(!cerrado)}
+              onEdit={() => setShowEditar(true)}
+              onDelete={eliminar}
+            />
           </div>
         </div>
 
@@ -260,14 +300,15 @@ export default function RepartoDetalle() {
           <div className="relative px-5 py-6 sm:px-6 sm:py-9 lg:px-8 lg:py-12">
             <div className="mb-8">
               <h2 className="text-xl font-semibold">Estado del reparto</h2>
-              <p className="text-base text-white/60">{pct}% pagado · {pagados}/{total} personas</p>
+              <p className="text-base text-white/60">{cubiertoPct}% cubierto · {pagados}/{total} personas</p>
             </div>
             <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4 sm:gap-6 lg:divide-x lg:divide-white/10">
               <HeroMetrica icon={Coins} label="Total del gasto" valor={fmt(reparto.monto_total)}
                 nota={reparto.mi_parte > 0 ? <span className="text-white/60">Tu parte: {fmt(reparto.mi_parte)}</span> : undefined} />
               <HeroMetrica icon={CheckCircle2} label="Cobrado" valor={fmt(reparto.monto_pagado)}
                 nota={<span className="text-emerald-300">{pct}% de lo recuperable</span>} className="lg:px-6" />
-              <HeroMetrica icon={HandCoins} label="Por cobrar" valor={fmt(pendiente)} className="lg:px-6" />
+              <HeroMetrica icon={HandCoins} label="Por cobrar" valor={fmt(pendiente)}
+                nota={perdido > 0 ? <span className="text-white/60">{fmt(perdido)} dado por perdido</span> : undefined} className="lg:px-6" />
               <HeroMetrica icon={Users} label="Personas" valor={`${pagados} / ${total}`} className="lg:pl-6" />
             </div>
           </div>
@@ -318,7 +359,7 @@ export default function RepartoDetalle() {
                           <p className="text-xs text-ash">
                             {p.pagado
                               ? (p.fecha_pago ? `Pagó el ${new Date(p.fecha_pago + 'T12:00:00').toLocaleDateString('es-HN', { day: 'numeric', month: 'short' })}` : 'Pagado')
-                              : 'Pendiente'}
+                              : cerrado ? 'Sin pagar · dado por perdido' : 'Pendiente'}
                           </p>
                         </div>
                       </button>
@@ -349,7 +390,7 @@ export default function RepartoDetalle() {
 
             {/* Progreso */}
             <div className="p-6 border bg-snow border-fog rounded-card">
-              <h3 className="mb-5 text-sm font-semibold text-steel">Progreso de cobro</h3>
+              <h3 className="mb-5 text-sm font-semibold text-steel">Progreso del reparto</h3>
               <div className="flex items-center gap-5">
                 <div className="relative flex-shrink-0 w-[136px] h-[136px]">
                   <ResponsiveContainer width="100%" height="100%">
@@ -360,11 +401,20 @@ export default function RepartoDetalle() {
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-xl font-bold leading-tight text-ink">{pct}%</span>
-                    <span className="text-[10px] font-medium text-steel">pagado</span>
+                    <span className="text-xl font-bold leading-tight text-ink">{cubiertoPct}%</span>
+                    <span className="text-[10px] font-medium text-steel">cubierto</span>
                   </div>
                 </div>
                 <div className="flex-1 min-w-0 space-y-3">
+                  {reparto.mi_parte > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#14361f' }} />
+                        <span className="text-xs text-steel">Tu parte</span>
+                      </div>
+                      <p className="mt-0.5 text-sm font-semibold text-ink">{fmt(reparto.mi_parte)}</p>
+                    </div>
+                  )}
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
@@ -372,6 +422,15 @@ export default function RepartoDetalle() {
                     </div>
                     <p className="mt-0.5 text-sm font-semibold text-ink">{fmt(reparto.monto_pagado)}</p>
                   </div>
+                  {perdido > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#a1a1aa' }} />
+                        <span className="text-xs text-steel">Perdido</span>
+                      </div>
+                      <p className="mt-0.5 text-sm font-semibold text-ink">{fmt(perdido)}</p>
+                    </div>
+                  )}
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-fog" />
@@ -381,6 +440,27 @@ export default function RepartoDetalle() {
                   </div>
                 </div>
               </div>
+
+              {cerrado ? (
+                <div className="pt-4 mt-5 border-t border-fog">
+                  <p className="text-xs text-steel">
+                    Cerrado el {new Date(reparto.cerrado_en + 'T12:00:00').toLocaleDateString('es-HN', { day: 'numeric', month: 'long', year: 'numeric' })}.
+                    {perdido > 0 ? ` Lo que faltaba (${fmt(perdido)}) quedó como perdido.` : ''}
+                  </p>
+                  <button onClick={() => cambiarCierre(false)} disabled={procesando}
+                    className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 text-xs font-medium transition-colors border rounded-full border-fog text-graphite hover:bg-mist disabled:opacity-40">
+                    <RotateCcw size={13} strokeWidth={2} /> Reabrir reparto
+                  </button>
+                </div>
+              ) : !liquidado && pendiente > 0 ? (
+                <div className="pt-4 mt-5 border-t border-fog">
+                  <p className="text-xs text-ash">¿Ya no vas a cobrar lo que falta?</p>
+                  <button onClick={() => cambiarCierre(true)} disabled={procesando}
+                    className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 text-xs font-medium transition-colors border rounded-full border-fog text-graphite hover:bg-mist disabled:opacity-40">
+                    <Ban size={13} strokeWidth={2} /> Dar por cerrado
+                  </button>
+                </div>
+              ) : null}
             </div>
 
             {/* Acciones */}
@@ -490,7 +570,13 @@ function HeroMetrica({ icon: Icon, label, valor, nota, className = '' }: {
   )
 }
 
-function RowMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+function RowMenu({ cerrado, puedeCerrar, onCerrar, onEdit, onDelete }: {
+  cerrado: boolean
+  puedeCerrar: boolean
+  onCerrar: () => void
+  onEdit: () => void
+  onDelete: () => void
+}) {
   const [open, setOpen] = useState(false)
   return (
     <div className="relative flex-shrink-0">
@@ -511,6 +597,17 @@ function RowMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => voi
             >
               <Pencil size={14} strokeWidth={2} /> Editar
             </button>
+            {(puedeCerrar || cerrado) && (
+              <button
+                onClick={() => { setOpen(false); onCerrar() }}
+                title={cerrado ? undefined : 'Lo que falte por cobrar se da por perdido'}
+                className="flex items-center w-full gap-2 px-3 py-1.5 text-sm text-left transition-colors text-graphite hover:bg-mist"
+              >
+                {cerrado
+                  ? <><RotateCcw size={14} strokeWidth={2} /> Reabrir reparto</>
+                  : <><Ban size={14} strokeWidth={2} /> Dar por cerrado</>}
+              </button>
+            )}
             <button
               onClick={() => { setOpen(false); onDelete() }}
               className="flex items-center w-full gap-2 px-3 py-1.5 text-sm text-left text-red-600 transition-colors hover:bg-red-50"

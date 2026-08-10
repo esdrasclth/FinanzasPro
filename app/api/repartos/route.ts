@@ -17,9 +17,11 @@ export async function GET() {
 
   return NextResponse.json({
     repartos: repartos.map(r => {
-      // Excluye la parte propia (es_yo): no se cobra.
+      // Excluye la parte propia (es_yo): no se cobra, pero sí cuenta como
+      // cubierta del total (ya la pusiste tú).
       const cobrables = r.participantes.filter(p => !p.es_yo)
       const pagado = cobrables.filter(p => p.pagado).reduce((s, p) => s + p.monto_asignado, 0)
+      const miParte = r.participantes.filter(p => p.es_yo).reduce((s, p) => s + p.monto_asignado, 0)
       return {
         id: r.id,
         descripcion: r.descripcion,
@@ -31,6 +33,8 @@ export async function GET() {
         participantes: cobrables.length,
         pagados: cobrables.filter(p => p.pagado).length,
         monto_pagado: Math.round((pagado + Number.EPSILON) * 100) / 100,
+        mi_parte: Math.round((miParte + Number.EPSILON) * 100) / 100,
+        cerrado_en: r.cerrado_en ? r.cerrado_en.toISOString().slice(0, 10) : null,
       }
     }),
   })

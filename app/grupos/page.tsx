@@ -12,7 +12,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   Plus, Search, X, ChevronDown, Users, Receipt, Coins, HandCoins, KeyRound,
   CheckCircle2, Clock, ArrowDownLeft, ArrowUpRight, Scale, PieChart as PieIcon,
-  ShieldCheck, User, Activity, FileDown,
+  ShieldCheck, User, Activity, FileDown, Ban,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -475,6 +475,8 @@ interface Reparto {
   participantes: number
   pagados: number
   monto_pagado: number
+  mi_parte: number
+  cerrado_en: string | null
 }
 
 function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
@@ -514,11 +516,29 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
   }, [])
 
   const fmt = (n: number) => formatoMoneda(n, monedaDefault)
-  const estadoDe = (r: Reparto) => r.participantes > 0 && r.pagados === r.participantes ? 'liquidado' : 'pendiente'
-  const pendienteDe = (r: Reparto) => Math.max(0, r.monto_total - r.monto_pagado)
+  // Un reparto cerrado a mano es el que ya no se va a cobrar: lo que faltaba se
+  // dio por perdido y deja de arrastrarse como pendiente.
+  const estadoDe = (r: Reparto): 'liquidado' | 'cerrado' | 'pendiente' => {
+    if (r.participantes > 0 && r.pagados === r.participantes) return 'liquidado'
+    return r.cerrado_en ? 'cerrado' : 'pendiente'
+  }
+  // Tu parte no se cobra: lo recuperable es solo lo de los demás.
+  const recuperableDe = (r: Reparto) => Math.max(0, r.monto_total - r.mi_parte)
+  const faltaDe = (r: Reparto) => Math.max(0, recuperableDe(r) - r.monto_pagado)
+  const perdidoDe = (r: Reparto) => estadoDe(r) === 'cerrado' ? faltaDe(r) : 0
+  const pendienteDe = (r: Reparto) => estadoDe(r) === 'cerrado' ? 0 : faltaDe(r)
+  // Barra de completación: cuánto del gasto ya está resuelto. Tu aportación
+  // propia ya la pusiste y lo perdido ya no se espera; ambos cuentan.
+  const cubiertoPctDe = (r: Reparto) =>
+    r.monto_total > 0
+      ? Math.min(100, Math.round(((r.mi_parte + r.monto_pagado + perdidoDe(r)) / r.monto_total) * 100))
+      : 0
 
   const totalMonto = repartos.reduce((s, r) => s + r.monto_total, 0)
   const totalPagado = repartos.reduce((s, r) => s + r.monto_pagado, 0)
+  const totalPerdido = repartos.reduce((s, r) => s + perdidoDe(r), 0)
+  // Lo perdido sale de la base cobrable: si no, el porcentaje nunca cerraría.
+  const totalCobrable = repartos.reduce((s, r) => s + recuperableDe(r) - perdidoDe(r), 0)
   // Liquidación del periodo: es lo que se comparte con el grupo al cerrar la
   // quincena o la semana.
   const hoyISO = fechaHoyLocal()
@@ -551,10 +571,13 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
     setExpDesde(diasAntes(hoyISO, dias))
   }
 
-  const totalPendiente = Math.max(0, totalMonto - totalPagado)
-  const personasPendientes = repartos.reduce((s, r) => s + (r.participantes - r.pagados), 0)
+  const totalPendiente = repartos.reduce((s, r) => s + pendienteDe(r), 0)
+  const personasPendientes = repartos
+    .filter(r => estadoDe(r) === 'pendiente')
+    .reduce((s, r) => s + (r.participantes - r.pagados), 0)
+  const cerrados = repartos.filter(r => estadoDe(r) === 'cerrado').length
   const liquidados = repartos.filter(r => estadoDe(r) === 'liquidado').length
-  const cobradoPct = totalMonto > 0 ? (totalPagado / totalMonto) * 100 : 0
+  const cobradoPct = totalCobrable > 0 ? Math.min(100, (totalPagado / totalCobrable) * 100) : 100
 
   const q = busqueda.trim().toLowerCase()
   // El rango elegido para liquidar filtra también la lista, para que se vea
@@ -564,6 +587,9 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
     .filter(r => !rangoActivo || (r.fecha >= expDesde && r.fecha <= expHasta))
     .filter(r => !q || r.descripcion.toLowerCase().includes(q) || (r.lugar || '').toLowerCase().includes(q))
     .sort((a, b) => {
+      // Lo que ya no requiere nada (liquidado o cerrado) baja al final.
+      const resuelto = (estadoDe(a) !== 'pendiente' ? 1 : 0) - (estadoDe(b) !== 'pendiente' ? 1 : 0)
+      if (resuelto !== 0) return resuelto
       if (orden === 'monto') return b.monto_total - a.monto_total
       if (orden === 'pendiente') return pendienteDe(b) - pendienteDe(a)
       return new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
@@ -618,12 +644,15 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
         <div className="relative px-5 py-6 sm:px-6 sm:py-9 lg:px-8 lg:py-12">
           <div className="mb-8">
             <h2 className="text-xl font-semibold">Resumen de tus repartos</h2>
-            <p className="text-base text-white/60">{repartos.length} {repartos.length === 1 ? 'reparto' : 'repartos'} · {liquidados} liquidados</p>
+            <p className="text-base text-white/60">
+              {repartos.length} {repartos.length === 1 ? 'reparto' : 'repartos'} · {liquidados} liquidados
+              {cerrados > 0 && ` · ${cerrados} ${cerrados === 1 ? 'cerrado' : 'cerrados'}`}
+            </p>
           </div>
           <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4 sm:gap-6 lg:divide-x lg:divide-white/10">
             <HeroMetrica icon={Coins} label="Total repartido" valor={fmt(totalMonto)} />
             <HeroMetrica icon={CheckCircle2} label="Ya cobrado" valor={fmt(totalPagado)}
-              nota={<span className="text-emerald-300">{Math.round(cobradoPct)}% del total</span>} className="lg:px-6" />
+              nota={<span className="text-emerald-300">{Math.round(cobradoPct)}% de lo cobrable</span>} className="lg:px-6" />
             <HeroMetrica icon={HandCoins} label="Por cobrar" valor={fmt(totalPendiente)} className="lg:px-6" />
             <HeroMetrica icon={Users} label="Personas pendientes" valor={`${personasPendientes}`} className="lg:pl-6" />
           </div>
@@ -720,6 +749,7 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
             { value: 'todos', label: 'Todos' },
             { value: 'pendiente', label: 'Pendientes' },
             { value: 'liquidado', label: 'Liquidados' },
+            { value: 'cerrado', label: 'Cerrados' },
           ]} />
           <FiltroMenu value={orden} onChange={setOrden} options={[
             { value: 'recientes', label: 'Más recientes' },
@@ -740,8 +770,11 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {filtrados.map(r => {
-                const pct = r.monto_total > 0 ? Math.round((r.monto_pagado / r.monto_total) * 100) : 0
-                const liquidado = estadoDe(r) === 'liquidado'
+                const pct = cubiertoPctDe(r)
+                const estado = estadoDe(r)
+                const liquidado = estado === 'liquidado'
+                const cerrado = estado === 'cerrado'
+                const perdido = perdidoDe(r)
                 return (
                   <button key={r.id} onClick={() => router.push(`/repartos/${r.id}`)}
                     className="p-5 text-left transition-all border bg-snow border-fog rounded-card hover:border-pebble hover:shadow-soft active:scale-[0.99]">
@@ -752,19 +785,32 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
                           {r.participantes} {r.participantes === 1 ? 'persona' : 'personas'} · {new Date(r.fecha + 'T12:00:00').toLocaleDateString('es-HN', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </p>
                       </div>
-                      <span className={`inline-flex items-center gap-1 flex-shrink-0 px-2.5 py-1 text-xs font-medium rounded-badge ${liquidado ? 'text-emerald-600 bg-emerald-50' : 'text-amber-600 bg-amber-50'}`}>
-                        {liquidado ? <CheckCircle2 size={12} strokeWidth={2.5} /> : <Clock size={12} strokeWidth={2.5} />}
-                        {liquidado ? 'Liquidado' : 'Pendiente'}
+                      <span className={`inline-flex items-center gap-1 flex-shrink-0 px-2.5 py-1 text-xs font-medium rounded-badge ${liquidado ? 'text-emerald-600 bg-emerald-50' : cerrado ? 'text-graphite bg-mist' : 'text-amber-600 bg-amber-50'}`}>
+                        {liquidado ? <CheckCircle2 size={12} strokeWidth={2.5} /> : cerrado ? <Ban size={12} strokeWidth={2.5} /> : <Clock size={12} strokeWidth={2.5} />}
+                        {liquidado ? 'Liquidado' : cerrado ? 'Cerrado' : 'Pendiente'}
                       </span>
                     </div>
                     <div className="flex items-end justify-between mb-2">
                       <span className="text-xl font-bold text-obsidian">{formatoMoneda(r.monto_total, r.moneda)}</span>
-                      {!liquidado && <span className="text-xs font-medium text-steel">Faltan {formatoMoneda(pendienteDe(r), r.moneda)}</span>}
+                      {cerrado
+                        ? perdido > 0 && <span className="text-xs font-medium text-ash">{formatoMoneda(perdido, r.moneda)} perdidos</span>
+                        : !liquidado && <span className="text-xs font-medium text-steel">Faltan {formatoMoneda(pendienteDe(r), r.moneda)}</span>}
                     </div>
-                    <div className="w-full h-2 overflow-hidden rounded-full bg-mist">
-                      <div className="h-full transition-all rounded-full" style={{ width: `${pct}%`, background: liquidado ? '#10b981' : '#2c6e49' }} />
+                    {/* Tramos: lo que pusiste tú, lo cobrado y lo dado por perdido. */}
+                    <div className="flex w-full h-2 overflow-hidden rounded-full bg-mist">
+                      <div className="h-full transition-all" title="Tu parte"
+                        style={{ width: `${r.monto_total > 0 ? (r.mi_parte / r.monto_total) * 100 : 0}%`, background: '#14361f' }} />
+                      <div className="h-full transition-all" title="Cobrado"
+                        style={{ width: `${r.monto_total > 0 ? (r.monto_pagado / r.monto_total) * 100 : 0}%`, background: liquidado ? '#10b981' : '#2c6e49' }} />
+                      {perdido > 0 && (
+                        <div className="h-full transition-all" title="Dado por perdido"
+                          style={{ width: `${r.monto_total > 0 ? (perdido / r.monto_total) * 100 : 0}%`, background: '#a1a1aa' }} />
+                      )}
                     </div>
-                    <p className="mt-1.5 text-xs text-steel">{pct}% pagado · {r.pagados}/{r.participantes} personas</p>
+                    <p className="mt-1.5 text-xs text-steel">
+                      {pct}% cubierto · {r.pagados}/{r.participantes} personas
+                      {r.mi_parte > 0 && <span className="text-ash"> · incluye tu parte</span>}
+                    </p>
                   </button>
                 )
               })}
@@ -782,6 +828,9 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
               <div className="h-full rounded-full bg-emerald-500" style={{ width: `${cobradoPct}%` }} />
             </div>
             <p className="mt-2 text-xs text-steel">{Math.round(cobradoPct)}% cobrado · {liquidados}/{repartos.length} repartos liquidados</p>
+            {totalPerdido > 0 && (
+              <p className="mt-1 text-xs text-ash">{fmt(totalPerdido)} dados por perdidos en {cerrados} {cerrados === 1 ? 'reparto cerrado' : 'repartos cerrados'}</p>
+            )}
           </div>
 
           <div className="p-5 border bg-snow border-fog rounded-card">
