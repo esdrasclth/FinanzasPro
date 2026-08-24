@@ -1,7 +1,6 @@
-// v2: la v1 guardaba en caché, para siempre, los payloads de navegación del
-// router de Next. Al subir la versión, el handler de `activate` borra la caché
-// vieja y con ella las respuestas ya rancias.
-const CACHE = 'caudal-v2'
+// v3 actualiza la caché de la app con el nuevo logotipo. Al subir la versión,
+// el handler de `activate` borra la caché vieja y con ella los iconos previos.
+const CACHE = 'caudal-v3'
 const OFFLINE_URL = '/offline'
 const PRECACHE = ['/offline', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png']
 

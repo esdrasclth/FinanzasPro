@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Mail, Lock, Eye, EyeOff, Droplets, TrendingUp, PieChart, Wallet, ArrowRight } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, TrendingUp, PieChart, Wallet, ArrowRight } from 'lucide-react'
 
 export default function Login() {
   const router = useRouter()
@@ -41,15 +42,15 @@ export default function Login() {
       <section className="flex items-center justify-center min-h-screen px-4 py-10 lg:min-h-0">
         <div className="w-full max-w-md">
           <div className="mb-8 text-center lg:hidden">
-            <span className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-obsidian text-snow">
-              <Droplets size={26} strokeWidth={2} />
+            <span className="inline-flex items-center justify-center overflow-hidden border w-14 h-14 rounded-2xl bg-snow border-fog">
+              <Image src="/icons/logo.png" alt="Logo de Caudal" width={56} height={56} priority />
             </span>
             <h1 className="mt-3 text-2xl font-bold text-obsidian">Caudal</h1>
           </div>
 
           <div className="items-center hidden gap-2.5 mb-8 lg:flex">
-            <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-obsidian text-snow">
-              <Droplets size={22} strokeWidth={2} />
+            <span className="inline-flex items-center justify-center overflow-hidden border w-10 h-10 rounded-xl bg-snow border-fog">
+              <Image src="/icons/logo.png" alt="Logo de Caudal" width={40} height={40} priority />
             </span>
             <span className="text-xl font-bold text-obsidian">Caudal</span>
           </div>
@@ -130,8 +131,8 @@ function BrandPanel() {
       <div className="absolute bottom-0 rounded-full pointer-events-none left-1/4 -mb-28 w-80 h-80 bg-emerald-400/10 blur-3xl" />
 
       <div className="relative flex items-center gap-3">
-        <span className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-white/10 backdrop-blur">
-          <Droplets size={24} strokeWidth={2} />
+        <span className="inline-flex items-center justify-center overflow-hidden w-11 h-11 rounded-xl bg-white/10 backdrop-blur">
+          <Image src="/icons/logo.png" alt="Logo de Caudal" width={44} height={44} priority />
         </span>
         <span className="text-xl font-bold">Caudal</span>
       </div>

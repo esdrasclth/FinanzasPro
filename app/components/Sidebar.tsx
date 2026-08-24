@@ -1,10 +1,11 @@
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { useState } from 'react'
 import {
   LayoutDashboard, ArrowLeftRight, Target, Wallet, Users, Tag,
-  Download, Handshake, BarChart3, Settings, Droplets, LogOut, Plus,
+  Download, Handshake, BarChart3, Settings, LogOut, Plus,
   RefreshCw, X, type LucideIcon,
 } from 'lucide-react'
 
@@ -69,8 +70,8 @@ export default function Sidebar({ usuario }: { usuario: any }) {
         {/* Logo */}
         <div className="p-6 border-b border-fog">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center bg-obsidian w-9 h-9 rounded-xl">
-              <Droplets size={18} strokeWidth={2} className="text-snow" />
+            <div className="flex items-center justify-center overflow-hidden bg-snow border w-9 h-9 rounded-xl border-fog">
+              <Image src="/icons/logo.png" alt="Logo de Caudal" width={36} height={36} priority />
             </div>
             <div>
               <p className="text-lg font-bold leading-none text-obsidian">Caudal</p>

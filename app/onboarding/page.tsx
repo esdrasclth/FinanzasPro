@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 
 const PASOS = [
@@ -96,8 +97,8 @@ export default function Onboarding() {
 
       {/* Logo */}
       <div className="flex items-center gap-2 mb-12">
-        <div className="flex items-center justify-center text-lg bg-snow border border-fog w-9 h-9 rounded-badge">
-          💧
+        <div className="flex items-center justify-center overflow-hidden bg-snow border border-fog w-9 h-9 rounded-badge">
+          <Image src="/icons/logo.png" alt="Logo de Caudal" width={36} height={36} priority />
         </div>
         <span className="text-lg font-bold text-obsidian">Caudal</span>
       </div>
