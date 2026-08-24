@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { fechaHoyLocal } from '../lib/fecha'
 import { simboloMoneda } from '../lib/dinero'
+import { emitirCambio } from '../lib/datos-bus'
 
 interface Props {
   cartera: any
@@ -10,15 +11,53 @@ interface Props {
   onSuccess: () => void
 }
 
+const NOMBRES: Record<string, string> = {
+  HNL: 'Lempiras (L)',
+  USD: 'Dólares ($)',
+  EUR: 'Euros (€)',
+}
+
+// Monedas que se pueden ajustar en esta cartera: la primaria, más cualquiera
+// en la que ya haya saldo. Las tarjetas llevan HNL y USD por diseño, así que
+// ofrecen ambas aunque una esté en cero — es justo el caso de estrenar el saldo
+// en dólares de una tarjeta.
+function monedasAjustables(cartera: any): string[] {
+  const primaria = cartera.moneda || 'HNL'
+  const lista = [primaria]
+  if (cartera.tipo === 'credito') {
+    for (const m of ['HNL', 'USD']) if (!lista.includes(m)) lista.push(m)
+  }
+  for (const [m, v] of Object.entries((cartera.saldos || {}) as Record<string, number>)) {
+    if (!lista.includes(m) && Number(v) !== 0) lista.push(m)
+  }
+  return lista
+}
+
 export default function AjusteSaldo({ cartera, onClose, onSuccess }: Props) {
-  const [nuevoSaldo, setNuevoSaldo] = useState(
-    cartera.saldo_actual?.toString() || '0'
-  )
+  const monedas = monedasAjustables(cartera)
+  const [moneda, setMoneda] = useState(monedas[0])
+
+  // El saldo de la moneda elegida sale de `saldos`, no de `saldo_actual`: ese
+  // solo refleja la moneda primaria, y por eso el saldo en dólares de una
+  // tarjeta no había forma de ajustarlo.
+  const saldoDe = (m: string) => {
+    const saldos = (cartera.saldos || {}) as Record<string, number>
+    if (m in saldos) return Number(saldos[m]) || 0
+    return m === (cartera.moneda || 'HNL') ? Number(cartera.saldo_actual) || 0 : 0
+  }
+
+  const [nuevoSaldo, setNuevoSaldo] = useState(saldoDe(monedas[0]).toString())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const simbolo = simboloMoneda(cartera.moneda)
-  const saldoActual = Number(cartera.saldo_actual) || 0
+  const cambiarMoneda = (m: string) => {
+    setMoneda(m)
+    setNuevoSaldo(saldoDe(m).toString())
+    setError('')
+  }
+
+  const simbolo = simboloMoneda(moneda)
+  const saldoActual = saldoDe(moneda)
   const nuevoSaldoNum = parseFloat(nuevoSaldo) || 0
   const diferencia = nuevoSaldoNum - saldoActual
   const esIngreso = diferencia > 0
@@ -44,6 +83,9 @@ export default function AjusteSaldo({ cartera, onClose, onSuccess }: Props) {
       body: JSON.stringify({
         wallet_id: cartera.id,
         monto: Math.abs(diferencia),
+        // Sin esto el servidor caía en la moneda primaria de la cartera y el
+        // ajuste en dólares terminaba descontándose de los lempiras.
+        moneda,
         tipo: esIngreso ? 'ingreso' : 'gasto',
         categoria_sistema: 'Ajuste de saldo',
         descripcion: `Ajuste de saldo — ${cartera.nombre}`,
@@ -56,6 +98,8 @@ export default function AjusteSaldo({ cartera, onClose, onSuccess }: Props) {
       setLoading(false)
       return
     }
+
+    emitirCambio('transacciones')
 
     onSuccess()
     onClose()
@@ -75,6 +119,27 @@ export default function AjusteSaldo({ cartera, onClose, onSuccess }: Props) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
+
+          {/* Las tarjetas admiten saldo independiente en lempiras y dólares. */}
+          {monedas.length > 1 && (
+            <div>
+              <label htmlFor="moneda-ajuste" className="block mb-2 text-sm font-medium text-graphite">
+                Moneda a ajustar
+              </label>
+              <select
+                id="moneda-ajuste"
+                value={moneda}
+                onChange={(e) => cambiarMoneda(e.target.value)}
+                className="w-full px-4 py-3 text-ink border bg-mist border-transparent rounded-input focus:outline-none focus:border-obsidian focus:bg-snow"
+              >
+                {monedas.map((codigo) => (
+                  <option key={codigo} value={codigo}>
+                    {NOMBRES[codigo] || codigo}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Saldo actual */}
           <div className="p-4 bg-mist rounded-input">

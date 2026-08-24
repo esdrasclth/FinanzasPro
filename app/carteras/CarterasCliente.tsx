@@ -24,6 +24,7 @@ import {
   TrendingDown, Moon, GripVertical, type LucideIcon,
 } from 'lucide-react'
 import { round2 } from '../lib/dinero'
+import { emitirCambio, useRecarga } from '../lib/datos-bus'
 
 interface Props {
   // Primer render servido desde el servidor: la pantalla ya llega con datos.
@@ -60,6 +61,9 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
     }
   }
 
+  // Los saldos cambian con cada movimiento, se registre donde se registre.
+  const pedirRecarga = useRecarga(['carteras'], cargarCarteras)
+
   // Archivar en vez de borrar. Las carteras tienen ON DELETE CASCADE sobre
   // transactions: un borrado real destruía en silencio todo el historial de
   // movimientos de esa cuenta, sin forma de recuperarlo.
@@ -78,7 +82,8 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
       body: JSON.stringify({ id: cartera.id, activo: false }),
     })
     if (!res.ok) { alert('No se pudo archivar la cartera'); return }
-    cargarCarteras()
+    emitirCambio('carteras')
+    pedirRecarga()
   }
 
   const handleRestaurar = async (cartera: any) => {
@@ -88,7 +93,8 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
       body: JSON.stringify({ id: cartera.id, activo: true }),
     })
     if (!res.ok) { alert('No se pudo restaurar la cartera'); return }
-    cargarCarteras()
+    emitirCambio('carteras')
+    pedirRecarga()
   }
 
   // El borrado definitivo solo se permite cuando no hay historial que perder;
@@ -101,7 +107,8 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
       alert(json?.error?.message || 'No se pudo eliminar la cartera')
       return
     }
-    cargarCarteras()
+    emitirCambio('carteras')
+    pedirRecarga()
   }
 
   const formatMonto = (n: number) =>
@@ -286,6 +293,7 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ orden: nuevo.map(c => c.id) }),
     })
+    emitirCambio('carteras')
   }
 
   const carterasFiltradas = carteras.filter(c => {
@@ -873,7 +881,7 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
           onClose={() => setCarteraAjustar(null)}
           onSuccess={() => {
             setCarteraAjustar(null)
-            cargarCarteras()
+            pedirRecarga()
           }}
         />
       )}
@@ -882,7 +890,7 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
         <FormCartera
           cartera={carteraEditar}
           onClose={() => { setShowForm(false); setCarteraEditar(null) }}
-          onSuccess={cargarCarteras}
+          onSuccess={pedirRecarga}
         />
       )}
 

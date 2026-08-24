@@ -39,6 +39,13 @@ const t2 = (await req('/api/carteras')).j.carteras.find(c => c.id === tc.j.carte
 chk('apertura HNL de la tarjeta', t2?.saldos?.HNL === -300, 'HNL=' + t2?.saldos?.HNL)
 chk('apertura USD de la tarjeta', t2?.saldos?.USD === -20, 'USD=' + t2?.saldos?.USD)
 
+// Un ajuste en USD de una tarjeta solo debe cambiar su saldo en USD.
+const ajusteUsd = await req('/api/transacciones', { method: 'POST', body: JSON.stringify({ wallet_id: tc.j.cartera.id, monto: 7, moneda: 'USD', tipo: 'gasto', categoria_sistema: 'Ajuste de saldo', descripcion: 'Ajuste USD' }) })
+const tarjetaAjustada = (await req('/api/carteras')).j.carteras.find(c => c.id === tc.j.cartera.id)
+chk('acepta ajuste USD en tarjeta', ajusteUsd.st === 200 && ajusteUsd.j.transaccion?.moneda === 'USD')
+chk('el ajuste USD no cambia HNL', tarjetaAjustada?.saldos?.HNL === -300, 'HNL=' + tarjetaAjustada?.saldos?.HNL)
+chk('el ajuste USD cambia solo USD', tarjetaAjustada?.saldos?.USD === -27, 'USD=' + tarjetaAjustada?.saldos?.USD)
+
 const wEdit = await req('/api/carteras', { method: 'PUT', body: JSON.stringify({ id: w.j.cartera.id, nombre: 'Banco Atlántida', tipo: 'banco', moneda: 'HNL' }) })
 chk('editar cartera', wEdit.st === 200)
 chk('editar no reescribe la apertura', (await req('/api/carteras')).j.carteras.find(c => c.id === w.j.cartera.id)?.saldos?.HNL === 1500)
