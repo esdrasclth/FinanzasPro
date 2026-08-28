@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useState } from 'react'
 import {
   LayoutDashboard, ArrowLeftRight, Target, Wallet, Users, Tag,
@@ -50,11 +51,21 @@ export default function Sidebar({ usuario }: { usuario: any }) {
   const router = useRouter()
   const [masAbierto, setMasAbierto] = useState(false)
 
+  // Los destinos son <Link>, o sea <a href> de verdad: se pueden abrir en otra
+  // pestaña con clic derecho, rueda o Ctrl/Cmd, el navegador enseña la URL al
+  // pasar por encima y se puede copiar el enlace. Con <button onClick={push}>
+  // no habia href y el navegador no tenia nada que ofrecer. La navegación
+  // sigue siendo del lado del cliente: Next intercepta el clic normal.
+  //
   // El submenú se cierra al navegar, para no dejarlo abierto sobre la pantalla
-  // nueva.
-  const ir = (href: string) => {
-    setMasAbierto(false)
-    router.push(href)
+  // nueva — pero solo cuando la pantalla de verdad cambia. Un clic con
+  // Ctrl/Cmd/Shift o con la rueda abre otra pestaña y esta se queda donde
+  // estaba, asi que cerrar el menú ahi seria quitarle al usuario lo que estaba
+  // usando.
+  const alNavegar = (e: React.MouseEvent) => {
+    if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && e.button === 0) {
+      setMasAbierto(false)
+    }
   }
 
   const handleLogout = async () => {
@@ -98,9 +109,10 @@ export default function Sidebar({ usuario }: { usuario: any }) {
           {NAV_ITEMS.map(({ href, Icon, label }) => {
             const activo = pathname === href
             return (
-              <button
+              <Link
                 key={href}
-                onClick={() => ir(href)}
+                href={href}
+                aria-current={activo ? 'page' : undefined}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-full text-sm transition-colors ${activo
                     ? 'bg-obsidian text-snow font-medium'
                     : 'text-steel hover:bg-mist hover:text-ink'
@@ -109,7 +121,7 @@ export default function Sidebar({ usuario }: { usuario: any }) {
                 <Icon size={18} strokeWidth={2} className="shrink-0" />
                 {label}
                 {activo && <div className="ml-auto w-1.5 h-1.5 bg-snow rounded-full" />}
-              </button>
+              </Link>
             )
           })}
         </nav>
@@ -145,17 +157,19 @@ export default function Sidebar({ usuario }: { usuario: any }) {
           {ITEMS_BARRA.map(({ href, Icon }) => {
             const activo = pathname === href && !masAbierto
             return (
-              <button
+              <Link
                 key={href}
-                onClick={() => ir(href)}
+                href={href}
+                onClick={alNavegar}
                 aria-label={LABEL_BARRA[href] || href}
+                aria-current={activo ? 'page' : undefined}
                 className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs transition-all ${activo ? 'text-obsidian' : 'text-steel'
                   }`}
               >
                 <Icon size={22} strokeWidth={2} className={`transition-transform ${activo ? 'scale-110' : ''}`} />
                 <span className="text-[10px] leading-tight">{LABEL_BARRA[href]}</span>
                 {activo && <div className="w-1 h-1 rounded-full bg-obsidian" />}
-              </button>
+              </Link>
             )
           })}
 
@@ -196,16 +210,18 @@ export default function Sidebar({ usuario }: { usuario: any }) {
               {ITEMS_MAS.map(({ href, Icon, label }) => {
                 const activo = pathname === href
                 return (
-                  <button
+                  <Link
                     key={href}
-                    onClick={() => ir(href)}
+                    href={href}
+                    onClick={alNavegar}
+                    aria-current={activo ? 'page' : undefined}
                     className={`w-full flex items-center gap-3 px-4 py-3.5 text-sm transition-colors border-b border-fog last:border-0 ${activo ? 'bg-obsidian text-snow font-medium' : 'text-steel hover:bg-mist hover:text-ink'
                       }`}
                   >
                     <Icon size={18} strokeWidth={2} className="shrink-0" />
                     {label}
                     {activo && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-snow" />}
-                  </button>
+                  </Link>
                 )
               })}
             </div>
