@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import IconoCategoria from './IconoCategoria'
+import { emitirCambio } from '../lib/datos-bus'
 
 interface Props {
   presupuesto?: any
@@ -81,6 +82,8 @@ export default function FormPresupuesto({ presupuesto, tipo = 'gasto', mes, anio
       setLoading(false)
       return
     }
+
+    emitirCambio('presupuesto')
 
     onSuccess()
     onClose()

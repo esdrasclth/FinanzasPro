@@ -11,6 +11,7 @@ import {
   RotateCcw, Users, Scale, Receipt, Pencil, Trash2, UserMinus, UserPlus,
   type LucideIcon,
 } from 'lucide-react'
+import { emitirCambio, useRecarga } from '../../lib/datos-bus'
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 const gradiente = 'linear-gradient(135deg, #2c6e49 0%, #14361f 55%, #000000 100%)'
@@ -79,6 +80,9 @@ export default function GrupoDetalle() {
 
   const recargar = () => cargarBase()
 
+  // Un gasto compartido registrado desde el formulario general llega hasta aquí.
+  const pedirRecarga = useRecarga(['grupos'], recargar)
+
   useEffect(() => {
     const tick = () => { if (!document.hidden) cargarBase() }
     window.addEventListener('focus', tick)
@@ -115,28 +119,32 @@ export default function GrupoDetalle() {
     if (!confirm('¿Generar un código nuevo? El código anterior dejará de funcionar y tendrás que compartir el nuevo.')) return
     const res = await fetch(`/api/grupos/${grupoId}/codigo`, { method: 'POST' })
     if (!res.ok) { const j = await res.json().catch(() => ({})); alert(j.error || 'No se pudo regenerar'); return }
-    recargar()
+    emitirCambio('grupos')
+    pedirRecarga()
   }
 
   const eliminarMiembro = async (userId: string, nombre: string) => {
     if (!confirm(`¿Quitar a ${nombre} del grupo?`)) return
     const res = await fetch(`/api/grupos/${grupoId}/miembros/${userId}`, { method: 'DELETE' })
     if (!res.ok) { const j = await res.json().catch(() => ({})); alert(j.error || 'No se pudo quitar'); return }
-    recargar()
+    emitirCambio('grupos')
+    pedirRecarga()
   }
 
   const readmitirMiembro = async (userId: string, nombre: string) => {
     if (!confirm(`¿Readmitir a ${nombre} en el grupo?`)) return
     const res = await fetch(`/api/grupos/${grupoId}/miembros/${userId}`, { method: 'POST' })
     if (!res.ok) { const j = await res.json().catch(() => ({})); alert(j.error || 'No se pudo readmitir'); return }
-    recargar()
+    emitirCambio('grupos')
+    pedirRecarga()
   }
 
   const eliminarGasto = async (g: any) => {
     if (!confirm(`¿Eliminar el gasto "${g.descripcion}"? Se revertirán las transacciones reflejadas en las carteras.`)) return
     const res = await fetch(`/api/grupos/${grupoId}/gastos/${g.id}`, { method: 'DELETE' })
     if (!res.ok) { const j = await res.json().catch(() => ({})); alert(j.error || 'No se pudo eliminar'); return }
-    recargar()
+    emitirCambio('grupos')
+    pedirRecarga()
   }
 
   if (loading && !grupo) {
@@ -387,15 +395,15 @@ export default function GrupoDetalle() {
 
       {showGasto && (
         <FormGastoCompartido grupoId={grupoId} moneda={moneda} miembros={miembros} yo={yo}
-          onClose={() => setShowGasto(false)} onSuccess={recargar} />
+          onClose={() => setShowGasto(false)} onSuccess={pedirRecarga} />
       )}
       {editGasto && (
         <FormGastoCompartido grupoId={grupoId} moneda={moneda} miembros={miembros} yo={yo} gasto={editGasto}
-          onClose={() => setEditGasto(null)} onSuccess={recargar} />
+          onClose={() => setEditGasto(null)} onSuccess={pedirRecarga} />
       )}
       {showLiquidar && (
         <FormLiquidar grupoId={grupoId} moneda={moneda} miembros={miembros} yo={yo} prefill={prefillLiq}
-          onClose={() => setShowLiquidar(false)} onSuccess={recargar} />
+          onClose={() => setShowLiquidar(false)} onSuccess={pedirRecarga} />
       )}
     </AppLayout>
   )

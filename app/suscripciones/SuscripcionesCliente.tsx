@@ -17,6 +17,7 @@ import {
   ChevronDown, Play, Pause, PieChart as PieIcon, Lightbulb, CheckCircle2,
   TrendingUp, type LucideIcon,
 } from 'lucide-react'
+import { emitirCambio, useRecarga } from '../lib/datos-bus'
 
 const COLORES = [
   '#EF4444', '#F59E0B', '#8B5CF6', '#3B82F6',
@@ -52,11 +53,14 @@ export default function SuscripcionesCliente({ usuario, suscripcionesIniciales }
     }
   }
 
+  const pedirRecarga = useRecarga(['suscripciones'], cargarSubs)
+
   const handleEliminar = async (id: string) => {
     if (!confirm('¿Eliminar este recurrente?\n\nLos cobros que ya confirmaste se conservan como movimientos.')) return
     const res = await fetch(`/api/suscripciones?id=${id}`, { method: 'DELETE' })
     if (!res.ok) { alert('No se pudo eliminar'); return }
-    cargarSubs()
+    emitirCambio('suscripciones')
+    pedirRecarga()
   }
 
   const handleToggleEstado = async (sub: any) => {
@@ -67,7 +71,8 @@ export default function SuscripcionesCliente({ usuario, suscripcionesIniciales }
       body: JSON.stringify({ id: sub.id, estado: nuevo }),
     })
     if (!res.ok) { alert('No se pudo cambiar el estado'); return }
-    cargarSubs()
+    emitirCambio('suscripciones')
+    pedirRecarga()
   }
 
   // Confirmar el cobro crea el gasto real en la cartera y adelanta el ciclo.
@@ -97,7 +102,8 @@ export default function SuscripcionesCliente({ usuario, suscripcionesIniciales }
     } finally {
       setCobrando(null)
     }
-    cargarSubs()
+    emitirCambio('suscripciones')
+    pedirRecarga()
   }
 
   const { simbolo } = useMoneda()
@@ -517,7 +523,7 @@ export default function SuscripcionesCliente({ usuario, suscripcionesIniciales }
         <FormSuscripcion
           suscripcion={subEditar}
           onClose={() => { setShowForm(false); setSubEditar(null) }}
-          onSuccess={cargarSubs}
+          onSuccess={pedirRecarga}
         />
       )}
     </AppLayout>

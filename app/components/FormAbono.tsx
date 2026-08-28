@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { fechaHoyLocal } from '../lib/fecha'
 import { abonarDeuda } from '../lib/deudas'
 import { useMoneda } from '../lib/moneda-context'
+import { emitirCambio } from '../lib/datos-bus'
 
 interface Props {
   deuda: any
@@ -57,6 +58,8 @@ export default function FormAbono({ deuda, onClose, onSuccess }: Props) {
     })
 
     if (error) { setError(error); setLoading(false); return }
+
+    emitirCambio('deudas')
 
     onSuccess()
     onClose()

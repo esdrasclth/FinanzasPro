@@ -11,6 +11,7 @@ import {
   Coins, CheckCircle2, HandCoins, Users, Send, CheckCheck, RotateCcw, X, FileDown, Ban,
   type LucideIcon,
 } from 'lucide-react'
+import { emitirCambio, useRecarga } from '../../lib/datos-bus'
 
 interface Participante {
   id: string
@@ -90,6 +91,10 @@ export default function RepartoDetalle() {
     check()
   }, [router, cargar])
 
+  // Cobrar un reparto crea ingresos reales, así que el bus también trae de
+  // vuelta lo que se movió desde otra pantalla.
+  const pedirRecarga = useRecarga(['repartos'], cargar)
+
   // Al marcar como pagado hay que elegir cartera; al reabrir se revierte directo.
   const togglePago = (p: Participante) => {
     if (p.es_yo) return
@@ -107,7 +112,8 @@ export default function RepartoDetalle() {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pagado: false }),
     })
-    cargar()
+    emitirCambio('repartos')
+    pedirRecarga()
   }
 
   // Confirma el cobro (uno o todos) hacia la cartera elegida.
@@ -125,6 +131,7 @@ export default function RepartoDetalle() {
         body: JSON.stringify({ pagado: true, wallet_id: walletId }),
       })
     ))
+    emitirCambio('repartos')
     await cargar()
     setProcesando(false)
   }
@@ -141,6 +148,7 @@ export default function RepartoDetalle() {
         body: JSON.stringify({ pagado: false }),
       })
     ))
+    emitirCambio('repartos')
     await cargar()
     setProcesando(false)
   }
@@ -160,6 +168,7 @@ export default function RepartoDetalle() {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cerrado }),
     })
+    emitirCambio('repartos')
     await cargar()
     setProcesando(false)
   }
@@ -167,7 +176,9 @@ export default function RepartoDetalle() {
   const eliminar = async () => {
     if (!confirm(`¿Eliminar el reparto "${reparto?.descripcion}"?`)) return
     const res = await fetch(`/api/repartos/${repartoId}`, { method: 'DELETE' })
-    if (res.ok) router.push('/repartos')
+    if (!res.ok) return
+    emitirCambio('repartos')
+    router.push('/repartos')
   }
 
   const textoCompartir = () => {
@@ -485,7 +496,7 @@ export default function RepartoDetalle() {
 
       {showEditar && (
         <FormReparto reparto={reparto} monedaDefault={reparto.moneda}
-          onClose={() => setShowEditar(false)} onSuccess={() => { setShowEditar(false); cargar() }} />
+          onClose={() => setShowEditar(false)} onSuccess={() => { setShowEditar(false); pedirRecarga() }} />
       )}
 
       {cobroModal && (

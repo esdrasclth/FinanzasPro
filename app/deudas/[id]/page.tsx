@@ -17,6 +17,7 @@ import {
   ArrowUpCircle, ArrowDownCircle, Percent, CalendarClock, Coins,
   TrendingUp, Wallet, Clock,
 } from 'lucide-react'
+import { emitirCambio, useRecarga } from '../../lib/datos-bus'
 
 export default function DeudaDetalle() {
   const router = useRouter()
@@ -62,11 +63,14 @@ export default function DeudaDetalle() {
     return `${dia} · ${hora}`
   }
 
+  const pedirRecarga = useRecarga(['deudas'], cargar)
+
   const handleEliminar = async () => {
     if (!confirm('¿Eliminar esta deuda?\n\nLos abonos que registraste se conservan como movimientos.')) return
     // El servidor borra la deuda y su subcategoría en una sola transacción.
     const res = await fetch(`/api/deudas?id=${deudaId}`, { method: 'DELETE' })
     if (!res.ok) { alert('No se pudo eliminar la deuda'); return }
+    emitirCambio('deudas')
     router.push('/deudas')
   }
 
@@ -77,7 +81,8 @@ export default function DeudaDetalle() {
       body: JSON.stringify({ id: deuda.id, completada: !deuda.completada }),
     })
     if (!res.ok) { alert('No se pudo actualizar la deuda'); return }
-    cargar()
+    emitirCambio('deudas')
+    pedirRecarga()
   }
 
   if (loading || !deuda) {
@@ -266,7 +271,7 @@ export default function DeudaDetalle() {
         <FormDeuda
           deuda={deuda}
           onClose={() => setShowEditar(false)}
-          onSuccess={() => { setShowEditar(false); cargar() }}
+          onSuccess={() => { setShowEditar(false); pedirRecarga() }}
         />
       )}
 
@@ -274,7 +279,7 @@ export default function DeudaDetalle() {
         <FormAbono
           deuda={deuda}
           onClose={() => setShowAbono(false)}
-          onSuccess={() => { setShowAbono(false); cargar() }}
+          onSuccess={() => { setShowAbono(false); pedirRecarga() }}
         />
       )}
     </AppLayout>

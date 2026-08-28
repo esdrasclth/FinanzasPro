@@ -15,6 +15,7 @@ import {
   ShieldCheck, User, Activity, FileDown, Ban,
   type LucideIcon,
 } from 'lucide-react'
+import { emitirCambio, useRecarga } from '../lib/datos-bus'
 
 const COLORES = [
   '#2c6e49', '#3B82F6', '#8B5CF6', '#F59E0B',
@@ -182,6 +183,9 @@ function GruposPanel({ router, accion, setAccion, tab, cambiarTab }: {
     setActividad(json.actividad || [])
     setLoading(false)
   }
+
+  // Un gasto compartido registrado en otra pantalla cambia saldos y actividad.
+  useRecarga(['grupos'], cargar)
 
   useEffect(() => {
     const check = async () => {
@@ -502,6 +506,8 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
     setRepartos(json.repartos || [])
     setLoading(false)
   }
+
+  useRecarga(['repartos'], cargar)
 
   useEffect(() => {
     const check = async () => {
@@ -923,6 +929,7 @@ function ModalCrear({ onClose, onSuccess }: { onClose: () => void; onSuccess: (i
     })
     const json = await res.json()
     if (!res.ok) { setError(json.error || 'Error al crear'); setLoading(false); return }
+    emitirCambio('grupos')
     onSuccess(json.grupo.id)
   }
 
@@ -1007,6 +1014,7 @@ function ModalUnirse({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
     })
     const json = await res.json()
     if (!res.ok) { setError(json.error || 'Error al unirse'); setLoading(false); return }
+    emitirCambio('grupos')
     onSuccess(json.grupo_id)
   }
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
+import { emitirCambio } from '../lib/datos-bus'
 
 interface Props {
   meta?: any
@@ -57,6 +58,8 @@ export default function FormMeta({ meta, onClose, onSuccess }: Props) {
       setLoading(false)
       return
     }
+
+    emitirCambio('metas')
 
     onSuccess()
     onClose()

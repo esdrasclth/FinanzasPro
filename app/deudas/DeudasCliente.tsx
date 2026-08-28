@@ -15,6 +15,7 @@ import {
   ChevronRight, ChevronDown, Filter, Search, CalendarClock, Check,
   AlertTriangle, PieChart as PieIcon, Lightbulb, Percent, type LucideIcon,
 } from 'lucide-react'
+import { emitirCambio, useRecarga } from '../lib/datos-bus'
 
 const COLORES = [
   '#EF4444', '#F59E0B', '#8B5CF6', '#3B82F6',
@@ -50,12 +51,16 @@ export default function DeudasCliente({ usuario, deudasIniciales }: Props) {
     }
   }
 
+  // Un abono registrado desde el formulario general también mueve esta lista.
+  const pedirRecarga = useRecarga(['deudas'], cargarDeudas)
+
   // El servidor borra la deuda y su subcategoría en una sola transacción.
   const handleEliminar = async (id: string) => {
     if (!confirm('¿Eliminar esta deuda?\n\nLos abonos que registraste se conservan como movimientos.')) return
     const res = await fetch(`/api/deudas?id=${id}`, { method: 'DELETE' })
     if (!res.ok) { alert('No se pudo eliminar la deuda'); return }
-    cargarDeudas()
+    emitirCambio('deudas')
+    pedirRecarga()
   }
 
   const handleCompletar = async (deuda: any) => {
@@ -65,7 +70,8 @@ export default function DeudasCliente({ usuario, deudasIniciales }: Props) {
       body: JSON.stringify({ id: deuda.id, completada: !deuda.completada }),
     })
     if (!res.ok) { alert('No se pudo actualizar la deuda'); return }
-    cargarDeudas()
+    emitirCambio('deudas')
+    pedirRecarga()
   }
 
   const { simbolo } = useMoneda()
@@ -577,7 +583,7 @@ export default function DeudasCliente({ usuario, deudasIniciales }: Props) {
         <FormDeuda
           deuda={deudaEditar}
           onClose={() => { setShowForm(false); setDeudaEditar(null) }}
-          onSuccess={cargarDeudas}
+          onSuccess={pedirRecarga}
         />
       )}
 
@@ -585,7 +591,7 @@ export default function DeudasCliente({ usuario, deudasIniciales }: Props) {
         <FormAbono
           deuda={deudaAbonar}
           onClose={() => { setShowAbono(false); setDeudaAbonar(null) }}
-          onSuccess={cargarDeudas}
+          onSuccess={pedirRecarga}
         />
       )}
     </AppLayout>

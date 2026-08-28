@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { emitirCambio } from '../lib/datos-bus'
 
 interface Props {
   deuda?: any
@@ -53,6 +54,8 @@ export default function FormDeuda({ deuda, onClose, onSuccess }: Props) {
       setLoading(false)
       return
     }
+
+    emitirCambio('deudas')
 
     onSuccess()
     onClose()

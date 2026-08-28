@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { eliminarTransaccion, tipoCompuesto, avisoBorrado } from '../lib/transacciones'
 import { Trash2, Info } from 'lucide-react'
 import IconoCategoria from './IconoCategoria'
+import { emitirCambio } from '../lib/datos-bus'
 
 interface Props {
   transaccion: any
@@ -84,6 +85,8 @@ export default function FormEditarTransaccion({ transaccion, onClose, onSuccess 
       return
     }
 
+    emitirCambio('transacciones')
+
     onSuccess()
     onClose()
   }
@@ -92,6 +95,7 @@ export default function FormEditarTransaccion({ transaccion, onClose, onSuccess 
     if (!confirm(avisoBorrado(compuesto))) return
     const { error } = await eliminarTransaccion(transaccion.id)
     if (error) { setError(error); return }
+    emitirCambio('transacciones')
     onSuccess()
     onClose()
   }

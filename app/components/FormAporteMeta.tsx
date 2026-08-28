@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { fechaHoyLocal } from '../lib/fecha'
 import { X } from 'lucide-react'
 import { useMoneda } from '../lib/moneda-context'
+import { emitirCambio } from '../lib/datos-bus'
 
 interface Props {
   meta: any
@@ -87,6 +88,8 @@ export default function FormAporteMeta({ meta, onClose, onSuccess }: Props) {
       setLoading(false)
       return
     }
+
+    emitirCambio('metas')
 
     onSuccess()
     onClose()

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, Wallet, Landmark, CreditCard, PiggyBank } from 'lucide-react'
+import { emitirCambio } from '../lib/datos-bus'
 
 interface Props {
   cartera?: any
@@ -86,6 +87,8 @@ export default function FormCartera({ cartera, onClose, onSuccess }: Props) {
       setLoading(false)
       return
     }
+
+    emitirCambio('carteras')
 
     onSuccess()
     onClose()

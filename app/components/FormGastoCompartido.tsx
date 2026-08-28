@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
 import { round2, simboloMoneda } from '../lib/dinero'
 import { fechaHoyLocal } from '../lib/fecha'
+import { emitirCambio } from '../lib/datos-bus'
 
 const gradiente = 'linear-gradient(135deg, #2c6e49 0%, #14361f 55%, #000000 100%)'
 
@@ -143,6 +144,7 @@ export default function FormGastoCompartido({ grupoId, moneda, miembros, yo, gas
     })
     const json = await res.json()
     if (!res.ok) { setError(json.error || 'Error al guardar'); setLoading(false); return }
+    emitirCambio('grupos')
     onSuccess()
     onClose()
   }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { useCallback, useEffect, useState, useRef, useMemo } from 'react'
 import AppLayout from '../components/AppLayout'
 import { useMoneda } from '../lib/moneda-context'
 import { Encabezado, Hero } from '../components/Encabezado'
@@ -15,6 +15,7 @@ import {
 import { finMesDesplazado, inicioMesDesplazado, fechaHoyLocal } from '../lib/fecha'
 import type { DatosReportes, MovimientoReporte } from '../lib/reportes-server'
 import IconoCategoria from '../components/IconoCategoria'
+import { useRecarga } from '../lib/datos-bus'
 
 const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
@@ -72,22 +73,29 @@ export default function ReportesCliente({ usuario, datosIniciales }: Props) {
   // El primer periodo llega resuelto del Server Component. A partir de ahí cada
   // cambio consulta la API, con una pausa para no disparar una petición por
   // cada tecla del campo de fecha.
+  const cargarReporte = useCallback(async () => {
+    if (!desde || !hasta || desde > hasta) return
+    setCargando(true)
+    try {
+      const res = await fetch(`/api/reportes?desde=${desde}&hasta=${hasta}`)
+      if (res.ok) setDatos(await res.json())
+    } finally {
+      setCargando(false)
+    }
+  }, [desde, hasta])
+
   const primeraCarga = useRef(true)
   useEffect(() => {
     if (primeraCarga.current) { primeraCarga.current = false; return }
     if (!desde || !hasta || desde > hasta) return
 
-    const id = setTimeout(async () => {
-      setCargando(true)
-      try {
-        const res = await fetch(`/api/reportes?desde=${desde}&hasta=${hasta}`)
-        if (res.ok) setDatos(await res.json())
-      } finally {
-        setCargando(false)
-      }
-    }, 350)
+    const id = setTimeout(cargarReporte, 350)
     return () => clearTimeout(id)
-  }, [desde, hasta])
+  }, [desde, hasta, cargarReporte])
+
+  // Un movimiento registrado en cualquier pantalla cambia los totales del
+  // periodo que se está viendo.
+  useRecarga(['reportes'], cargarReporte)
 
   const aplicarPreset = (p: Preset) => {
     setPreset(p)

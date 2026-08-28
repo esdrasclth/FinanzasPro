@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { simboloMoneda } from '../lib/dinero'
 import { fechaHoyLocal } from '../lib/fecha'
+import { emitirCambio } from '../lib/datos-bus'
 
 const gradiente = 'linear-gradient(135deg, #2c6e49 0%, #14361f 55%, #000000 100%)'
 
@@ -62,6 +63,7 @@ export default function FormLiquidar({ grupoId, moneda, miembros, yo, prefill, o
     })
     const json = await res.json()
     if (!res.ok) { setError(json.error || 'Error al registrar'); setLoading(false); return }
+    emitirCambio('grupos')
     onSuccess()
     onClose()
   }

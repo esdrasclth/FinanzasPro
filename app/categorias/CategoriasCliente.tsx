@@ -7,6 +7,7 @@ import FormCategoria from '../components/FormCategoria'
 import { Pencil, Trash2, Tag, TrendingUp, TrendingDown } from 'lucide-react'
 import { esCategoriaInterna } from '../lib/finanzas'
 import IconoCategoria from '../components/IconoCategoria'
+import { emitirCambio, useRecarga } from '../lib/datos-bus'
 
 interface Props {
   usuario: any
@@ -34,6 +35,9 @@ export default function CategoriasCliente({ usuario, categoriasIniciales }: Prop
       // Se conserva lo que ya está en pantalla.
     }
   }
+
+  // Una deuda nueva crea su subcategoría, así que la lista cambia sola.
+  const pedirRecarga = useRecarga(['categorias'], cargarCategorias)
 
   // La categoría raíz "Deudas" y sus subcategorías se administran desde la
   // pantalla de Deudas; aquí son de solo lectura.
@@ -68,7 +72,8 @@ export default function CategoriasCliente({ usuario, categoriasIniciales }: Prop
       alert(json?.error?.message || 'No se pudo eliminar la categoría')
       return
     }
-    cargarCategorias()
+    emitirCambio('categorias')
+    pedirRecarga()
   }
 
   // Categorías principales (sin parent)
@@ -311,7 +316,7 @@ export default function CategoriasCliente({ usuario, categoriasIniciales }: Prop
             setCategoriaEditar(null)
             setCategoriaParent(null)
           }}
-          onSuccess={cargarCategorias}
+          onSuccess={pedirRecarga}
         />
       )}
     </AppLayout>

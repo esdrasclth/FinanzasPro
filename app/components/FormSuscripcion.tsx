@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X, TrendingUp, TrendingDown } from 'lucide-react'
 import { fechaHoyLocal } from '../lib/fecha'
+import { emitirCambio } from '../lib/datos-bus'
 
 interface Props {
   suscripcion?: any
@@ -79,6 +80,8 @@ export default function FormSuscripcion({ suscripcion, onClose, onSuccess }: Pro
       setLoading(false)
       return
     }
+
+    emitirCambio('suscripciones')
 
     onSuccess()
     onClose()

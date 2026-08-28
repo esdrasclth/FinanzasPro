@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { esCategoriaInterna } from '../lib/finanzas'
 import IconoCategoria, { ICONOS_CATEGORIA } from './IconoCategoria'
+import { emitirCambio } from '../lib/datos-bus'
 
 interface Props {
   categoria?: any
@@ -76,6 +77,8 @@ export default function FormCategoria({
       setLoading(false)
       return
     }
+
+    emitirCambio('categorias')
 
     onSuccess()
     onClose()

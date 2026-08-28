@@ -18,6 +18,7 @@ import {
   Target, Wallet, TrendingDown, TrendingUp, PiggyBank, PieChart as PieIcon,
   Search, X, type LucideIcon,
 } from 'lucide-react'
+import { emitirCambio, useRecarga } from '../lib/datos-bus'
 
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
@@ -97,20 +98,23 @@ export default function PresupuestoCliente({
     }
   }
 
-  const cargarMetas = cargarPresupuestos
+  // Lo gastado del mes lo mueve cualquier gasto, venga de donde venga.
+  const pedirRecarga = useRecarga(['presupuesto'], cargarPresupuestos)
 
   const handleEliminar = async (id: string) => {
     if (!confirm('¿Eliminar este presupuesto?')) return
     const res = await fetch(`/api/presupuesto?id=${id}&tipo=presupuesto`, { method: 'DELETE' })
     if (!res.ok) { alert('No se pudo eliminar'); return }
-    cargarPresupuestos()
+    emitirCambio('presupuesto')
+    pedirRecarga()
   }
 
   const handleEliminarMeta = async (id: string) => {
     if (!confirm('¿Eliminar esta meta de ahorro?\n\nLos aportes que ya hiciste se conservan como movimientos.')) return
     const res = await fetch(`/api/presupuesto?id=${id}&tipo=meta`, { method: 'DELETE' })
     if (!res.ok) { alert('No se pudo eliminar'); return }
-    cargarPresupuestos()
+    emitirCambio('presupuesto')
+    pedirRecarga()
   }
 
   const abrirNuevo = () => {
@@ -731,7 +735,7 @@ export default function PresupuestoCliente({
           mes={base.getMonth() + 1}
           anio={base.getFullYear()}
           onClose={() => { setShowForm(false); setPresupuestoEditar(null) }}
-          onSuccess={cargarPresupuestos}
+          onSuccess={pedirRecarga}
         />
       )}
 
@@ -739,7 +743,7 @@ export default function PresupuestoCliente({
         <FormMeta
           meta={metaEditar}
           onClose={() => { setShowMetaForm(false); setMetaEditar(null) }}
-          onSuccess={cargarMetas}
+          onSuccess={pedirRecarga}
         />
       )}
 
@@ -747,7 +751,7 @@ export default function PresupuestoCliente({
         <FormAporteMeta
           meta={metaAporte}
           onClose={() => setMetaAporte(null)}
-          onSuccess={cargarMetas}
+          onSuccess={pedirRecarga}
         />
       )}
     </AppLayout>

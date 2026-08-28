@@ -14,6 +14,7 @@ import { type Totales } from '../lib/finanzas'
 import { simboloMoneda } from '../lib/dinero'
 import { TrendingUp, TrendingDown, Wallet, ChevronLeft, ChevronRight, Calendar, ArrowLeftRight, PieChart, BarChart3, Download, Plus } from 'lucide-react'
 import IconoCategoria from '../components/IconoCategoria'
+import { useRecarga } from '../lib/datos-bus'
 
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
@@ -70,6 +71,9 @@ export default function DashboardCliente({
       // Se conserva lo que ya está en pantalla.
     }
   }
+
+  // Un movimiento registrado en otra pantalla cambia el resumen del mes.
+  const pedirRecarga = useRecarga(['transacciones'], cargarTransacciones)
 
   const { simbolo, moneda } = useMoneda()
   const formatMonto = (n: number) =>
@@ -480,7 +484,7 @@ export default function DashboardCliente({
         <FormTransaccion
           tipoInicial={formTipo}
           onClose={() => setShowForm(false)}
-          onSuccess={cargarTransacciones}
+          onSuccess={pedirRecarga}
         />
       )}
     </AppLayout>

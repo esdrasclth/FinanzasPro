@@ -10,6 +10,7 @@ import FormGastoCompartido from './FormGastoCompartido'
 import FormReparto from './FormReparto'
 import { X, TrendingUp, TrendingDown, ArrowLeftRight, ArrowDown, Users, Split, RefreshCw } from 'lucide-react'
 import IconoCategoria from './IconoCategoria'
+import { emitirCambio } from '../lib/datos-bus'
 
 interface Props {
   onClose: () => void
@@ -271,6 +272,8 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
             return
           }
 
+          emitirCambio('deudas')
+
           onSuccess()
           onClose()
           return
@@ -306,6 +309,8 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
         return
       }
     }
+
+    emitirCambio('transacciones')
 
     onSuccess()
     onClose()

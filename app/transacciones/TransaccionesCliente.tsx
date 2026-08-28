@@ -19,6 +19,7 @@ import {
   TrendingUp, TrendingDown, Scale, Receipt, Wallet, Landmark, CreditCard,
   PiggyBank, PieChart as PieIcon, Globe, Copy, type LucideIcon,
 } from 'lucide-react'
+import { emitirCambio, useRecarga } from '../lib/datos-bus'
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -163,7 +164,8 @@ export default function TransaccionesCliente({
     if (!confirm(avisoBorrado(tipo))) return
     const { error } = await eliminarTransaccion(t.id)
     if (error) { alert(error); return }
-    recargar()
+    emitirCambio('transacciones')
+    pedirRecarga()
   }
 
   // Duplicar copia el movimiento con la fecha de hoy, que es para lo que sirve:
@@ -179,7 +181,8 @@ export default function TransaccionesCliente({
       alert(json?.error?.message || 'No se pudo duplicar')
       return
     }
-    recargar()
+    emitirCambio('transacciones')
+    pedirRecarga()
   }
 
   // Tras cualquier cambio hay que refrescar la fuente que se esté mostrando.
@@ -201,6 +204,9 @@ export default function TransaccionesCliente({
     }
     cargarDatos()
   }
+
+  // Otra pantalla —o esta misma en otra pestaña— tocó los movimientos.
+  const pedirRecarga = useRecarga(['transacciones'], recargar)
 
   const alternarSeleccion = (id: string) => {
     setSeleccion(prev => {
@@ -242,7 +248,8 @@ export default function TransaccionesCliente({
     } finally {
       setEnLote(false)
     }
-    recargar()
+    emitirCambio('transacciones')
+    pedirRecarga()
   }
 
   const handleCategorizarLote = async (categoryId: string) => {
@@ -262,7 +269,8 @@ export default function TransaccionesCliente({
     } finally {
       setEnLote(false)
     }
-    recargar()
+    emitirCambio('transacciones')
+    pedirRecarga()
   }
 
   const { simbolo, moneda } = useMoneda()
@@ -728,7 +736,7 @@ export default function TransaccionesCliente({
         <FormEditarTransaccion
           transaccion={transaccionSeleccionada}
           onClose={() => setTransaccionSeleccionada(null)}
-          onSuccess={() => { setTransaccionSeleccionada(null); recargar() }}
+          onSuccess={() => { setTransaccionSeleccionada(null); pedirRecarga() }}
         />
       )}
 
@@ -742,7 +750,7 @@ export default function TransaccionesCliente({
       </button>
 
       {showForm && (
-        <FormTransaccion onClose={() => setShowForm(false)} onSuccess={recargar} />
+        <FormTransaccion onClose={() => setShowForm(false)} onSuccess={pedirRecarga} />
       )}
     </AppLayout>
   )
