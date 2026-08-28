@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '../../../lib/prisma'
 import { round2 } from '../../../lib/dinero'
-import { prepararReparto, requireReparto, walletDeUsuario } from '../../../lib/repartos-server'
+import { prepararReparto, requireReparto, walletDeUsuario, categoriaGastoDeUsuario } from '../../../lib/repartos-server'
 import { tasaVigente, montoParaCartera, exigirMontoParaCartera, ErrorDeConversion } from '../../../lib/tipoCambio-server'
 import { hoyUsuarioUTC } from '../../../lib/fecha-server'
 
@@ -32,6 +32,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       metodo: reparto.metodo,
       fecha: reparto.fecha.toISOString().slice(0, 10),
       wallet_id: reparto.wallet_id,
+      // Para que el formulario de edición vuelva a marcar la categoría elegida.
+      category_id: reparto.category_id,
       // Quién puso el dinero y cómo. Null en pagado_por = lo pagaste tú.
       pagado_por: reparto.pagado_por,
       metodo_pago: reparto.metodo_pago,
@@ -120,6 +122,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   }
   const hoy = await hoyUsuarioUTC()
 
+  const categoryId = await categoriaGastoDeUsuario(auth.userId, d.categoryId)
+  if (categoryId === undefined) {
+    return NextResponse.json({ error: 'La categoría seleccionada no es válida' }, { status: 400 })
+  }
+
   try {
     await prisma.$transaction(async (tx) => {
     // Rehacer el gasto: borra las transacciones viejas y crea una nueva por el nuevo total.
@@ -136,6 +143,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             monto_original: enCarteraGasto.monto_original,
             tasa_cambio: enCarteraGasto.tasa_cambio,
             tipo: 'gasto',
+            category_id: categoryId,
             descripcion: `Reparto: ${d.descripcion}`,
             fecha: d.fecha,
           },
@@ -153,6 +161,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         fecha: d.fecha,
         wallet_id: walletId,
         transaction_id: gasto?.id ?? null,
+        category_id: categoryId,
         pagado_por: d.pagadoPor,
         metodo_pago: d.metodoPago,
         metodo_detalle: d.metodoDetalle,
@@ -179,6 +188,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             monto_original: enCartera.monto_original,
             tasa_cambio: enCartera.tasa_cambio,
             tipo: 'ingreso',
+            // La categoría del gasto, a proposito: un ingreso con categoría de
+            // gasto es un reembolso y resta dentro de ella.
+            category_id: categoryId,
             descripcion: `Cobro reparto: ${d.descripcion} — ${p.nombre}`,
             fecha: cobro.fecha_pago ?? hoy,
           },

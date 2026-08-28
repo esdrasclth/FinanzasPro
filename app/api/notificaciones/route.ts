@@ -69,13 +69,13 @@ export async function GET() {
       select: {
         monto: true, moneda: true, tasa_cambio: true, tipo: true,
         category_id: true, wallet_destino_id: true,
-        category: { select: { nombre: true } },
+        category: { select: { nombre: true, tipo: true } },
       },
     })
 
     const normalizadas = transMes.map((t: any) => ({
       ...t,
-      categories: t.category ? { nombre: t.category.nombre } : null,
+      categories: t.category ? { nombre: t.category.nombre, tipo: t.category.tipo } : null,
     }))
     const gastoPorCat = porCategoria(normalizadas, moneda, tasa).gasto
 

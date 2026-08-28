@@ -90,6 +90,7 @@ model categories {
   transactions  transactions[]
   budgets       budgets[]
   deudas        debts[]        @relation("deuda_categoria")
+  repartos      repartos[]     @relation("reparto_categoria")
 
   @@index([user_id])
   @@index([origen_id])
@@ -413,14 +414,22 @@ model repartos {
   metodo_detalle String?
   wallet_id      String?  @db.Uuid // cartera de la que salió el gasto (si pagaste tú)
   transaction_id String?  @db.Uuid // transacción de gasto asociada
+  // Categoría del reparto, siempre de tipo gasto. La heredan las dos patas: el
+  // gasto que la registra y cada cobro que la devuelve. Que el cobro lleve la
+  // categoría del gasto es lo que permite netear (ver porCategoria en
+  // lib/finanzas.ts): así "Suscripciones" refleja lo que Spotify te costó de
+  // verdad y no el recibo entero que adelantaste por todos.
+  category_id    String?  @db.Uuid
   // Cierre manual: lo que quedó sin cobrar se da por perdido y el reparto deja
   // de contar como pendiente. Null = sigue abierto.
   cerrado_en     DateTime?
   created_at     DateTime @default(now())
 
   participantes reparto_participantes[]
+  category      categories? @relation("reparto_categoria", fields: [category_id], references: [id], onDelete: SetNull)
 
   @@index([user_id])
+  @@index([category_id])
 }
 
 model reparto_participantes {

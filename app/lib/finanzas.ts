@@ -27,7 +27,7 @@ export interface MovimientoLike {
   tasa_cambio?: number | string | null
   wallet_destino_id?: string | null
   category_id?: string | null
-  categories?: { nombre?: string | null } | null
+  categories?: { nombre?: string | null; tipo?: string | null } | null
 }
 
 // Las dos piernas de una transferencia llevan wallet_destino_id: es dinero que
@@ -91,6 +91,26 @@ export function totales(
   return { ingresos: round2(ingresos), gastos: round2(gastos), neto: round2(ingresos - gastos) }
 }
 
+// Un ingreso etiquetado con una categoría de GASTO es un reembolso: dinero que
+// vuelve de algo que ya se contó como gastado. Se resta dentro de esa misma
+// categoría en vez de sumarse aparte como ingreso.
+//
+// El caso que lo motiva son los repartos. Pagas Spotify entero (L309.40 en
+// Suscripciones) y los cuatro que lo comparten te devuelven su parte. Sin
+// restar, Suscripciones marca L309.40 todos los meses y se come el presupuesto
+// entero por un gasto que en realidad no te costó nada. Con la resta queda en
+// L0.01, que es lo que de verdad saliste perdiendo.
+//
+// La regla no es de repartos sino general, porque describe lo que ese
+// movimiento *es*: la devolución de una tienda etiquetada en Compras también
+// debe bajar lo gastado en Compras, no aparecer como si hubieras ingresado
+// dinero. Un ingreso con categoría de ingreso —el sueldo— no se toca.
+//
+// Requiere que la consulta haya traído `categories(tipo)`. Sin él, el ingreso
+// se agrupa como ingreso: se pierde la resta, no se corrompe el total.
+const esReembolso = (t: MovimientoLike) =>
+  (t.tipo || '') === 'ingreso' && (t.categories?.tipo || '') === 'gasto'
+
 // Suma por category_id separando gasto de ingreso, normalizada y sin
 // transferencias. La usan los presupuestos y las alertas de la campana.
 export function porCategoria(
@@ -100,11 +120,14 @@ export function porCategoria(
 ): Record<string, Record<string, number>> {
   const acc: Record<string, Record<string, number>> = { gasto: {}, ingreso: {} }
   for (const t of movs || []) {
-    if (!esMovimientoReal(t)) continue
-    const tipo = t.tipo || ''
-    if (!acc[tipo] || !t.category_id) continue
-    acc[tipo][t.category_id] = round2(
-      (acc[tipo][t.category_id] || 0) + montoNormalizado(t, monedaPrincipal, tasaActual)
+    if (!esMovimientoReal(t) || !t.category_id) continue
+    const reembolso = esReembolso(t)
+    // El reembolso va al cubo de gasto —el de su categoría—, no al de ingreso.
+    const cubo = reembolso ? 'gasto' : (t.tipo || '')
+    if (!acc[cubo]) continue
+    const monto = montoNormalizado(t, monedaPrincipal, tasaActual)
+    acc[cubo][t.category_id] = round2(
+      (acc[cubo][t.category_id] || 0) + (reembolso ? -monto : monto)
     )
   }
   return acc

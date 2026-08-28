@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { esCategoriaInterna } from '../lib/finanzas'
 import { X, Plus, Trash2, RotateCcw, User } from 'lucide-react'
 import { round2, simboloMoneda } from '../lib/dinero'
 import { fechaHoyLocal } from '../lib/fecha'
@@ -33,6 +34,8 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', descripcio
       ? reparto.participantes.map((p: any) => ({ key: nuevaKey(), nombre: p.nombre, monto: String(p.monto_asignado), esYo: !!p.es_yo }))
       : [{ key: nuevaKey(), nombre: '', monto: '', esYo: false }]
   )
+  const [categorias, setCategorias] = useState<any[]>([])
+  const [categoryId, setCategoryId] = useState<string>(reparto?.category_id || '')
   const [wallets, setWallets] = useState<any[]>([])
   const [walletId, setWalletId] = useState<string>(reparto?.wallet_id || '')
   // Quién puso el dinero. Vacío = lo pagaste tú.
@@ -57,6 +60,21 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', descripcio
       const { carteras: data } = await res.json()
       setWallets(data || [])
       if (data && data.length > 0) setWalletId(prev => prev || data[0].id)
+    }
+    cargar()
+  }, [])
+
+  // Solo categorías de gasto: el reparto es un gasto que se divide. Las
+  // internas ("Transferencia", "Saldo inicial") quedan fuera porque son
+  // mecánica de la app, no categorías del usuario.
+  useEffect(() => {
+    const cargar = async () => {
+      const res = await fetch('/api/categorias')
+      if (!res.ok) return
+      const { categorias: data } = await res.json()
+      setCategorias((data || []).filter(
+        (c: any) => c.tipo === 'gasto' && !c.archivada && !esCategoriaInterna(c.nombre)
+      ))
     }
     cargar()
   }, [])
@@ -131,6 +149,7 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', descripcio
       metodo,
       fecha,
       lugar: lugar.trim() || null,
+      category_id: categoryId || null,
       wallet_id: pagadoPor ? null : walletId,
       pagado_por: pagadoPor || null,
       metodo_pago: pagadoPor ? metodoPago : null,
@@ -201,6 +220,27 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', descripcio
                 <option value="MXN">MXN</option>
               </select>
             </div>
+          </div>
+
+          {/* La categoría la heredan las dos patas del reparto: el gasto y cada
+              cobro. Como el cobro entra con una categoría de gasto, cuenta como
+              reembolso y resta ahí mismo, así que la categoría termina
+              mostrando lo que el reparto te costó de verdad. */}
+          <div>
+            <label className="block mb-2 text-sm font-medium text-graphite">Categoría</label>
+            <select
+              value={categoryId}
+              onChange={e => setCategoryId(e.target.value)}
+              className="w-full px-4 py-3 text-ink transition-colors border bg-mist border-transparent rounded-input focus:outline-none focus:border-obsidian focus:bg-snow"
+            >
+              <option value="">— Sin categoría —</option>
+              {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+            <p className="mt-1.5 text-xs text-ash">
+              {categoryId
+                ? 'El gasto y los cobros entran en esta categoría; lo que te devuelvan se resta de ella.'
+                : 'Sin categoría, el reparto no entra en ningún presupuesto ni en el desglose de los reportes.'}
+            </p>
           </div>
 
           {/* Quién puso el dinero. El gasto no siempre lo pagas tú: si lo puso

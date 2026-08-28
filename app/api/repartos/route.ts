@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '../../lib/prisma'
 import { getSessionUser } from '../../lib/auth-server'
-import { prepararReparto, walletDeUsuario } from '../../lib/repartos-server'
+import { prepararReparto, walletDeUsuario, categoriaGastoDeUsuario } from '../../lib/repartos-server'
 import { tasaVigente, montoParaCartera } from '../../lib/tipoCambio-server'
 
 // GET /api/repartos -> repartos del usuario con resumen de pago
@@ -62,6 +62,14 @@ export async function POST(req: Request) {
   }
   const walletId = wallet?.id ?? null
 
+  // `undefined` = la mandaron pero no vale (de otro usuario, de ingreso o
+  // inexistente). Se corta en vez de guardar el reparto sin categoría, que es
+  // el estado que se está tratando de eliminar.
+  const categoryId = await categoriaGastoDeUsuario(user.id, d.categoryId)
+  if (categoryId === undefined) {
+    return NextResponse.json({ error: 'La categoría seleccionada no es válida' }, { status: 400 })
+  }
+
   let enCartera = null
   if (wallet) {
     const conversion = montoParaCartera(d.montoTotal, d.moneda, wallet.moneda, await tasaVigente(user.id))
@@ -81,6 +89,7 @@ export async function POST(req: Request) {
             monto_original: enCartera.monto_original,
             tasa_cambio: enCartera.tasa_cambio,
             tipo: 'gasto',
+            category_id: categoryId,
             descripcion: `Reparto: ${d.descripcion}`,
             fecha: d.fecha,
           },
@@ -97,6 +106,7 @@ export async function POST(req: Request) {
         fecha: d.fecha,
         wallet_id: walletId,
         transaction_id: gasto?.id ?? null,
+        category_id: categoryId,
         pagado_por: d.pagadoPor,
         metodo_pago: d.metodoPago,
         metodo_detalle: d.metodoDetalle,

@@ -1,6 +1,7 @@
 import { prisma } from './prisma'
 import { getSessionUser } from './auth-server'
 import { round2 } from './dinero'
+import { categoriasVisibles } from './categorias-server'
 
 export interface ParticipanteInput {
   nombre: string
@@ -20,6 +21,8 @@ export interface RepartoPreparado {
   pagadoPor: string | null
   metodoPago: string | null
   metodoDetalle: string | null
+  // Categoría del gasto. La heredan el gasto y todos los cobros del reparto.
+  categoryId: string | null
   participantes: { nombre: string; monto_asignado: number; es_yo: boolean }[]
 }
 
@@ -41,6 +44,8 @@ export function prepararReparto(body: any): PrepOk | PrepErr {
   const pagadoPor = String(body?.pagado_por || '').trim() || null
   const metodoPago = METODOS.includes(body?.metodo_pago) ? body.metodo_pago : null
   const metodoDetalle = String(body?.metodo_detalle || '').trim() || null
+  const categoryIdRaw = body?.category_id
+  const categoryId = typeof categoryIdRaw === 'string' && categoryIdRaw.trim() ? categoryIdRaw.trim() : null
 
   if (!descripcion) return { ok: false, status: 400, error: 'La descripción es obligatoria' }
   if (montoTotal <= 0) return { ok: false, status: 400, error: 'Ingresa un monto válido' }
@@ -86,13 +91,36 @@ export function prepararReparto(body: any): PrepOk | PrepErr {
     ok: true,
     data: {
       descripcion, lugar, montoTotal, moneda, metodo, fecha: new Date(fechaStr),
-      walletId, pagadoPor, metodoPago, metodoDetalle, participantes,
+      walletId, pagadoPor, metodoPago, metodoDetalle, categoryId, participantes,
     },
   }
 }
 
 // Verifica que una cartera pertenezca al usuario. Devuelve id y moneda (la
 // moneda hace falta para reflejar el reparto en la moneda de la cartera), o null.
+/**
+ * Comprueba que la categoría exista, sea visible para el usuario y sea de
+ * gasto. Devuelve su id, o `undefined` si no sirve.
+ *
+ * Se exige tipo `gasto` aunque los cobros del reparto sean ingresos: un reparto
+ * *es* un gasto que se reparte, y la categoría cuelga del gasto. Que el cobro
+ * lleve una categoría de gasto es justo lo que lo marca como reembolso y hace
+ * que reste (ver porCategoria en lib/finanzas.ts). Con una categoría de ingreso
+ * el cobro sumaría aparte y el gasto quedaría inflado, que es el problema que
+ * se está arreglando.
+ */
+export async function categoriaGastoDeUsuario(
+  userId: string,
+  categoryId: string | null
+): Promise<string | null | undefined> {
+  if (!categoryId) return null
+  const cat = await prisma.categories.findFirst({
+    where: { AND: [{ id: categoryId }, { tipo: 'gasto' }, categoriasVisibles(userId)] },
+    select: { id: true },
+  })
+  return cat ? cat.id : undefined
+}
+
 export async function walletDeUsuario(
   userId: string,
   walletId: string | null | undefined

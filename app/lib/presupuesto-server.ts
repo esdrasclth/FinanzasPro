@@ -91,7 +91,9 @@ export async function datosPresupuesto(userId: string, mes: number, anio: number
   const seleccion = {
     monto: true, moneda: true, tasa_cambio: true, tipo: true,
     category_id: true, wallet_destino_id: true,
-    category: { select: { nombre: true } },
+    // `tipo` hace falta para que porCategoria() reconozca un reembolso: un
+    // ingreso con categoría de gasto resta dentro de esa categoría.
+    category: { select: { nombre: true, tipo: true } },
   }
 
   const [transMes, transPrev, categorias, metas, tasa] = await Promise.all([
@@ -100,7 +102,10 @@ export async function datosPresupuesto(userId: string, mes: number, anio: number
       select: seleccion,
     }),
     prisma.transactions.findMany({
-      where: { user_id: userId, tipo: 'gasto', fecha: { gte: prev.inicio, lte: prev.fin } },
+      // Sin filtrar a `tipo: 'gasto'`: los reembolsos son ingresos y tienen que
+      // entrar para restar. Filtrarlos dejaba el mes anterior en bruto y la
+      // comparación contra el actual medía dos cosas distintas.
+      where: { user_id: userId, fecha: { gte: prev.inicio, lte: prev.fin } },
       select: seleccion,
     }),
     prisma.categories.findMany({
@@ -118,7 +123,13 @@ export async function datosPresupuesto(userId: string, mes: number, anio: number
   const presupuestos = budgets.map((b: any) => {
     const tipo = b.category?.tipo || 'gasto'
     const gastado = (movPorCat[tipo] || {})[b.category_id] || 0
-    const porcentaje = b.monto_limite > 0 ? Math.min((gastado / b.monto_limite) * 100, 100) : 0
+    // `gastado` puede quedar negativo: si los reembolsos de un mes superan al
+    // gasto —cobras en septiembre lo que pagaste en agosto— la categoría queda
+    // en verde. El importe se deja tal cual porque es cierto y vale verlo, pero
+    // la barra se acota a [0, 100]: un ancho negativo no se puede pintar.
+    const porcentaje = b.monto_limite > 0
+      ? Math.min(Math.max((gastado / b.monto_limite) * 100, 0), 100)
+      : 0
     return {
       ...b,
       created_at: b.created_at.toISOString(),

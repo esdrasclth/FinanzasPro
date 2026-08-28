@@ -17,7 +17,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const reparto = await prisma.repartos.findUnique({
     where: { id },
-    select: { descripcion: true, moneda: true, pagado_por: true },
+    select: { descripcion: true, moneda: true, pagado_por: true, category_id: true },
   })
   if (!reparto) return NextResponse.json({ error: 'Reparto no encontrado' }, { status: 404 })
 
@@ -92,6 +92,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           monto_original: enCartera.monto_original,
           tasa_cambio: enCartera.tasa_cambio,
           tipo: tipoMovimiento,
+          // Hereda la categoría del reparto en los dos sentidos:
+          //  - pagaste tú  -> el cobro es un ingreso con categoría de gasto, o
+          //    sea un reembolso, y RESTA de esa categoría (ver porCategoria).
+          //  - pagó otro   -> tu parte es un gasto de verdad y SUMA en ella.
+          // En ambos la categoría queda igual y el neto es lo que te costó.
+          category_id: reparto.category_id,
           descripcion: pagoAjeno
             ? `Mi parte del reparto: ${reparto.descripcion} — pagué a ${reparto.pagado_por}`
             : `Cobro reparto: ${reparto.descripcion} — ${participante.nombre}`,
