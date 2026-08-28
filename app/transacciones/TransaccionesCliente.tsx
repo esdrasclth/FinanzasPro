@@ -913,17 +913,21 @@ function MonthPicker({ value, onChange }: { value: string; onChange: (v: string)
                 <ChevronLeft size={16} strokeWidth={2} />
               </button>
               <p className="font-semibold text-ink">{pickerYear}</p>
-              <button onClick={() => setPickerYear(y => Math.min(anioActual, y + 1))} disabled={pickerYear >= anioActual} className={`w-8 h-8 flex items-center justify-center rounded-full ${pickerYear >= anioActual ? 'text-pebble cursor-not-allowed' : 'text-graphite hover:bg-mist'}`} aria-label="Año siguiente">
+              <button onClick={() => setPickerYear(y => y + 1)} className="flex items-center justify-center w-11 h-11 sm:w-8 sm:h-8 rounded-full text-graphite hover:bg-mist" aria-label="Año siguiente">
                 <ChevronRight size={16} strokeWidth={2} />
               </button>
             </div>
             <div className="grid grid-cols-3 gap-2">
+              {/* Los meses futuros SI se pueden abrir. El formulario permite
+                  registrar un movimiento con fecha futura —el input no tiene
+                  `max`—, asi que bloquear la vista dejaba ese movimiento
+                  guardado pero invisible en las tres pantallas. Aterrizar en un
+                  mes vacio no rompe nada; no poder ver lo que registraste, si. */}
               {MESES_CORTOS.map((m, i) => {
                 const activo = i === mesIdx && pickerYear === anio
-                const futuro = pickerYear > anioActual || (pickerYear === anioActual && i > hoy.getMonth())
                 return (
-                  <button key={m} onClick={() => seleccionar(pickerYear, i)} disabled={futuro}
-                    className={`py-2 text-sm font-medium rounded-xl transition-colors ${activo ? 'bg-obsidian text-snow' : futuro ? 'text-pebble cursor-not-allowed' : 'text-graphite hover:bg-mist'}`}>
+                  <button key={m} onClick={() => seleccionar(pickerYear, i)}
+                    className={`py-2 text-sm font-medium rounded-xl transition-colors ${activo ? 'bg-obsidian text-snow' : 'text-graphite hover:bg-mist'}`}>
                     {m}
                   </button>
                 )

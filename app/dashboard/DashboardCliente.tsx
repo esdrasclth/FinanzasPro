@@ -116,7 +116,10 @@ export default function DashboardCliente({
   const seleccionarMes = (year: number, mes: number) => {
     const base = new Date()
     const offset = (year - base.getFullYear()) * 12 + (mes - base.getMonth())
-    setMesOffset(Math.min(0, offset))
+    // Sin `Math.min(0, ...)`: un offset positivo es un mes futuro y se
+    // permite a proposito. El formulario deja registrar con fecha futura,
+    // asi que recortar aqui escondia movimientos ya guardados.
+    setMesOffset(offset)
     setShowMesPicker(false)
   }
 
@@ -247,12 +250,8 @@ export default function DashboardCliente({
             </button>
 
             <button
-              onClick={() => setMesOffset(Math.min(0, mesOffset + 1))}
-              className={`w-9 h-9 flex items-center justify-center rounded-full border transition-all ${mesOffset === 0
-                  ? 'bg-snow border-fog text-pebble cursor-not-allowed'
-                  : 'bg-snow border-fog text-graphite hover:bg-mist hover:text-ink'
-                }`}
-              disabled={mesOffset === 0}
+              onClick={() => setMesOffset(mesOffset + 1)}
+              className="flex items-center justify-center transition-all border rounded-full w-9 h-9 bg-snow border-fog text-graphite hover:bg-mist hover:text-ink"
               aria-label="Mes siguiente"
             >
               <ChevronRight size={18} strokeWidth={2} />
@@ -273,9 +272,8 @@ export default function DashboardCliente({
                   </button>
                   <p className="font-semibold text-ink">{pickerYear}</p>
                   <button
-                    onClick={() => setPickerYear(y => Math.min(new Date().getFullYear(), y + 1))}
-                    disabled={pickerYear >= new Date().getFullYear()}
-                    className={`w-8 h-8 flex items-center justify-center rounded-full ${pickerYear >= new Date().getFullYear() ? 'text-pebble cursor-not-allowed' : 'text-graphite hover:bg-mist'}`}
+                    onClick={() => setPickerYear(y => y + 1)}
+                    className="flex items-center justify-center w-11 h-11 sm:w-8 sm:h-8 rounded-full text-graphite hover:bg-mist"
                     aria-label="Año siguiente"
                   >
                     <ChevronRight size={16} strokeWidth={2} />
@@ -284,18 +282,13 @@ export default function DashboardCliente({
                 <div className="grid grid-cols-3 gap-2">
                   {MESES_CORTOS.map((m, i) => {
                     const activo = i === getMesActual().getMonth() && pickerYear === getMesActual().getFullYear()
-                    const hoy = new Date()
-                    const futuro = pickerYear > hoy.getFullYear() || (pickerYear === hoy.getFullYear() && i > hoy.getMonth())
                     return (
                       <button
                         key={m}
                         onClick={() => seleccionarMes(pickerYear, i)}
-                        disabled={futuro}
                         className={`py-2 text-sm font-medium rounded-xl transition-colors ${activo
                             ? 'bg-obsidian text-snow'
-                            : futuro
-                              ? 'text-pebble cursor-not-allowed'
-                              : 'text-graphite hover:bg-mist'
+                            : 'text-graphite hover:bg-mist'
                           }`}
                       >
                         {m}

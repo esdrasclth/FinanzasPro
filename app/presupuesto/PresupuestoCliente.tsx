@@ -130,7 +130,10 @@ export default function PresupuestoCliente({
   const seleccionarMes = (year: number, mesIdx: number) => {
     const b = new Date()
     const offset = (year - b.getFullYear()) * 12 + (mesIdx - b.getMonth())
-    setMesOffset(Math.min(0, offset))
+    // Sin `Math.min(0, ...)`: un offset positivo es un mes futuro y se
+    // permite a proposito. El formulario deja registrar con fecha futura,
+    // asi que recortar aqui escondia movimientos ya guardados.
+    setMesOffset(offset)
     setShowMesPicker(false)
   }
 
@@ -462,18 +465,16 @@ export default function PresupuestoCliente({
                         <ChevronLeft size={16} strokeWidth={2} />
                       </button>
                       <p className="font-semibold text-ink">{pickerYear}</p>
-                      <button onClick={() => setPickerYear(y => Math.min(new Date().getFullYear(), y + 1))} disabled={pickerYear >= new Date().getFullYear()} className={`w-8 h-8 flex items-center justify-center rounded-full ${pickerYear >= new Date().getFullYear() ? 'text-pebble cursor-not-allowed' : 'text-graphite hover:bg-mist'}`} aria-label="Año siguiente">
+                      <button onClick={() => setPickerYear(y => y + 1)} className="flex items-center justify-center w-8 h-8 rounded-full text-graphite hover:bg-mist" aria-label="Año siguiente">
                         <ChevronRight size={16} strokeWidth={2} />
                       </button>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
                       {MESES_CORTOS.map((m, i) => {
                         const activo = i === getMesActual().getMonth() && pickerYear === getMesActual().getFullYear()
-                        const hoy = new Date()
-                        const futuro = pickerYear > hoy.getFullYear() || (pickerYear === hoy.getFullYear() && i > hoy.getMonth())
                         return (
-                          <button key={m} onClick={() => seleccionarMes(pickerYear, i)} disabled={futuro}
-                            className={`py-2 text-sm font-medium rounded-xl transition-colors ${activo ? 'bg-obsidian text-snow' : futuro ? 'text-pebble cursor-not-allowed' : 'text-graphite hover:bg-mist'}`}>
+                          <button key={m} onClick={() => seleccionarMes(pickerYear, i)}
+                            className={`py-2 text-sm font-medium rounded-xl transition-colors ${activo ? 'bg-obsidian text-snow' : 'text-graphite hover:bg-mist'}`}>
                             {m}
                           </button>
                         )
