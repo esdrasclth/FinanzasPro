@@ -23,7 +23,8 @@ export async function GET(req: Request) {
   const cartera = url.searchParams.get('cartera') || ''
   const desde = url.searchParams.get('desde') || ''
   const hasta = url.searchParams.get('hasta') || ''
-  const limit = Math.min(Number(url.searchParams.get('limit')) || 200, 500)
+  const limit = Math.min(Number(url.searchParams.get('limit')) || 100, 200)
+  const offset = Math.max(Number(url.searchParams.get('offset')) || 0, 0)
 
   const where: any = { user_id: session.id }
 
@@ -51,6 +52,7 @@ export async function GET(req: Request) {
         wallet: { select: { nombre: true, color: true, tipo: true } },
       },
       orderBy: [{ fecha: 'desc' }, { created_at: 'desc' }],
+      skip: offset,
       take: limit,
     }),
     prisma.transactions.count({ where }),

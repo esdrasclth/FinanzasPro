@@ -88,24 +88,30 @@ export default function TransaccionesCliente({
       return
     }
     let cancelado = false
+    const controller = new AbortController()
     const t = setTimeout(async () => {
       setBuscando(true)
-      const params = new URLSearchParams({ q: busqueda.trim(), limit: '300' })
+      const params = new URLSearchParams({ q: busqueda.trim(), limit: '100', offset: '0' })
       if (filtroTipo !== 'todos') params.set('tipo', filtroTipo)
       if (filtroCategoria !== 'todas') params.set('categoria', filtroCategoria)
       if (filtroCartera) params.set('cartera', filtroCartera)
       try {
-        const res = await fetch(`/api/transacciones/buscar?${params}`)
+        const res = await fetch(`/api/transacciones/buscar?${params}`, { signal: controller.signal })
         if (!res.ok) return
         const json = await res.json()
         if (cancelado) return
         setResultadosGlobales(json.data || [])
         setTotalGlobal(json.total || 0)
+      } catch (error) {
+        if ((error as DOMException).name !== 'AbortError' && !cancelado) {
+          setResultadosGlobales([])
+          setTotalGlobal(0)
+        }
       } finally {
         if (!cancelado) setBuscando(false)
       }
-    }, 300)
-    return () => { cancelado = true; clearTimeout(t) }
+    }, 350)
+    return () => { cancelado = true; controller.abort(); clearTimeout(t) }
   }, [busquedaGlobal, busqueda, filtroTipo, filtroCategoria, filtroCartera])
 
   // Movimientos del mes, categorías, carteras y tasa en una sola llamada.
@@ -189,7 +195,7 @@ export default function TransaccionesCliente({
   const recargar = async () => {
     setSeleccion(new Set())
     if (resultadosGlobales) {
-      const params = new URLSearchParams({ q: busqueda.trim(), limit: '300' })
+      const params = new URLSearchParams({ q: busqueda.trim(), limit: '100', offset: '0' })
       if (filtroTipo !== 'todos') params.set('tipo', filtroTipo)
       if (filtroCategoria !== 'todas') params.set('categoria', filtroCategoria)
       if (filtroCartera) params.set('cartera', filtroCartera)
