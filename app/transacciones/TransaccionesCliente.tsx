@@ -19,6 +19,7 @@ import {
   PiggyBank, PieChart as PieIcon, Globe, Copy, type LucideIcon,
 } from 'lucide-react'
 import { emitirCambio, useRecarga } from '../lib/datos-bus'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -69,6 +70,8 @@ export default function TransaccionesCliente({
   // Selección múltiple para acciones en lote.
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
   const [enLote, setEnLote] = useState(false)
+  const [confirmacion, setConfirmacion] = useState<{ message: string; action: () => Promise<void> } | null>(null)
+  const [confirmando, setConfirmando] = useState(false)
   // Pestaña visible en móvil: la lista o el panel de análisis.
   const [vistaMovil, setVistaMovil] = useState<'lista' | 'analisis'>('lista')
 
@@ -167,11 +170,15 @@ export default function TransaccionesCliente({
   // pierna de una transferencia, el avance de una deuda) se revierte junto.
   const handleEliminar = async (t: any) => {
     const tipo = tipoCompuesto(t)
-    if (!confirm(avisoBorrado(tipo))) return
-    const { error } = await eliminarTransaccion(t.id)
-    if (error) { alert(error); return }
-    emitirCambio('transacciones')
-    pedirRecarga()
+    setConfirmacion({
+      message: avisoBorrado(tipo),
+      action: async () => {
+        const { error } = await eliminarTransaccion(t.id)
+        if (error) { alert(error); return }
+        emitirCambio('transacciones')
+        pedirRecarga()
+      },
+    })
   }
 
   // Duplicar copia el movimiento con la fecha de hoy, que es para lo que sirve:
@@ -758,6 +765,19 @@ export default function TransaccionesCliente({
       {showForm && (
         <FormTransaccion onClose={() => setShowForm(false)} onSuccess={pedirRecarga} />
       )}
+
+      <ConfirmDialog
+        open={Boolean(confirmacion)}
+        message={confirmacion?.message || ''}
+        confirmLabel="Eliminar"
+        busy={confirmando}
+        onCancel={() => { if (!confirmando) setConfirmacion(null) }}
+        onConfirm={async () => {
+          if (!confirmacion) return
+          setConfirmando(true)
+          try { await confirmacion.action() } finally { setConfirmando(false); setConfirmacion(null) }
+        }}
+      />
     </AppLayout>
   )
 }
