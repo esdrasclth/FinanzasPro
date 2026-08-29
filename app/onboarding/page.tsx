@@ -49,7 +49,8 @@ const PASOS = [
   }
 ]
 
-const COLORES: any = {
+type ColorKey = (typeof PASOS)[number]['color']
+const COLORES: Record<ColorKey, { bg: string; text: string; border: string; btn: string }> = {
   teal: { bg: 'bg-snow', text: 'text-ink', border: 'border-fog', btn: 'bg-obsidian hover:bg-graphite' },
   blue: { bg: 'bg-snow', text: 'text-ink', border: 'border-fog', btn: 'bg-obsidian hover:bg-graphite' },
   green: { bg: 'bg-snow', text: 'text-ink', border: 'border-fog', btn: 'bg-obsidian hover:bg-graphite' },
@@ -59,25 +60,28 @@ const COLORES: any = {
 
 export default function Onboarding() {
   const [paso, setPaso] = useState(0)
+  const [completando, setCompletando] = useState(false)
+  const [error, setError] = useState('')
   const router = useRouter()
   const total = PASOS.length
   const actual = PASOS[paso]
   const color = COLORES[actual.color]
 
   const siguiente = async () => {
+    if (completando) return
     if (paso < total - 1) {
       setPaso(paso + 1)
     } else {
-      await completar()
-      router.push('/carteras')
+      await finalizar('/carteras')
     }
   }
 
   // Marca el onboarding como completado conservando nombre y moneda actuales.
   const completar = async () => {
     const res = await fetch('/api/perfil')
-    const perfil = res.ok ? (await res.json()).perfil : null
-    await fetch('/api/perfil', {
+    if (!res.ok) throw new Error('No pudimos cargar tu perfil')
+    const perfil = (await res.json()).perfil
+    const guardado = await fetch('/api/perfil', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -85,11 +89,23 @@ export default function Onboarding() {
         moneda_default: perfil?.moneda_default || 'HNL',
       }),
     })
+    if (!guardado.ok) throw new Error('No pudimos guardar el onboarding')
+  }
+
+  const finalizar = async (destino: string) => {
+    setCompletando(true)
+    setError('')
+    try {
+      await completar()
+      router.replace(destino)
+    } catch {
+      setError('No pudimos guardar los cambios. Revisa tu conexión e inténtalo de nuevo.')
+      setCompletando(false)
+    }
   }
 
   const saltar = async () => {
-    await completar()
-    router.push('/dashboard')
+    if (!completando) await finalizar('/dashboard')
   }
 
   return (
@@ -129,7 +145,10 @@ export default function Onboarding() {
           {PASOS.map((_, i) => (
             <button
               key={i}
+              type="button"
               onClick={() => setPaso(i)}
+              aria-label={`Ir al paso ${i + 1} de ${total}`}
+              aria-current={i === paso ? 'step' : undefined}
               className={`h-2 rounded-full transition-all duration-300 ${
                 i === paso
                   ? `w-6 ${color.btn.split(' ')[0]}`
@@ -143,7 +162,10 @@ export default function Onboarding() {
 
         {/* Botón siguiente */}
         <button
+          type="button"
           onClick={siguiente}
+          disabled={completando}
+          aria-busy={completando}
           className={`w-full py-4 rounded-full text-snow font-medium text-base shadow-pill transition-all ${color.btn} mb-3`}
         >
           {paso === total - 1 ? '¡Empezar ahora! 🚀' : 'Siguiente →'}
@@ -152,7 +174,9 @@ export default function Onboarding() {
         {/* Saltar */}
         {paso < total - 1 && (
           <button
+            type="button"
             onClick={saltar}
+            disabled={completando}
             className="w-full py-3 text-sm transition-colors text-steel hover:text-ink"
           >
             Saltar introducción
@@ -160,6 +184,8 @@ export default function Onboarding() {
         )}
 
       </div>
+
+      {error && <p className="max-w-sm mt-4 text-sm text-center text-red-700" role="alert">{error}</p>}
 
       {/* Paso actual */}
       <p className="mt-8 text-xs text-ash">

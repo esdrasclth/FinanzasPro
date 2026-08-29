@@ -12,6 +12,12 @@ export default function Offline() {
       <p className="max-w-xs text-sm text-steel">
         No pudimos conectar. Revisa tu internet e inténtalo de nuevo; tus datos siguen a salvo.
       </p>
+      <a
+        href="/offline"
+        className="inline-flex items-center gap-2 px-5 py-3 mt-2 text-sm font-medium rounded-full bg-obsidian text-snow hover:bg-graphite"
+      >
+        Intentar de nuevo
+      </a>
     </div>
   )
 }
