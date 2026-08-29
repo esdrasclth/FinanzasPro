@@ -251,7 +251,7 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
       // 'debo'), el gasto manual se registra como un abono real: descuenta la
       // deuda, crea el pago y la transacción ligada (debt_id).
       if (tipo === 'gasto') {
-        const rd = await fetch('/api/deudas')
+        const rd = await fetch(`/api/deudas?category_id=${encodeURIComponent(categoryFinal)}`)
         const listaDeudas = rd.ok ? (await rd.json()).deudas || [] : []
         const deuda = listaDeudas.find(
           (x: any) => x.category_id === categoryFinal && x.tipo === 'debo' && !x.completada

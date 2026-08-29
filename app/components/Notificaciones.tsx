@@ -14,6 +14,9 @@ interface Aviso {
   href: string
 }
 
+let cacheNotificaciones: { avisos: Aviso[]; descartados: number } | null = null
+let cacheNotificacionesAt = 0
+
 export default function Notificaciones() {
   const [avisos, setAvisos] = useState<Aviso[]>([])
   const [descartados, setDescartados] = useState(0)
@@ -25,12 +28,19 @@ export default function Notificaciones() {
   // Los avisos se calculan en /api/notificaciones. Antes se armaban en el
   // cliente con una consulta por presupuesto y sin convertir monedas.
   const cargar = async () => {
+    if (cacheNotificaciones && Date.now() - cacheNotificacionesAt < 30_000) {
+      setAvisos(cacheNotificaciones.avisos)
+      setDescartados(cacheNotificaciones.descartados)
+      return
+    }
     try {
       const res = await fetch('/api/notificaciones')
       if (!res.ok) return
       const json = await res.json()
       setAvisos(json.avisos || [])
       setDescartados(json.descartados || 0)
+      cacheNotificaciones = { avisos: json.avisos || [], descartados: json.descartados || 0 }
+      cacheNotificacionesAt = Date.now()
     } catch {
       // Sin conexión se deja lo que ya estaba en pantalla.
     }
@@ -40,6 +50,7 @@ export default function Notificaciones() {
   const descartar = async (a: Aviso) => {
     setAvisos(prev => prev.filter(x => x.clave !== a.clave))
     setDescartados(n => n + 1)
+    cacheNotificaciones = null
     try {
       await fetch('/api/notificaciones', {
         method: 'POST',
@@ -52,6 +63,7 @@ export default function Notificaciones() {
   }
 
   const restaurar = async () => {
+    cacheNotificaciones = null
     try {
       await fetch('/api/notificaciones', { method: 'DELETE' })
     } finally {

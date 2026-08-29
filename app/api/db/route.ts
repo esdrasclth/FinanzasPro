@@ -43,6 +43,7 @@ const NUM_COLS = new Set([
   'monto_original', 'tasa_cambio',
 ])
 const BOOL_COLS = new Set(['activo', 'es_sistema', 'completada', 'onboarding_completado', 'protegida', 'archivada'])
+const MAX_ROWS = 200
 
 // La columna "año" del frontend se llama "anio" en Prisma
 const colIn = (c: string) => (c === 'año' ? 'anio' : c)
@@ -237,7 +238,7 @@ export async function POST(req: Request) {
           where,
           ...(include ? { include } : {}),
           ...(orderBy.length ? { orderBy } : {}),
-          ...(body.limit ? { take: body.limit } : {}),
+          ...(body.limit ? { take: Math.min(Math.max(Math.trunc(body.limit), 1), MAX_ROWS) } : { take: MAX_ROWS }),
           ...(body.single ? { take: 1 } : {}),
         })
         const data = rows.map((r: any) => serializeRow(remapRelations(r)))

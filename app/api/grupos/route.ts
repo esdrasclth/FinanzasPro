@@ -27,9 +27,27 @@ export async function GET() {
   for (const g of grupos) nombrePorGrupo[g.id] = { nombre: g.nombre, color: g.color, icono: g.icono, moneda: g.moneda }
 
   // Saldo neto del usuario (histórico) y total del mes actual por grupo.
-  const [gastos, liqs] = await Promise.all([
-    prisma.gastos_compartidos.findMany({ where: { grupo_id: { in: ids } }, include: { pagos: true, divisiones: true } }),
-    prisma.liquidaciones.findMany({ where: { grupo_id: { in: ids } } }),
+  // No se traen todas las divisiones y pagos de todos los miembros anidados en
+  // cada gasto. Solo necesitamos los campos del resumen y las filas del propio
+  // usuario; esto reduce mucho el payload cuando un grupo tiene historial.
+  const [gastos, pagosMios, divisionesMias, liqs] = await Promise.all([
+    prisma.gastos_compartidos.findMany({
+      where: { grupo_id: { in: ids } },
+      select: { id: true, grupo_id: true, descripcion: true, monto_total: true, mes: true, anio: true, creado_por: true, created_at: true },
+      orderBy: { created_at: 'desc' },
+    }),
+    prisma.gasto_pagos.findMany({
+      where: { user_id: user.id, gasto: { grupo_id: { in: ids } } },
+      select: { monto: true, gasto: { select: { grupo_id: true } } },
+    }),
+    prisma.gasto_divisiones.findMany({
+      where: { user_id: user.id, gasto: { grupo_id: { in: ids } } },
+      select: { monto_asignado: true, gasto: { select: { grupo_id: true } } },
+    }),
+    prisma.liquidaciones.findMany({
+      where: { grupo_id: { in: ids }, OR: [{ de_user_id: user.id }, { a_user_id: user.id }] },
+      select: { grupo_id: true, de_user_id: true, a_user_id: true, monto: true },
+    }),
   ])
 
   const { anio: anioActual, mes: mesActual } = await hoyUsuarioPartes()
@@ -39,18 +57,18 @@ export async function GET() {
 
   for (const g of gastos) {
     if (g.mes === mesActual && g.anio === anioActual) totalMes[g.grupo_id] = (totalMes[g.grupo_id] || 0) + Number(g.monto_total)
-    for (const p of g.pagos) if (p.user_id === user.id) net[g.grupo_id] = (net[g.grupo_id] || 0) + Number(p.monto)
-    for (const d of g.divisiones) if (d.user_id === user.id) net[g.grupo_id] = (net[g.grupo_id] || 0) - Number(d.monto_asignado)
     const prev = ultima[g.grupo_id]
     if (!prev || g.created_at > prev.fecha) ultima[g.grupo_id] = { descripcion: g.descripcion, fecha: g.created_at }
   }
+  for (const p of pagosMios) net[p.gasto.grupo_id] = (net[p.gasto.grupo_id] || 0) + Number(p.monto)
+  for (const d of divisionesMias) net[d.gasto.grupo_id] = (net[d.gasto.grupo_id] || 0) - Number(d.monto_asignado)
   for (const l of liqs) {
     if (l.de_user_id === user.id) net[l.grupo_id] = (net[l.grupo_id] || 0) + Number(l.monto)
     if (l.a_user_id === user.id) net[l.grupo_id] = (net[l.grupo_id] || 0) - Number(l.monto)
   }
 
   // Feed de actividad reciente (últimos gastos de todos los grupos).
-  const recientes = [...gastos].sort((a, b) => b.created_at.getTime() - a.created_at.getTime()).slice(0, 10)
+  const recientes = gastos.slice(0, 10)
   const autores = await nombresDeUsuarios(recientes.map(g => g.creado_por))
   const actividad = recientes.map(g => ({
     id: g.id,

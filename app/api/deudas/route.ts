@@ -25,13 +25,14 @@ export function serializarDeuda(d: any) {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getSessionUser()
   if (!session) {
     return NextResponse.json({ error: { message: 'No autenticado' } }, { status: 401 })
   }
+  const categoryId = new URL(req.url).searchParams.get('category_id')
   const filas = await prisma.debts.findMany({
-    where: { user_id: session.id },
+    where: { user_id: session.id, ...(categoryId ? { category_id: categoryId } : {}) },
     orderBy: [{ completada: 'asc' }, { created_at: 'desc' }],
   })
   return NextResponse.json({ deudas: filas.map(serializarDeuda) })
