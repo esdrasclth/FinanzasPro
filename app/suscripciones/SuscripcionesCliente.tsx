@@ -1,10 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import AppLayout from '../components/AppLayout'
 import FormSuscripcion from '../components/FormSuscripcion'
 import Notificaciones from '../components/Notificaciones'
-import { SkeletonCard } from '../components/Skeleton'
 import { useMoneda } from '../lib/moneda-context'
 import { simboloMoneda } from '../lib/dinero'
 import {
@@ -33,7 +32,6 @@ export default function SuscripcionesCliente({ usuario, suscripcionesIniciales }
   const [subs, setSubs] = useState<any[]>(
     suscripcionesIniciales.map(s => ({ ...s, calc: calcularSuscripcion(s) }))
   )
-  const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [subEditar, setSubEditar] = useState<any>(null)
   const [filtroEstado, setFiltroEstado] = useState<'todas' | EstadoSuscripcion>('todas')
@@ -154,20 +152,6 @@ export default function SuscripcionesCliente({ usuario, suscripcionesIniciales }
     if (busqueda && !s.nombre.toLowerCase().includes(busqueda.toLowerCase())) return false
     return true
   })
-
-  if (loading) {
-    return (
-      <AppLayout usuario={usuario}>
-        <div className="max-w-[1728px] p-4 mx-auto space-y-6 sm:p-6 lg:p-8">
-          <div className="w-48 h-8 rounded-badge bg-fog animate-pulse" />
-          <div className="p-8 rounded-2xl bg-fog animate-pulse h-44" />
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {[1, 2, 3, 4].map(i => <SkeletonCard key={i} />)}
-          </div>
-        </div>
-      </AppLayout>
-    )
-  }
 
   return (
     <AppLayout usuario={usuario}>

@@ -17,8 +17,6 @@ async function req(path, opts = {}) {
   try { j = JSON.parse(txt) } catch {}
   return { st: res.status, j }
 }
-const db = (t, op, e = {}) => req('/api/db', { method: 'POST', body: JSON.stringify({ table: t, op, ...e }) })
-const eqf = (c, v) => ({ type: 'eq', column: c, value: v })
 
 await req('/api/auth/register', { method: 'POST', body: JSON.stringify({ email: `arn-${Date.now()}@t.local`, password: 'prueba123', nombre: 'Arnold' }) })
 await req('/api/perfil', { method: 'PUT', body: JSON.stringify({ nombre: 'Arnold', moneda_default: 'HNL' }) })

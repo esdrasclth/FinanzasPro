@@ -1,13 +1,11 @@
 'use client'
 
-import { useEffect, useState, useRef, type ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useState, useRef, type ReactNode } from 'react'
 import FormPresupuesto from '../components/FormPresupuesto'
 import FormMeta from '../components/FormMeta'
 import FormAporteMeta from '../components/FormAporteMeta'
 import AppLayout from '../components/AppLayout'
 import Notificaciones from '../components/Notificaciones'
-import { SkeletonList } from '../components/Skeleton'
 import { useMoneda } from '../lib/moneda-context'
 import { round2 } from '../lib/dinero'
 import IconoCategoria from '../components/IconoCategoria'
@@ -38,13 +36,11 @@ interface Props {
 export default function PresupuestoCliente({
   usuario, presupuestosIniciales, gastoPrevInicial, categoriasIniciales, metasIniciales,
 }: Props) {
-  const router = useRouter()
   const [presupuestos, setPresupuestos] = useState<any[]>(presupuestosIniciales)
   const [catMap, setCatMap] = useState<Record<string, any>>(
     Object.fromEntries(categoriasIniciales.map((c: any) => [c.id, c]))
   )
   const [gastoPrev, setGastoPrev] = useState<Record<string, number>>(gastoPrevInicial)
-  const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [presupuestoEditar, setPresupuestoEditar] = useState<any>(null)
   const [metas, setMetas] = useState<any[]>(metasIniciales)
@@ -71,15 +67,11 @@ export default function PresupuestoCliente({
 
   // El mes inicial ya viene del servidor; solo se recarga al cambiar de mes.
   const primeraCarga = useRef(true)
-  useEffect(() => {
-    if (primeraCarga.current) { primeraCarga.current = false; return }
-    cargarPresupuestos()
-  }, [mesOffset])
-
   // Presupuestos con lo gastado, gasto del mes anterior, categorías y metas en
   // una sola llamada. El traspaso automático del mes también lo hace el servidor.
-  const cargarPresupuestos = async () => {
-    const base = getMesActual()
+  const cargarPresupuestos = useCallback(async () => {
+    const base = new Date()
+    base.setMonth(base.getMonth() + mesOffset)
     const params = new URLSearchParams({
       mes: String(base.getMonth() + 1),
       anio: String(base.getFullYear()),
@@ -96,7 +88,13 @@ export default function PresupuestoCliente({
     } catch {
       // Se conserva lo que ya está en pantalla.
     }
-  }
+  }, [mesOffset])
+
+  useEffect(() => {
+    if (primeraCarga.current) { primeraCarga.current = false; return }
+    const timeout = window.setTimeout(cargarPresupuestos, 0)
+    return () => window.clearTimeout(timeout)
+  }, [cargarPresupuestos])
 
   // Lo gastado del mes lo mueve cualquier gasto, venga de donde venga.
   const pedirRecarga = useRecarga(['presupuesto'], cargarPresupuestos)
@@ -122,7 +120,7 @@ export default function PresupuestoCliente({
     else { setPresupuestoEditar(null); setShowForm(true) }
   }
 
-  const { simbolo, moneda } = useMoneda()
+  const { simbolo } = useMoneda()
   const formatMonto = (n: number) =>
     new Intl.NumberFormat('es-HN', { minimumFractionDigits: 2 }).format(n)
 
@@ -326,18 +324,6 @@ export default function PresupuestoCliente({
   const metasTotalObjetivo = metas.reduce((s, m) => s + Number(m.monto_objetivo), 0)
   const metasTotalAhorrado = metas.reduce((s, m) => s + Number(m.monto_actual), 0)
   const metasCompletadas = metas.filter(m => m.completada || Number(m.monto_actual) >= Number(m.monto_objetivo)).length
-
-  if (loading) {
-    return (
-      <AppLayout usuario={usuario}>
-        <div className="max-w-[1728px] p-4 mx-auto space-y-6 sm:p-6 lg:p-8">
-          <div className="w-48 h-8 rounded-badge bg-fog animate-pulse" />
-          <div className="h-40 rounded-2xl bg-fog animate-pulse" />
-          <SkeletonList items={5} />
-        </div>
-      </AppLayout>
-    )
-  }
 
   return (
     <AppLayout usuario={usuario}>

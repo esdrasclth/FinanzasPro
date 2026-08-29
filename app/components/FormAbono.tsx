@@ -22,17 +22,18 @@ export default function FormAbono({ deuda, onClose, onSuccess }: Props) {
   const [error, setError] = useState('')
   const { simbolo } = useMoneda()
 
-  useEffect(() => {
-    cargarWallets()
-  }, [])
-
-  const cargarWallets = async () => {
+  async function cargarWallets() {
     const res = await fetch('/api/carteras/lista')
     if (!res.ok) return
     const { carteras: data } = await res.json()
     setWallets(data || [])
     if (data && data.length > 0) setWalletId(data[0].id)
   }
+
+  useEffect(() => {
+    const timeout = window.setTimeout(cargarWallets, 0)
+    return () => window.clearTimeout(timeout)
+  }, [])
 
   const pendiente = Number(deuda.monto_total) - Number(deuda.monto_pagado)
 

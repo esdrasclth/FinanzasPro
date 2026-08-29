@@ -1,15 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import AppLayout from '../../components/AppLayout'
 import FormDeuda from '../../components/FormDeuda'
 import FormAbono from '../../components/FormAbono'
-import {
-  archivarSubcategoriaDeuda,
-  eliminarSubcategoriaDeuda,
-  crearSubcategoriaDeuda,
-} from '../../lib/deudas'
 import { calcularDeuda, ESTADO_META, type EstadoDeuda } from '../../lib/deudaCalculos'
 import { useMoneda } from '../../lib/moneda-context'
 import {
@@ -31,10 +26,8 @@ export default function DeudaDetalle() {
   const [showEditar, setShowEditar] = useState(false)
   const [showAbono, setShowAbono] = useState(false)
 
-  useEffect(() => { cargar() }, [deudaId])
-
   // La deuda, sus abonos y las carteras en una sola llamada.
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     try {
       const res = await fetch(`/api/deudas/${deudaId}`)
       if (!res.ok) { router.push('/deudas'); return }
@@ -47,7 +40,12 @@ export default function DeudaDetalle() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [deudaId, router])
+
+  useEffect(() => {
+    const timeout = window.setTimeout(cargar, 0)
+    return () => window.clearTimeout(timeout)
+  }, [cargar])
 
   const { simbolo } = useMoneda()
   const formatMonto = (n: number) =>

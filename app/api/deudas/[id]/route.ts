@@ -34,6 +34,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     deuda: serializarDeuda(deuda),
     pagos: pagos.map(p => ({
       ...p,
+      monto: Number(p.monto),
       fecha: p.fecha.toISOString().slice(0, 10),
       created_at: p.created_at.toISOString(),
     })),

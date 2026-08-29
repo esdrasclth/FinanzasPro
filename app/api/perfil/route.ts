@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
+import bcrypt from 'bcryptjs'
+import { randomUUID } from 'node:crypto'
 import { prisma } from '../../lib/prisma'
-import { getSessionUser } from '../../lib/auth-server'
+import { getSessionUser, SESSION_COOKIE } from '../../lib/auth-server'
+import { eliminarCuenta } from '../../lib/cuenta-server'
 
 // GET /api/perfil  -> perfil y conteos
 // PUT /api/perfil  -> { nombre, moneda_default }
@@ -62,6 +65,47 @@ export async function PUT(req: Request) {
   })
 
   return NextResponse.json({ perfil: { ...perfil, created_at: perfil.created_at.toISOString() } })
+}
+
+export async function DELETE(req: Request) {
+  const session = await getSessionUser()
+  if (!session) {
+    return NextResponse.json({ error: { message: 'No autenticado' } }, { status: 401 })
+  }
+
+  const body = await req.json().catch(() => null)
+  const password = String(body?.password || '')
+  const confirmacion = String(body?.confirmacion || '').trim().toUpperCase()
+  if (confirmacion !== 'ELIMINAR') {
+    return NextResponse.json(
+      { error: { message: 'Escribe ELIMINAR para confirmar' } },
+      { status: 400 }
+    )
+  }
+
+  const user = await prisma.users.findUnique({ where: { id: session.id } })
+  if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+    return NextResponse.json(
+      { error: { message: 'La contraseña no es correcta' } },
+      { status: 403 }
+    )
+  }
+
+  const passwordHash = await bcrypt.hash(randomUUID(), 10)
+  await eliminarCuenta(session.id, {
+    email: `eliminado-${session.id}@deleted.caudal.invalid`,
+    passwordHash,
+  })
+
+  const res = NextResponse.json({ ok: true })
+  res.cookies.set(SESSION_COOKIE, '', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 0,
+    path: '/',
+  })
+  return res
 }
 
 export { conteos }

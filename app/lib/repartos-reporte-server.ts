@@ -116,8 +116,8 @@ async function calcular(
     // Si no se registró pagador, lo pusiste tú.
     const pagador = r.pagado_por?.trim() || yo
 
-    registrar(puso, pagador, r.monto_total)
-    for (const p of r.participantes) registrar(leToca, p.nombre, p.monto_asignado)
+    registrar(puso, pagador, Number(r.monto_total))
+    for (const p of r.participantes) registrar(leToca, p.nombre, Number(p.monto_asignado))
 
     const metodo = r.pagado_por
       ? [METODOS[r.metodo_pago || ''] || 'Sin especificar', r.metodo_detalle].filter(Boolean).join(' · ')
@@ -127,14 +127,14 @@ async function calcular(
       fecha: r.fecha.toISOString().slice(0, 10),
       descripcion: r.descripcion,
       lugar: r.lugar?.trim() || '',
-      monto: round2(r.monto_total),
+      monto: round2(Number(r.monto_total)),
       moneda: r.moneda,
       pagadoPor: pagador,
       metodo,
       reparto: r.metodo === 'manual' ? 'Montos distintos' : 'Partes iguales',
       participantes: r.participantes.map((p: any) => ({
         nombre: p.nombre,
-        monto: round2(p.monto_asignado),
+        monto: round2(Number(p.monto_asignado)),
         pagado: p.pagado,
       })),
     }

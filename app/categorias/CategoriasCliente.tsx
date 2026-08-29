@@ -16,7 +16,6 @@ interface Props {
 
 export default function CategoriasCliente({ usuario, categoriasIniciales }: Props) {
   const [categorias, setCategorias] = useState<any[]>(categoriasIniciales)
-  const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [categoriaEditar, setCategoriaEditar] = useState<any>(null)
   const [categoriaParent, setCategoriaParent] = useState<any>(null)
@@ -86,16 +85,6 @@ export default function CategoriasCliente({ usuario, categoriasIniciales }: Prop
   // Subcategorías de una categoría
   const subCategorias = (parentId: string) =>
     categorias.filter(c => c.parent_id === parentId)
-
-  if (loading) {
-    return (
-      <AppLayout usuario={usuario}>
-        <div className="flex items-center justify-center h-96">
-          <p className="text-steel animate-pulse">Cargando...</p>
-        </div>
-      </AppLayout>
-    )
-  }
 
   return (
     <AppLayout usuario={usuario}>

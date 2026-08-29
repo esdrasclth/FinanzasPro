@@ -20,12 +20,12 @@ export async function GET() {
       // Excluye la parte propia (es_yo): no se cobra, pero sí cuenta como
       // cubierta del total (ya la pusiste tú).
       const cobrables = r.participantes.filter(p => !p.es_yo)
-      const pagado = cobrables.filter(p => p.pagado).reduce((s, p) => s + p.monto_asignado, 0)
-      const miParte = r.participantes.filter(p => p.es_yo).reduce((s, p) => s + p.monto_asignado, 0)
+      const pagado = cobrables.filter(p => p.pagado).reduce((s, p) => s + Number(p.monto_asignado), 0)
+      const miParte = r.participantes.filter(p => p.es_yo).reduce((s, p) => s + Number(p.monto_asignado), 0)
       return {
         id: r.id,
         descripcion: r.descripcion,
-        monto_total: r.monto_total,
+        monto_total: Number(r.monto_total),
         moneda: r.moneda,
         metodo: r.metodo,
         lugar: r.lugar,

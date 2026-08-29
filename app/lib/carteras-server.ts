@@ -121,7 +121,7 @@ export async function carterasConSaldo(userId: string): Promise<CarteraConSaldo[
       moneda: primaria,
       color: w.color,
       activo: w.activo,
-      credito_limite: w.credito_limite,
+      credito_limite: w.credito_limite === null ? null : Number(w.credito_limite),
       fecha_corte: w.fecha_corte,
       fecha_pago: w.fecha_pago,
       numero_cuenta: w.numero_cuenta,

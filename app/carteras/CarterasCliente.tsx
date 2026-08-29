@@ -1,12 +1,11 @@
 'use client'
 
-import { useEffect, useState, type ReactNode, type CSSProperties } from 'react'
+import { useState, type ReactNode, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
 import FormCartera from '../components/FormCartera'
 import AppLayout from '../components/AppLayout'
 import AjusteSaldo from '../components/AjusteSaldo'
 import Notificaciones from '../components/Notificaciones'
-import { SkeletonCard } from '../components/Skeleton'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   DndContext, closestCenter, PointerSensor, KeyboardSensor,
@@ -38,13 +37,13 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
   const [carteras, setCarteras] = useState<any[]>(carterasIniciales)
   const [archivadas, setArchivadas] = useState<any[]>(archivadasIniciales)
   const [mostrarArchivadas, setMostrarArchivadas] = useState(false)
-  const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [carteraEditar, setCarteraEditar] = useState<any>(null)
   const [carteraAjustar, setCarteraAjustar] = useState<any>(null)
   const [filtroTipo, setFiltroTipo] = useState('todos')
   const [filtroMoneda, setFiltroMoneda] = useState('todas')
   const [busqueda, setBusqueda] = useState('')
+  const [ahora] = useState(Date.now)
 
   // Los saldos los calcula la base de datos en /api/carteras. Antes esta
   // pantalla lanzaba una consulta por cartera que se traía todas sus
@@ -116,7 +115,7 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
 
   const tiempoRelativo = (ts?: number | null) => {
     if (!ts) return 'Sin movimientos'
-    const min = Math.floor((Date.now() - ts) / 60000)
+    const min = Math.floor((ahora - ts) / 60000)
     if (min < 1) return 'Hace un momento'
     if (min < 60) return `Hace ${min} min`
     const horas = Math.floor(min / 60)
@@ -228,7 +227,7 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
     if (!esCred && Number(c.saldo_actual) < 0)
       alertas.push({ id: `${c.id}-neg`, icon: TrendingDown, texto: `${c.nombre} tiene saldo negativo`, grave: true })
     if (c.ultimo_movimiento) {
-      const dias = Math.floor((Date.now() - c.ultimo_movimiento) / 86400000)
+      const dias = Math.floor((ahora - c.ultimo_movimiento) / 86400000)
       if (dias >= DIAS_INACTIVA)
         alertas.push({ id: `${c.id}-inact`, icon: Moon, texto: `${c.nombre} sin actividad hace ${dias} días`, grave: false })
     }
@@ -305,29 +304,6 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
     if (busqueda && !c.nombre.toLowerCase().includes(busqueda.toLowerCase())) return false
     return true
   })
-
-  if (loading) {
-    return (
-      <AppLayout usuario={usuario}>
-        <div className="max-w-[1728px] p-4 mx-auto space-y-6 sm:p-6 lg:p-8">
-          <div className="w-48 h-8 rounded-badge bg-fog animate-pulse" />
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-6 border bg-snow border-fog rounded-card animate-pulse">
-              <div className="w-2/3 h-3 mb-4 rounded-badge bg-fog" />
-              <div className="w-1/2 h-8 rounded-badge bg-fog" />
-            </div>
-            <div className="p-6 border bg-snow border-fog rounded-card animate-pulse">
-              <div className="w-2/3 h-3 mb-4 rounded-badge bg-fog" />
-              <div className="w-1/2 h-8 rounded-badge bg-fog" />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {[1, 2, 3, 4].map(i => <SkeletonCard key={i} />)}
-          </div>
-        </div>
-      </AppLayout>
-    )
-  }
 
   return (
     <AppLayout usuario={usuario}>

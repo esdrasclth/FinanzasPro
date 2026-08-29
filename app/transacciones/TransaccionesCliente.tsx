@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, type ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useState, useRef, type ReactNode } from 'react'
 import FormTransaccion from '../components/FormTransaccion'
 import AppLayout from '../components/AppLayout'
 import FormEditarTransaccion from '../components/FormEditarTransaccion'
@@ -45,7 +44,6 @@ interface Props {
 export default function TransaccionesCliente({
   usuario, mesInicial, transaccionesIniciales, categoriasIniciales, carterasIniciales, tasaInicial,
 }: Props) {
-  const router = useRouter()
   const [transacciones, setTransacciones] = useState<any[]>(transaccionesIniciales)
   const [filtradas, setFiltradas] = useState<any[]>(transaccionesIniciales)
   const [categorias, setCategorias] = useState<any[]>(categoriasIniciales)
@@ -77,18 +75,9 @@ export default function TransaccionesCliente({
   // El mes inicial ya viene del servidor; solo se recarga al cambiar de mes.
   const primeraCarga = useRef(true)
   useEffect(() => {
-    if (primeraCarga.current) { primeraCarga.current = false; return }
-    cargarDatos()
-  }, [filtroMes])
-
-  useEffect(() => {
     const cartera = new URLSearchParams(window.location.search).get('cartera')
     if (cartera) setFiltroCartera(cartera)
   }, [])
-
-  useEffect(() => {
-    aplicarFiltros()
-  }, [busqueda, filtroTipo, filtroCategoria, filtroCartera, transacciones, resultadosGlobales])
 
   // La búsqueda global la resuelve el servidor sobre todo el historial. El
   // filtrado en memoria solo veía el mes ya cargado.
@@ -120,7 +109,7 @@ export default function TransaccionesCliente({
   }, [busquedaGlobal, busqueda, filtroTipo, filtroCategoria, filtroCartera])
 
   // Movimientos del mes, categorías, carteras y tasa en una sola llamada.
-  const cargarDatos = async () => {
+  const cargarDatos = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch(`/api/transacciones/mes?mes=${filtroMes}`)
@@ -134,9 +123,9 @@ export default function TransaccionesCliente({
     } finally {
       setLoading(false)
     }
-  }
+  }, [filtroMes])
 
-  const aplicarFiltros = () => {
+  const aplicarFiltros = useCallback(() => {
     // En búsqueda global los filtros ya los aplicó el servidor.
     if (resultadosGlobales) { setFiltradas(resultadosGlobales); return }
 
@@ -155,7 +144,18 @@ export default function TransaccionesCliente({
     if (filtroCartera) resultado = resultado.filter(t => t.wallet_id === filtroCartera)
 
     setFiltradas(resultado)
-  }
+  }, [busqueda, filtroTipo, filtroCategoria, filtroCartera, transacciones, resultadosGlobales])
+
+  useEffect(() => {
+    if (primeraCarga.current) { primeraCarga.current = false; return }
+    const timeout = window.setTimeout(cargarDatos, 0)
+    return () => window.clearTimeout(timeout)
+  }, [cargarDatos])
+
+  useEffect(() => {
+    const timeout = window.setTimeout(aplicarFiltros, 0)
+    return () => window.clearTimeout(timeout)
+  }, [aplicarFiltros])
 
   // El borrado pasa por la API: si el movimiento tiene contraparte (la otra
   // pierna de una transferencia, el avance de una deuda) se revierte junto.

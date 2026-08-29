@@ -6,7 +6,6 @@ import AppLayout from '../components/AppLayout'
 import FormDeuda from '../components/FormDeuda'
 import FormAbono from '../components/FormAbono'
 import Notificaciones from '../components/Notificaciones'
-import { SkeletonCard } from '../components/Skeleton'
 import { calcularDeuda, ESTADO_META, type EstadoDeuda } from '../lib/deudaCalculos'
 import { useMoneda } from '../lib/moneda-context'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
@@ -30,7 +29,6 @@ interface Props {
 export default function DeudasCliente({ usuario, deudasIniciales }: Props) {
   const router = useRouter()
   const [deudas, setDeudas] = useState<any[]>(deudasIniciales.map((d: any) => ({ ...d, calc: calcularDeuda(d) })))
-  const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [deudaEditar, setDeudaEditar] = useState<any>(null)
   const [deudaAbonar, setDeudaAbonar] = useState<any>(null)
@@ -130,20 +128,6 @@ export default function DeudasCliente({ usuario, deudasIniciales }: Props) {
     if (busqueda && !d.nombre.toLowerCase().includes(busqueda.toLowerCase())) return false
     return true
   })
-
-  if (loading) {
-    return (
-      <AppLayout usuario={usuario}>
-        <div className="max-w-[1728px] p-4 mx-auto space-y-6 sm:p-6 lg:p-8">
-          <div className="w-48 h-8 rounded-badge bg-fog animate-pulse" />
-          <div className="p-8 rounded-2xl bg-fog animate-pulse h-44" />
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {[1, 2, 3, 4].map(i => <SkeletonCard key={i} />)}
-          </div>
-        </div>
-      </AppLayout>
-    )
-  }
 
   return (
     <AppLayout usuario={usuario}>

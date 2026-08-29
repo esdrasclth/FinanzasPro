@@ -22,7 +22,7 @@ const hoyBCH = () => fechaEnZona(ZONA_POR_DEFECTO)
 const spreadVenta = () => Number(process.env.BCH_SPREAD_VENTA || '0') || 0
 
 interface RateRow {
-  tasa: number
+  tasa: number | { toString(): string }
   fecha: Date
   fuente: string
 }

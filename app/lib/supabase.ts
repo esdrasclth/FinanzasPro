@@ -209,12 +209,12 @@ const auth = {
     return { error: null }
   },
 
-  async updateUser({ password }: { password?: string }) {
+  async updateUser({ password, current_password }: { password?: string; current_password?: string }) {
     try {
       const res = await fetch('/api/auth/update-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password, current_password }),
       })
       const json = await res.json()
       if (!res.ok) {

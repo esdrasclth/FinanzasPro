@@ -66,7 +66,7 @@ async function main() {
   check('sesion iniciada', !!cookie)
 
   const login = await crudo('/login', true)
-  check('con sesion, /login manda al dashboard', login.status === 307 && (login.location || '').includes('/dashboard'), `${login.status} ${login.location}`)
+  check('login queda disponible para reautenticar una sesión revocada', login.status === 200, `${login.status} ${login.location}`)
 
   // Sin onboarding completado, el dashboard debe mandar a /onboarding.
   const dashSinOnb = await crudo('/dashboard', true)

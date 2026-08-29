@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { eliminarTransaccion, tipoCompuesto, avisoBorrado } from '../lib/transacciones'
 import { Trash2, Info } from 'lucide-react'
 import IconoCategoria from './IconoCategoria'
@@ -27,11 +27,7 @@ export default function FormEditarTransaccion({ transaccion, onClose, onSuccess 
   // Transferencia o abono: tienen contraparte, así que no se editan aquí.
   const compuesto = tipoCompuesto(transaccion)
 
-  useEffect(() => {
-    cargarDatos()
-  }, [])
-
-  const cargarDatos = async () => {
+  const cargarDatos = useCallback(async () => {
     const [rc, rw] = await Promise.all([
       fetch('/api/categorias').then(r => (r.ok ? r.json() : null)).catch(() => null),
       fetch('/api/carteras/lista').then(r => (r.ok ? r.json() : null)).catch(() => null),
@@ -47,7 +43,12 @@ export default function FormEditarTransaccion({ transaccion, onClose, onSuccess 
     }
 
     setWallets(rw?.carteras || [])
-  }
+  }, [transaccion.category_id])
+
+  useEffect(() => {
+    const timeout = window.setTimeout(cargarDatos, 0)
+    return () => window.clearTimeout(timeout)
+  }, [cargarDatos])
 
   const categoriasPrincipales = categorias.filter(
     c => c.tipo === transaccion.tipo && !c.parent_id

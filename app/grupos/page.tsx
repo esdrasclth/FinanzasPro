@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useState, Suspense, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, Suspense, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import AppLayout from '../components/AppLayout'
 import FormReparto from '../components/FormReparto'
 import Notificaciones from '../components/Notificaciones'
 import { SkeletonCard } from '../components/Skeleton'
 import { formatoMoneda, simboloMoneda } from '../lib/dinero'
+import { resumenMultimoneda, signoConjunto, type MontosPorMoneda } from '../lib/grupos-resumen'
 import { diasAntes, fechaHoyLocal } from '../lib/fecha'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import {
@@ -37,15 +38,10 @@ type Accion = null | 'crear-grupo' | 'unirse' | 'crear-reparto'
 function Compartidos() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [tab, setTab] = useState<'grupos' | 'repartos'>('grupos')
+  const tab: 'grupos' | 'repartos' = searchParams.get('tab') === 'repartos' ? 'repartos' : 'grupos'
   const [accion, setAccion] = useState<Accion>(null)
 
-  useEffect(() => {
-    if (searchParams.get('tab') === 'repartos') setTab('repartos')
-  }, [searchParams])
-
   const cambiarTab = (t: 'grupos' | 'repartos') => {
-    setTab(t)
     router.replace(`/grupos${t === 'repartos' ? '?tab=repartos' : ''}`, { scroll: false })
   }
 
@@ -175,14 +171,14 @@ function GruposPanel({ router, accion, setAccion, tab, cambiarTab }: {
   const showUnirse = accion === 'unirse'
   const cerrar = () => setAccion(null)
 
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     const res = await fetch('/api/grupos')
     if (res.status === 401) { router.push('/login'); return }
     const json = await res.json()
     setGrupos(json.grupos || [])
     setActividad(json.actividad || [])
     setLoading(false)
-  }
+  }, [router])
 
   // Un gasto compartido registrado en otra pantalla cambia saldos y actividad.
   useRecarga(['grupos'], cargar)
@@ -197,7 +193,7 @@ function GruposPanel({ router, accion, setAccion, tab, cambiarTab }: {
       cargar()
     }
     check()
-  }, [])
+  }, [cargar, router])
 
   // Refresca al volver a la pestaña.
   useEffect(() => {
@@ -208,15 +204,19 @@ function GruposPanel({ router, accion, setAccion, tab, cambiarTab }: {
       window.removeEventListener('focus', tick)
       document.removeEventListener('visibilitychange', tick)
     }
-  }, [])
+  }, [cargar])
 
-  const fmt = (n: number) => formatoMoneda(n, monedaDefault)
+  const fmtMontos = (montos: MontosPorMoneda) => {
+    const entradas = Object.entries(montos).filter(([, monto]) => Math.abs(monto) > 0.005)
+    if (entradas.length === 0) return formatoMoneda(0, monedaDefault)
+    return entradas
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([moneda, monto]) => formatoMoneda(monto, moneda))
+      .join(' · ')
+  }
 
-  // Métricas globales (aproximación en la moneda por defecto).
-  const teDeben = grupos.filter(g => g.mi_saldo > 0.005).reduce((s, g) => s + g.mi_saldo, 0)
-  const debes = grupos.filter(g => g.mi_saldo < -0.005).reduce((s, g) => s - g.mi_saldo, 0)
-  const gastoMes = grupos.reduce((s, g) => s + g.total_mes, 0)
-  const neto = teDeben - debes
+  const resumen = resumenMultimoneda(grupos)
+  const signoNeto = signoConjunto(resumen.neto)
 
   if (loading) {
     return (
@@ -260,7 +260,6 @@ function GruposPanel({ router, accion, setAccion, tab, cambiarTab }: {
     )
   }
 
-  const maxMes = Math.max(...grupos.map(g => g.total_mes), 1)
   const miembrosTotales = grupos.reduce((s, g) => s + g.miembros, 0)
   const q = busqueda.trim().toLowerCase()
   const filtrados = q ? grupos.filter(g => g.nombre.toLowerCase().includes(q)) : grupos
@@ -277,13 +276,13 @@ function GruposPanel({ router, accion, setAccion, tab, cambiarTab }: {
             <p className="text-base text-white/60">{grupos.length} {grupos.length === 1 ? 'grupo activo' : 'grupos activos'}</p>
           </div>
           <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4 sm:gap-6 lg:divide-x lg:divide-white/10">
-            <HeroMetrica icon={ArrowDownLeft} label="Te deben" valor={fmt(teDeben)} />
-            <HeroMetrica icon={ArrowUpRight} label="Debes" valor={fmt(debes)} className="lg:px-6" />
-            <HeroMetrica icon={Scale} label="Balance neto" valor={fmt(neto)}
-              nota={<span className={neto > 0.005 ? 'text-emerald-300' : neto < -0.005 ? 'text-red-300' : 'text-white/50'}>
-                {neto > 0.005 ? 'A tu favor' : neto < -0.005 ? 'En contra' : 'Al día'}
+            <HeroMetrica icon={ArrowDownLeft} label="Te deben" valor={fmtMontos(resumen.teDeben)} />
+            <HeroMetrica icon={ArrowUpRight} label="Debes" valor={fmtMontos(resumen.debes)} className="lg:px-6" />
+            <HeroMetrica icon={Scale} label="Balance neto" valor={fmtMontos(resumen.neto)}
+              nota={<span className={signoNeto === 'positivo' ? 'text-emerald-300' : signoNeto === 'negativo' ? 'text-red-300' : 'text-white/50'}>
+                {signoNeto === 'positivo' ? 'A tu favor' : signoNeto === 'negativo' ? 'En contra' : signoNeto === 'mixto' ? 'Depende de la moneda' : 'Al día'}
               </span>} className="lg:px-6" />
-            <HeroMetrica icon={Coins} label="Gastos este mes" valor={fmt(gastoMes)} className="lg:pl-6" />
+            <HeroMetrica icon={Coins} label="Gastos este mes" valor={fmtMontos(resumen.gastoMes)} className="lg:pl-6" />
           </div>
         </div>
       </div>
@@ -323,7 +322,7 @@ function GruposPanel({ router, accion, setAccion, tab, cambiarTab }: {
             {filtrados.length === 0 && (
               <div className="px-6 py-12 text-center">
                 <Search size={28} strokeWidth={1.5} className="mx-auto mb-3 text-pebble" />
-                <p className="text-sm text-steel">Ningún grupo coincide con "{busqueda}"</p>
+                <p className="text-sm text-steel">Ningún grupo coincide con &ldquo;{busqueda}&rdquo;</p>
               </div>
             )}
             {filtrados.map((g) => {
@@ -356,7 +355,7 @@ function GruposPanel({ router, accion, setAccion, tab, cambiarTab }: {
                         : 'Sin actividad todavía'}
                     </p>
                     <div className="w-full h-1.5 mt-2 overflow-hidden rounded-full bg-fog max-w-[220px]">
-                      <div className="h-full rounded-full" style={{ width: `${(g.total_mes / maxMes) * 100}%`, backgroundColor: color }} />
+                      <div className="h-full rounded-full" style={{ width: `${(g.total_mes / (resumen.maxMes[g.moneda] || 1)) * 100}%`, backgroundColor: color }} />
                     </div>
                   </div>
 
@@ -384,7 +383,7 @@ function GruposPanel({ router, accion, setAccion, tab, cambiarTab }: {
             <div className="grid grid-cols-2 gap-3">
               <StatMini icon={Users} label="Grupos" valor={`${grupos.length}`} color="#2c6e49" />
               <StatMini icon={User} label="Miembros" valor={`${miembrosTotales}`} color="#3B82F6" />
-              <StatMini icon={Coins} label="Gasto del mes" valor={fmt(gastoMes)} color="#F59E0B" full />
+              <StatMini icon={Coins} label="Gasto del mes" valor={fmtMontos(resumen.gastoMes)} color="#F59E0B" full />
             </div>
           </div>
 
@@ -499,13 +498,13 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
   const [filtroEstado, setFiltroEstado] = useState('todos')
   const [orden, setOrden] = useState('recientes')
 
-  const cargar = async () => {
+  const cargar = useCallback(async () => {
     const res = await fetch('/api/repartos')
     if (res.status === 401) { router.push('/login'); return }
     const json = await res.json()
     setRepartos(json.repartos || [])
     setLoading(false)
-  }
+  }, [router])
 
   useRecarga(['repartos'], cargar)
 
@@ -519,7 +518,7 @@ function RepartosPanel({ router, accion, setAccion, tab, cambiarTab }: {
       cargar()
     }
     check()
-  }, [])
+  }, [cargar, router])
 
   const fmt = (n: number) => formatoMoneda(n, monedaDefault)
   // Un reparto cerrado a mano es el que ya no se va a cobrar: lo que faltaba se

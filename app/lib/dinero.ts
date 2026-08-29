@@ -35,8 +35,6 @@ export function calcularDivisiones(
 ): DivisionCalculada[] {
   if (divisiones.length === 0) return []
 
-  let asignados: DivisionCalculada[]
-
   if (metodo === 'exacto') {
     // Montos tal cual; la ruta valida que sumen el total (sin autoajuste).
     return divisiones.map(d => ({
@@ -49,7 +47,7 @@ export function calcularDivisiones(
   // 'partes' o 'porcentaje': reparto proporcional al valor.
   const totalValor = divisiones.reduce((s, d) => s + (Number(d.valor) || 0), 0)
   if (totalValor <= 0) throw new Error('La suma de partes/porcentajes debe ser mayor a 0')
-  asignados = divisiones.map(d => ({
+  const asignados: DivisionCalculada[] = divisiones.map(d => ({
     user_id: d.user_id,
     valor: d.valor,
     monto_asignado: round2((montoTotal * (Number(d.valor) || 0)) / totalValor),

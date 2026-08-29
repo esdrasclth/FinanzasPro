@@ -24,6 +24,9 @@ export function rangoDeMes(mes: string) {
 export function serializarMovimiento(t: any) {
   return {
     ...t,
+    monto: Number(t.monto),
+    monto_original: t.monto_original === null ? null : Number(t.monto_original),
+    tasa_cambio: t.tasa_cambio === null ? null : Number(t.tasa_cambio),
     fecha: t.fecha.toISOString().slice(0, 10),
     created_at: t.created_at.toISOString(),
     categories: t.category ?? null,

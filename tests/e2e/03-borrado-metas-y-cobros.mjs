@@ -27,7 +27,6 @@ async function req(path, opts = {}) {
 const db = async (t, op, extra = {}) => (await req('/api/db', { method: 'POST', body: JSON.stringify({ table: t, op, ...extra }) })).json
 const sel = async (t, filters = []) => (await db(t, 'select', { filters }))?.data || []
 const eqf = (col, value) => ({ type: 'eq', column: col, value })
-const round2 = n => Math.round((n + Number.EPSILON) * 100) / 100
 
 async function main() {
   await req('/api/auth/register', {

@@ -23,6 +23,9 @@ const rangoMes = (hoy: string, offset: number) => ({
 function serializar(t: any) {
   return {
     ...t,
+    monto: Number(t.monto),
+    monto_original: t.monto_original === null ? null : Number(t.monto_original),
+    tasa_cambio: t.tasa_cambio === null ? null : Number(t.tasa_cambio),
     fecha: t.fecha.toISOString().slice(0, 10),
     created_at: t.created_at.toISOString(),
     categories: t.category
@@ -63,9 +66,9 @@ export async function datosDashboard(userId: string, offset = 0) {
   return {
     transacciones: transacciones.map(serializar),
     previas: previas.map((t: any) => ({
-      monto: t.monto,
+      monto: Number(t.monto),
       moneda: t.moneda,
-      tasa_cambio: t.tasa_cambio,
+      tasa_cambio: t.tasa_cambio === null ? null : Number(t.tasa_cambio),
       tipo: t.tipo,
       wallet_destino_id: t.wallet_destino_id,
       categories: t.category ? { nombre: t.category.nombre } : null,

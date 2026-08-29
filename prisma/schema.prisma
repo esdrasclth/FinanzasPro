@@ -9,42 +9,44 @@ datasource db {
 }
 
 model users {
-  id            String    @id @default(uuid()) @db.Uuid
-  email         String    @unique
-  password_hash String
-  nombre        String?
-  created_at    DateTime  @default(now())
-  profile       profiles?
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique
+  password_hash   String
+  nombre          String?
+  session_version Int       @default(0)
+  deleted_at      DateTime?
+  created_at      DateTime  @default(now())
+  profile         profiles?
 }
 
 model profiles {
-  id                     String   @id @db.Uuid
-  nombre                 String
-  moneda_default         String   @default("HNL")
-  onboarding_completado  Boolean  @default(false)
-  created_at             DateTime @default(now())
-  user                   users    @relation(fields: [id], references: [id], onDelete: Cascade)
+  id                    String   @id @db.Uuid
+  nombre                String
+  moneda_default        String   @default("HNL")
+  onboarding_completado Boolean  @default(false)
+  created_at            DateTime @default(now())
+  user                  users    @relation(fields: [id], references: [id], onDelete: Cascade)
 }
 
 model wallets {
-  id              String   @id @default(uuid()) @db.Uuid
-  user_id         String   @db.Uuid
-  nombre          String
-  tipo            String
-  saldo_inicial   Float    @default(0)
-  color           String?
-  moneda          String   @default("HNL")
-  activo          Boolean  @default(true)
-  credito_limite  Float?
-  fecha_corte     Int?
-  fecha_pago      Int?
-  numero_cuenta   String?
-  numero_tarjeta  String?
-  posicion        Int      @default(0)
-  created_at      DateTime @default(now())
+  id             String   @id @default(uuid()) @db.Uuid
+  user_id        String   @db.Uuid
+  nombre         String
+  tipo           String
+  saldo_inicial  Decimal  @default(0) @db.Decimal(19, 4)
+  color          String?
+  moneda         String   @default("HNL")
+  activo         Boolean  @default(true)
+  credito_limite Decimal? @db.Decimal(19, 4)
+  fecha_corte    Int?
+  fecha_pago     Int?
+  numero_cuenta  String?
+  numero_tarjeta String?
+  posicion       Int      @default(0)
+  created_at     DateTime @default(now())
 
-  transactions          transactions[] @relation("wallet")
-  transacciones_destino transactions[] @relation("wallet_destino")
+  transactions          transactions[]  @relation("wallet")
+  transacciones_destino transactions[]  @relation("wallet_destino")
   debt_payments         debt_payments[]
 
   @@index([user_id])
@@ -56,7 +58,7 @@ model exchange_rates {
   user_id        String?  @db.Uuid
   moneda_origen  String
   moneda_destino String
-  tasa           Float
+  tasa           Decimal  @db.Decimal(19, 8)
   fecha          DateTime @db.Date
   fuente         String   @default("BCH")
   created_at     DateTime @default(now())
@@ -67,21 +69,21 @@ model exchange_rates {
 }
 
 model categories {
-  id          String   @id @default(uuid()) @db.Uuid
-  user_id     String?  @db.Uuid
-  nombre      String
-  icono       String?
-  color       String?
-  tipo        String
-  parent_id   String?  @db.Uuid
-  es_sistema  Boolean  @default(false)
-  protegida   Boolean  @default(false)
-  archivada   Boolean  @default(false)
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String?  @db.Uuid
+  nombre     String
+  icono      String?
+  color      String?
+  tipo       String
+  parent_id  String?  @db.Uuid
+  es_sistema Boolean  @default(false)
+  protegida  Boolean  @default(false)
+  archivada  Boolean  @default(false)
   // Copia personal de una predeterminada: al editar "Supermercado" el usuario
   // se lleva una propia y esta apunta a la global que sustituye, para que la
   // original deje de aparecerle a él (y solo a él).
-  origen_id   String?  @db.Uuid
-  created_at  DateTime @default(now())
+  origen_id  String?  @db.Uuid
+  created_at DateTime @default(now())
 
   parent        categories?    @relation("subcategorias", fields: [parent_id], references: [id], onDelete: Cascade)
   subcategorias categories[]   @relation("subcategorias")
@@ -97,23 +99,23 @@ model categories {
 }
 
 model transactions {
-  id                 String    @id @default(uuid()) @db.Uuid
-  user_id            String    @db.Uuid
-  wallet_id          String    @db.Uuid
-  category_id        String?   @db.Uuid
-  wallet_destino_id  String?   @db.Uuid
-  monto              Float
-  tipo               String
-  descripcion        String?
-  moneda             String?
-  monto_original     Float?
-  tasa_cambio        Float?
-  debt_id            String?   @db.Uuid
+  id                String   @id @default(uuid()) @db.Uuid
+  user_id           String   @db.Uuid
+  wallet_id         String   @db.Uuid
+  category_id       String?  @db.Uuid
+  wallet_destino_id String?  @db.Uuid
+  monto             Decimal  @db.Decimal(19, 4)
+  tipo              String
+  descripcion       String?
+  moneda            String?
+  monto_original    Decimal? @db.Decimal(19, 4)
+  tasa_cambio       Decimal? @db.Decimal(19, 8)
+  debt_id           String?  @db.Uuid
   // Une las dos piernas de una transferencia. Sin esto había que adivinar cuál
   // era la pareja de un movimiento para poder borrarlas juntas.
-  transfer_id        String?   @db.Uuid
-  fecha              DateTime  @db.Date
-  created_at         DateTime  @default(now())
+  transfer_id       String?  @db.Uuid
+  fecha             DateTime @db.Date
+  created_at        DateTime @default(now())
 
   wallet         wallets     @relation("wallet", fields: [wallet_id], references: [id], onDelete: Cascade)
   wallet_destino wallets?    @relation("wallet_destino", fields: [wallet_destino_id], references: [id], onDelete: SetNull)
@@ -128,13 +130,13 @@ model transactions {
 }
 
 model budgets {
-  id            String   @id @default(uuid()) @db.Uuid
-  user_id       String   @db.Uuid
-  category_id   String   @db.Uuid
-  monto_limite  Float
-  mes           Int
-  anio          Int      @map("ano")
-  created_at    DateTime @default(now())
+  id           String   @id @default(uuid()) @db.Uuid
+  user_id      String   @db.Uuid
+  category_id  String   @db.Uuid
+  monto_limite Decimal  @db.Decimal(19, 4)
+  mes          Int
+  anio         Int      @map("ano")
+  created_at   DateTime @default(now())
 
   category categories @relation(fields: [category_id], references: [id], onDelete: Cascade)
 
@@ -159,8 +161,8 @@ model metas {
   nombre         String
   icono          String?
   color          String?
-  monto_objetivo Float
-  monto_actual   Float     @default(0)
+  monto_objetivo Decimal   @db.Decimal(19, 4)
+  monto_actual   Decimal   @default(0) @db.Decimal(19, 4)
   fecha_limite   DateTime? @db.Date
   completada     Boolean   @default(false)
   created_at     DateTime  @default(now())
@@ -180,7 +182,7 @@ model meta_aportes {
   wallet_id         String?  @db.Uuid
   wallet_destino_id String?  @db.Uuid
   transfer_id       String?  @db.Uuid
-  monto             Float
+  monto             Decimal  @db.Decimal(19, 4)
   fecha             DateTime @db.Date
   nota              String?
   created_at        DateTime @default(now())
@@ -192,21 +194,21 @@ model meta_aportes {
 }
 
 model debts {
-  id            String    @id @default(uuid()) @db.Uuid
-  user_id       String    @db.Uuid
-  nombre        String
-  descripcion   String?
-  tipo          String
-  monto_total   Float
-  monto_pagado  Float     @default(0)
-  fecha_limite  DateTime? @db.Date
-  fecha_inicio  DateTime? @db.Date
-  tasa_interes  Float?
-  tasa_periodo  String?
-  plazo_meses   Int?
-  completada    Boolean   @default(false)
-  category_id   String?   @db.Uuid
-  created_at    DateTime  @default(now())
+  id           String    @id @default(uuid()) @db.Uuid
+  user_id      String    @db.Uuid
+  nombre       String
+  descripcion  String?
+  tipo         String
+  monto_total  Decimal   @db.Decimal(19, 4)
+  monto_pagado Decimal   @default(0) @db.Decimal(19, 4)
+  fecha_limite DateTime? @db.Date
+  fecha_inicio DateTime? @db.Date
+  tasa_interes Decimal?  @db.Decimal(9, 4)
+  tasa_periodo String?
+  plazo_meses  Int?
+  completada   Boolean   @default(false)
+  category_id  String?   @db.Uuid
+  created_at   DateTime  @default(now())
 
   payments     debt_payments[]
   transactions transactions[]
@@ -217,16 +219,16 @@ model debts {
 }
 
 model debt_payments {
-  id          String   @id @default(uuid()) @db.Uuid
-  debt_id     String   @db.Uuid
-  user_id     String   @db.Uuid
-  wallet_id   String?  @db.Uuid
+  id             String   @id @default(uuid()) @db.Uuid
+  debt_id        String   @db.Uuid
+  user_id        String   @db.Uuid
+  wallet_id      String?  @db.Uuid
   // Transacción de gasto que refleja este abono. Permite deshacerlo entero.
-  transaction_id String? @db.Uuid
-  monto       Float
-  fecha       DateTime @db.Date
-  nota        String?
-  created_at  DateTime @default(now())
+  transaction_id String?  @db.Uuid
+  monto          Decimal  @db.Decimal(19, 4)
+  fecha          DateTime @db.Date
+  nota           String?
+  created_at     DateTime @default(now())
 
   debt   debts    @relation(fields: [debt_id], references: [id], onDelete: Cascade)
   wallet wallets? @relation(fields: [wallet_id], references: [id], onDelete: SetNull)
@@ -243,7 +245,7 @@ model subscriptions {
   // 'gasto' (suscripción clásica) o 'ingreso' (sueldo, renta, mesada...).
   // Es el mismo mecanismo de recurrencia: cambia el signo del movimiento.
   tipo          String    @default("gasto")
-  monto         Float
+  monto         Decimal   @db.Decimal(19, 4)
   moneda        String    @default("HNL")
   frecuencia    String    @default("mensual")
   category_id   String?   @db.Uuid
@@ -270,7 +272,7 @@ model subscription_charges {
   user_id         String   @db.Uuid
   wallet_id       String?  @db.Uuid
   transaction_id  String?  @db.Uuid
-  monto           Float
+  monto           Decimal  @db.Decimal(19, 4)
   moneda          String   @default("HNL")
   fecha           DateTime @db.Date
   created_at      DateTime @default(now())
@@ -329,7 +331,7 @@ model gastos_compartidos {
   id              String   @id @default(uuid()) @db.Uuid
   grupo_id        String   @db.Uuid
   descripcion     String
-  monto_total     Float
+  monto_total     Decimal  @db.Decimal(19, 4)
   fecha           DateTime @db.Date
   mes             Int
   anio            Int
@@ -352,7 +354,7 @@ model gasto_pagos {
   user_id        String  @db.Uuid
   wallet_id      String? @db.Uuid
   transaction_id String? @db.Uuid
-  monto          Float
+  monto          Decimal @db.Decimal(19, 4)
 
   gasto gastos_compartidos @relation(fields: [gasto_id], references: [id], onDelete: Cascade)
 
@@ -361,11 +363,11 @@ model gasto_pagos {
 }
 
 model gasto_divisiones {
-  id             String  @id @default(uuid()) @db.Uuid
-  gasto_id       String  @db.Uuid
-  user_id        String  @db.Uuid
-  monto_asignado Float
-  valor          Float?
+  id             String   @id @default(uuid()) @db.Uuid
+  gasto_id       String   @db.Uuid
+  user_id        String   @db.Uuid
+  monto_asignado Decimal  @db.Decimal(19, 4)
+  valor          Decimal? @db.Decimal(19, 4)
 
   gasto gastos_compartidos @relation(fields: [gasto_id], references: [id], onDelete: Cascade)
 
@@ -378,7 +380,7 @@ model liquidaciones {
   grupo_id          String   @db.Uuid
   de_user_id        String   @db.Uuid
   a_user_id         String   @db.Uuid
-  monto             Float
+  monto             Decimal  @db.Decimal(19, 4)
   fecha             DateTime @db.Date
   nota              String?
   de_wallet_id      String?  @db.Uuid
@@ -393,16 +395,16 @@ model liquidaciones {
 }
 
 model repartos {
-  id             String   @id @default(uuid()) @db.Uuid
-  user_id        String   @db.Uuid
+  id             String    @id @default(uuid()) @db.Uuid
+  user_id        String    @db.Uuid
   descripcion    String
   // Establecimiento donde se hizo el gasto ("Pizza Hut"), separado del
   // concepto ("Pizza"). Va en el reporte de liquidación.
   lugar          String?
-  monto_total    Float
-  moneda         String   @default("HNL")
-  metodo         String   @default("igual") // 'igual' | 'manual'
-  fecha          DateTime @db.Date
+  monto_total    Decimal   @db.Decimal(19, 4)
+  moneda         String    @default("HNL")
+  metodo         String    @default("igual") // 'igual' | 'manual'
+  fecha          DateTime  @db.Date
   // Quién puso el dinero. Null = lo pagaste tú (caso por defecto). Con nombre,
   // pagó otra persona: no sale nada de tus carteras y tu parte pasa a ser una
   // deuda con quien pagó.
@@ -412,21 +414,21 @@ model repartos {
   // Detalle legible del método, p. ej. "BAC ••••1234". Se guarda ya resuelto
   // para que el reporte no dependa de que la cartera siga existiendo igual.
   metodo_detalle String?
-  wallet_id      String?  @db.Uuid // cartera de la que salió el gasto (si pagaste tú)
-  transaction_id String?  @db.Uuid // transacción de gasto asociada
+  wallet_id      String?   @db.Uuid // cartera de la que salió el gasto (si pagaste tú)
+  transaction_id String?   @db.Uuid // transacción de gasto asociada
   // Categoría del reparto, siempre de tipo gasto. La heredan las dos patas: el
   // gasto que la registra y cada cobro que la devuelve. Que el cobro lleve la
   // categoría del gasto es lo que permite netear (ver porCategoria en
   // lib/finanzas.ts): así "Suscripciones" refleja lo que Spotify te costó de
   // verdad y no el recibo entero que adelantaste por todos.
-  category_id    String?  @db.Uuid
+  category_id    String?   @db.Uuid
   // Cierre manual: lo que quedó sin cobrar se da por perdido y el reparto deja
   // de contar como pendiente. Null = sigue abierto.
   cerrado_en     DateTime?
-  created_at     DateTime @default(now())
+  created_at     DateTime  @default(now())
 
   participantes reparto_participantes[]
-  category      categories? @relation("reparto_categoria", fields: [category_id], references: [id], onDelete: SetNull)
+  category      categories?             @relation("reparto_categoria", fields: [category_id], references: [id], onDelete: SetNull)
 
   @@index([user_id])
   @@index([category_id])
@@ -436,7 +438,7 @@ model reparto_participantes {
   id             String    @id @default(uuid()) @db.Uuid
   reparto_id     String    @db.Uuid
   nombre         String
-  monto_asignado Float     @default(0)
+  monto_asignado Decimal   @default(0) @db.Decimal(19, 4)
   pagado         Boolean   @default(false)
   fecha_pago     DateTime? @db.Date
   orden          Int       @default(0)

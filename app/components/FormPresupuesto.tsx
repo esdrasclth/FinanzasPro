@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { X } from 'lucide-react'
 import IconoCategoria from './IconoCategoria'
 import { emitirCambio } from '../lib/datos-bus'
@@ -34,11 +34,7 @@ export default function FormPresupuesto({ presupuesto, tipo = 'gasto', mes, anio
     return () => { document.body.style.overflow = prev }
   }, [])
 
-  useEffect(() => {
-    cargarCategorias()
-  }, [tipo])
-
-  const cargarCategorias = async () => {
+  const cargarCategorias = useCallback(async () => {
     const res = await fetch('/api/categorias')
     if (!res.ok) return
     const { categorias: todas } = await res.json()
@@ -47,7 +43,12 @@ export default function FormPresupuesto({ presupuesto, tipo = 'gasto', mes, anio
     // Las subcategorías de deudas completadas quedan archivadas: no se ofrecen
     // para nuevos presupuestos, pero su historial se conserva.
     setCategorias((data || []).filter((c: any) => !c.archivada))
-  }
+  }, [tipo])
+
+  useEffect(() => {
+    const timeout = window.setTimeout(cargarCategorias, 0)
+    return () => window.clearTimeout(timeout)
+  }, [cargarCategorias])
 
   const principales = categorias.filter(c => !c.parent_id)
   const subcategorias = (parentId: string) => categorias.filter(c => c.parent_id === parentId)

@@ -14,6 +14,7 @@ const aISO = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null)
 export function serializar(s: any) {
   return {
     ...s,
+    monto: Number(s.monto),
     fecha_inicio: aISO(s.fecha_inicio),
     proximo_cobro: aISO(s.proximo_cobro),
     created_at: s.created_at.toISOString(),

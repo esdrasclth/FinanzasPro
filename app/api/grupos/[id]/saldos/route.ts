@@ -47,32 +47,34 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   for (const g of gastos) {
     for (const p of g.pagos) {
-      add(net, p.user_id, p.monto)
-      add(pagado, p.user_id, p.monto)
+      add(net, p.user_id, Number(p.monto))
+      add(pagado, p.user_id, Number(p.monto))
     }
     for (const d of g.divisiones) {
-      add(net, d.user_id, -d.monto_asignado)
-      add(tocaba, d.user_id, d.monto_asignado)
+      add(net, d.user_id, -Number(d.monto_asignado))
+      add(tocaba, d.user_id, Number(d.monto_asignado))
     }
   }
   for (const l of liquidaciones) {
-    add(net, l.de_user_id, l.monto) // el que pagó reduce su deuda
-    add(net, l.a_user_id, -l.monto) // el que cobró reduce lo que le deben
+    add(net, l.de_user_id, Number(l.monto)) // el que pagó reduce su deuda
+    add(net, l.a_user_id, -Number(l.monto)) // el que cobró reduce lo que le deben
   }
 
   const miembros = await prisma.grupo_miembros.findMany({
-    where: { grupo_id: id, estado: 'activo' },
+    where: { grupo_id: id },
     orderBy: { created_at: 'asc' },
   })
   const nombres = await nombresDeUsuarios(miembros.map(m => m.user_id))
 
-  const saldos = miembros.map(m => ({
-    user_id: m.user_id,
-    nombre: nombres[m.user_id]?.nombre || 'Usuario',
-    pagado: round2(pagado[m.user_id] || 0),
-    tocaba: round2(tocaba[m.user_id] || 0),
-    neto: round2(net[m.user_id] || 0), // >0 le deben, <0 debe
-  }))
+  const saldos = miembros
+    .filter(m => m.estado === 'activo' || Math.abs(net[m.user_id] || 0) > 0.005)
+    .map(m => ({
+      user_id: m.user_id,
+      nombre: nombres[m.user_id]?.nombre || 'Usuario eliminado',
+      pagado: round2(pagado[m.user_id] || 0),
+      tocaba: round2(tocaba[m.user_id] || 0),
+      neto: round2(net[m.user_id] || 0), // >0 le deben, <0 debe
+    }))
 
   // Sugerencia de pagos (greedy): deudores pagan a acreedores.
   const deudores = saldos.filter(s => s.neto < -0.005).map(s => ({ ...s, resto: -s.neto }))
@@ -97,7 +99,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (acreedores[j].resto <= 0.005) j++
   }
 
-  const totalGrupo = round2(gastos.reduce((s, g) => s + g.monto_total, 0))
+  const totalGrupo = round2(gastos.reduce((s, g) => s + Number(g.monto_total), 0))
 
   return NextResponse.json({ yo: auth.ctx.user.id, moneda: undefined, totalGrupo, saldos, sugerencias })
 }

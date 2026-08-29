@@ -66,9 +66,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // la de la cartera y no hay tasa, el cobro no se registra a medias ni deja
   // dólares dentro de una cartera en lempiras.
   let enCartera = null
-  if (pagado && cartera && participante.monto_asignado > 0) {
+  if (pagado && cartera && Number(participante.monto_asignado) > 0) {
     const conversion = montoParaCartera(
-      participante.monto_asignado, reparto.moneda, cartera.moneda, tasa
+      Number(participante.monto_asignado), reparto.moneda, cartera.moneda, tasa
     )
     if (!conversion.ok) return NextResponse.json({ error: conversion.mensaje }, { status: 400 })
     enCartera = conversion.valor

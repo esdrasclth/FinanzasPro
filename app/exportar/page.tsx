@@ -5,6 +5,7 @@ import { aFechaUTC, finMesDesplazado, inicioMesDesplazado } from '../lib/fecha'
 import { hoyUsuario } from '../lib/fecha-server'
 import { tasaVigente } from '../lib/tipoCambio-server'
 import { categoriasVisibles } from '../lib/categorias-server'
+import { serializarMovimiento } from '../lib/transacciones-mes-server'
 import ExportarCliente from './ExportarCliente'
 
 // Server Component: el mes en curso, las categorías, las carteras y la tasa
@@ -63,15 +64,7 @@ export default async function ExportarPage() {
       hastaInicial={hasta}
       tasa={tasa}
       totalInicial={total}
-      transaccionesIniciales={filas.map((t: any) => ({
-        ...t,
-        fecha: t.fecha.toISOString().slice(0, 10),
-        created_at: t.created_at.toISOString(),
-        categories: t.category,
-        wallets: t.wallet,
-        category: undefined,
-        wallet: undefined,
-      }))}
+      transaccionesIniciales={filas.map(serializarMovimiento)}
       categoriasIniciales={categorias.map(c => ({ ...c, created_at: c.created_at.toISOString() }))}
       carterasIniciales={carteras}
     />

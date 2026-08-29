@@ -5,6 +5,14 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  {
+    rules: {
+      // El proyecto heredado usa `any` en sus DTOs de UI. TypeScript conserva
+      // `noImplicitAny`; esta excepción permite que ESLint sí bloquee errores
+      // funcionales mientras esos DTOs se tipan de forma incremental.
+      "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

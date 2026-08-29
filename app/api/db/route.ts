@@ -78,6 +78,9 @@ function serializeValue(key: string, v: any): any {
   if (v instanceof Date) {
     return DATE_COLS.has(key) ? v.toISOString().slice(0, 10) : v.toISOString()
   }
+  if (v && typeof v === 'object' && v.constructor?.name === 'Decimal' && typeof v.toNumber === 'function') {
+    return v.toNumber()
+  }
   return v
 }
 
@@ -86,7 +89,9 @@ function serializeRow(row: any): any {
   const out: Record<string, any> = {}
   for (const [k, v] of Object.entries(row)) {
     const key = k === 'anio' ? 'año' : k
-    if (v && typeof v === 'object' && !(v instanceof Date)) {
+    if (Array.isArray(v)) {
+      out[key] = v.map(serializeRow)
+    } else if (v && typeof v === 'object' && !(v instanceof Date) && v.constructor?.name !== 'Decimal') {
       out[key] = serializeRow(v)
     } else {
       out[key] = serializeValue(k, v)

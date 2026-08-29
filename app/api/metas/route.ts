@@ -14,6 +14,8 @@ const aFecha = (s?: string | null) => (s ? new Date(`${String(s).slice(0, 10)}T0
 function serializar(m: any) {
   return {
     ...m,
+    monto_objetivo: Number(m.monto_objetivo),
+    monto_actual: Number(m.monto_actual),
     fecha_limite: m.fecha_limite ? m.fecha_limite.toISOString().slice(0, 10) : null,
     created_at: m.created_at.toISOString(),
   }

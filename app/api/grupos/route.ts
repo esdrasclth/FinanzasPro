@@ -38,15 +38,15 @@ export async function GET() {
   const ultima: Record<string, { descripcion: string; fecha: Date }> = {}
 
   for (const g of gastos) {
-    if (g.mes === mesActual && g.anio === anioActual) totalMes[g.grupo_id] = (totalMes[g.grupo_id] || 0) + g.monto_total
-    for (const p of g.pagos) if (p.user_id === user.id) net[g.grupo_id] = (net[g.grupo_id] || 0) + p.monto
-    for (const d of g.divisiones) if (d.user_id === user.id) net[g.grupo_id] = (net[g.grupo_id] || 0) - d.monto_asignado
+    if (g.mes === mesActual && g.anio === anioActual) totalMes[g.grupo_id] = (totalMes[g.grupo_id] || 0) + Number(g.monto_total)
+    for (const p of g.pagos) if (p.user_id === user.id) net[g.grupo_id] = (net[g.grupo_id] || 0) + Number(p.monto)
+    for (const d of g.divisiones) if (d.user_id === user.id) net[g.grupo_id] = (net[g.grupo_id] || 0) - Number(d.monto_asignado)
     const prev = ultima[g.grupo_id]
     if (!prev || g.created_at > prev.fecha) ultima[g.grupo_id] = { descripcion: g.descripcion, fecha: g.created_at }
   }
   for (const l of liqs) {
-    if (l.de_user_id === user.id) net[l.grupo_id] = (net[l.grupo_id] || 0) + l.monto
-    if (l.a_user_id === user.id) net[l.grupo_id] = (net[l.grupo_id] || 0) - l.monto
+    if (l.de_user_id === user.id) net[l.grupo_id] = (net[l.grupo_id] || 0) + Number(l.monto)
+    if (l.a_user_id === user.id) net[l.grupo_id] = (net[l.grupo_id] || 0) - Number(l.monto)
   }
 
   // Feed de actividad reciente (últimos gastos de todos los grupos).
@@ -59,7 +59,7 @@ export async function GET() {
     grupo_color: nombrePorGrupo[g.grupo_id]?.color || '#2c6e49',
     grupo_icono: nombrePorGrupo[g.grupo_id]?.icono || '👥',
     descripcion: g.descripcion,
-    monto: round2(g.monto_total),
+    monto: round2(Number(g.monto_total)),
     moneda: nombrePorGrupo[g.grupo_id]?.moneda || 'USD',
     autor: autores[g.creado_por]?.nombre || 'Alguien',
     fecha: g.created_at.toISOString(),

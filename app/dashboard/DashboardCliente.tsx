@@ -1,12 +1,11 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import AppLayout from '../components/AppLayout'
 import GraficaGastos from '../components/GraficaGastos'
 import GraficaMensual from '../components/GraficaMensual'
 import FormTransaccion from '../components/FormTransaccion'
-import { SkeletonStats, SkeletonChart, SkeletonList } from '../components/Skeleton'
 import CalendarioFinanciero from '../components/CalendarioFinanciero'
 import Notificaciones from '../components/Notificaciones'
 import { useMoneda } from '../lib/moneda-context'
@@ -32,7 +31,6 @@ export default function DashboardCliente({
   transaccionesIniciales,
   resumenInicial,
   resumenPrevInicial,
-  tasaInicial,
 }: Props) {
   const router = useRouter()
   const [transacciones, setTransacciones] = useState<any[]>(transaccionesIniciales)
@@ -40,8 +38,6 @@ export default function DashboardCliente({
   const [formTipo, setFormTipo] = useState<'gasto' | 'ingreso' | 'transferencia'>('gasto')
   const [resumen, setResumen] = useState<Totales>(resumenInicial)
   const [resumenPrev, setResumenPrev] = useState<Totales>(resumenPrevInicial)
-  const [tasa, setTasa] = useState<number | null>(tasaInicial)
-  const [loading, setLoading] = useState(false)
   const [vistaGrafica, setVistaGrafica] = useState<'gasto' | 'ingreso'>('gasto')
   const [mesOffset, setMesOffset] = useState(0) // 0 = mes actual, -1 = mes anterior
   const [showMesPicker, setShowMesPicker] = useState(false)
@@ -52,13 +48,8 @@ export default function DashboardCliente({
   // El mes actual ya viene del servidor; solo se recarga al cambiar de mes o
   // tras registrar un movimiento.
   const primeraCarga = useRef(true)
-  useEffect(() => {
-    if (primeraCarga.current) { primeraCarga.current = false; return }
-    cargarTransacciones()
-  }, [mesOffset])
-
   // El mes lo resuelve el servidor: movimientos, resumen del mes y del anterior.
-  const cargarTransacciones = async () => {
+  const cargarTransacciones = useCallback(async () => {
     try {
       const res = await fetch(`/api/dashboard?offset=${mesOffset}`)
       if (!res.ok) return
@@ -66,16 +57,21 @@ export default function DashboardCliente({
       setTransacciones(json.transacciones || [])
       setResumen(json.resumen)
       setResumenPrev(json.resumenPrev)
-      setTasa(json.tasa ?? null)
     } catch {
       // Se conserva lo que ya está en pantalla.
     }
-  }
+  }, [mesOffset])
+
+  useEffect(() => {
+    if (primeraCarga.current) { primeraCarga.current = false; return }
+    const timeout = window.setTimeout(cargarTransacciones, 0)
+    return () => window.clearTimeout(timeout)
+  }, [cargarTransacciones])
 
   // Un movimiento registrado en otra pantalla cambia el resumen del mes.
   const pedirRecarga = useRecarga(['transacciones'], cargarTransacciones)
 
-  const { simbolo, moneda } = useMoneda()
+  const { simbolo } = useMoneda()
   const formatMonto = (n: number) =>
     new Intl.NumberFormat('es-HN', { minimumFractionDigits: 2 }).format(n)
 
@@ -95,16 +91,6 @@ export default function DashboardCliente({
   const mesNombre = getMesActual().toLocaleDateString('es-HN', {
     month: 'long', year: 'numeric'
   })
-
-  const getMesRango = (extra = 0) => {
-    const base = getMesActual()
-    const inicio = new Date(base.getFullYear(), base.getMonth() + extra, 1)
-    const fin = new Date(base.getFullYear(), base.getMonth() + extra + 1, 0)
-    return {
-      inicio: inicio.toISOString().split('T')[0],
-      fin: fin.toISOString().split('T')[0]
-    }
-  }
 
   const mesAnteriorNombre = (() => {
     const base = getMesActual()
@@ -148,25 +134,6 @@ export default function DashboardCliente({
         <span>{up ? '↑' : '↓'} {Math.abs(pct).toFixed(1)}%</span>
         <span className="text-white/40">vs {mesAnteriorNombre}</span>
       </p>
-    )
-  }
-
-  if (loading) {
-    return (
-      <AppLayout usuario={usuario}>
-        <div className="max-w-[1728px] p-4 mx-auto space-y-6 sm:p-6 lg:p-8">
-          <div className="space-y-2">
-            <div className="w-32 h-3 rounded bg-fog animate-pulse" />
-            <div className="w-56 h-8 rounded bg-fog animate-pulse" />
-          </div>
-          <SkeletonStats cols={3} />
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <SkeletonChart />
-            <SkeletonChart />
-          </div>
-          <SkeletonList items={6} />
-        </div>
-      </AppLayout>
     )
   }
 

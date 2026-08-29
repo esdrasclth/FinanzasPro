@@ -64,6 +64,8 @@ Y guarda una copia del `.env` antes de cambiarlo.
 | `09-escritura-de-formularios` | Alta de cartera con su saldo de apertura en una sola transacción |
 | `10-repartos-quien-pago` | Que si pagó otra persona no salga dinero de tus carteras, y la dirección del cobro |
 | `11-repartos-liquidacion` | El reporte de liquidación: desglose, totales, reparto por persona y quién paga a quién |
+| `12-conversion-sin-tasa` | Rechazo atómico cuando una operación entre monedas no tiene tasa disponible |
+| `13-fase-cero-confianza` | Reautenticación, revocación de sesión, Decimal, UI crítica y borrado de cuenta sin romper saldos compartidos |
 
 ## Una deuda pendiente
 

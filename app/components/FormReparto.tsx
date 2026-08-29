@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { esCategoriaInterna } from '../lib/finanzas'
 import { X, Plus, Trash2, RotateCcw, User } from 'lucide-react'
 import { round2, simboloMoneda } from '../lib/dinero'
@@ -113,7 +113,7 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', descripcio
   }
 
   // Vista previa de cuánto le toca a cada quien.
-  const preview = useMemo(() => {
+  const preview = (() => {
     const out: Record<string, number> = {}
     if (conNombre.length === 0 || total <= 0) return out
     if (metodo === 'igual') {
@@ -125,7 +125,7 @@ export default function FormReparto({ reparto, monedaDefault = 'HNL', descripcio
       conNombre.forEach(p => (out[p.key] = round2(Number(p.monto) || 0)))
     }
     return out
-  }, [participantes, total, metodo])
+  })()
 
   const sumaManual = round2(conNombre.reduce((s, p) => s + (Number(p.monto) || 0), 0))
 

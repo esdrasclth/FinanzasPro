@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '../../../lib/prisma'
 import { getSessionUser } from '../../../lib/auth-server'
+import { serializarMovimiento } from '../../../lib/transacciones-mes-server'
 
 // GET /api/transacciones/buscar?q=&tipo=&categoria=&cartera=&desde=&hasta=&limit=
 //
@@ -57,15 +58,7 @@ export async function GET(req: Request) {
 
   // Misma forma que devuelve el cliente de datos, para que la pantalla no tenga
   // que distinguir de dónde vinieron los resultados.
-  const data = filas.map((t: any) => ({
-    ...t,
-    fecha: t.fecha.toISOString().slice(0, 10),
-    created_at: t.created_at.toISOString(),
-    categories: t.category,
-    wallets: t.wallet,
-    category: undefined,
-    wallet: undefined,
-  }))
+  const data = filas.map(serializarMovimiento)
 
   return NextResponse.json({ data, total, truncado: total > data.length })
 }

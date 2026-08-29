@@ -149,8 +149,6 @@ export default function FormGastoCompartido({ grupoId, moneda, miembros, yo, gas
     onClose()
   }
 
-  const nombre = (uid: string) => miembros.find(m => m.user_id === uid)?.nombre || 'Usuario'
-
   return (
     <div onClick={onClose} className="fixed inset-0 z-50 flex items-end justify-center bg-obsidian/40 backdrop-blur-sm animate-fade sm:items-center sm:p-4">
       <div onClick={e => e.stopPropagation()} className="bg-snow w-full max-w-md max-h-[92vh] overflow-y-auto overscroll-contain rounded-t-3xl sm:rounded-card sm:border sm:border-fog animate-sheet pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-0">

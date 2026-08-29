@@ -87,7 +87,13 @@ export async function POST(req: Request) {
     const b = await prisma.budgets.create({
       data: { user_id: s.id, category_id: categoryId, monto_limite: limite, mes, anio },
     })
-    return NextResponse.json({ presupuesto: { ...b, created_at: b.created_at.toISOString() } })
+    return NextResponse.json({
+      presupuesto: {
+        ...b,
+        monto_limite: Number(b.monto_limite),
+        created_at: b.created_at.toISOString(),
+      },
+    })
   } catch {
     return NextResponse.json(
       { error: { message: 'Ya tienes un presupuesto para esa categoría en ese mes' } },

@@ -57,8 +57,6 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
   // Moneda del gasto/ingreso cuando la cartera maneja dos monedas (TC HNL + $).
   const [monedaGasto, setMonedaGasto] = useState<'HNL' | 'USD'>('HNL')
 
-  useEffect(() => { cargarDatos() }, [])
-
   useEffect(() => {
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -66,30 +64,34 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
   }, [])
 
   useEffect(() => {
-    if (!esCompartido || !grupoSel) { setGrupoData(null); return }
     let cancelado = false
-    setCargandoGrupo(true)
-    setGrupoData(null)
-    fetch(`/api/grupos/${grupoSel}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(json => {
-        if (cancelado) return
-        if (json) setGrupoData({ moneda: json.grupo.moneda, miembros: json.miembros, yo: json.yo })
-      })
-      .finally(() => { if (!cancelado) setCargandoGrupo(false) })
-    return () => { cancelado = true }
+    const timeout = window.setTimeout(() => {
+      if (!esCompartido || !grupoSel) { setGrupoData(null); return }
+      setCargandoGrupo(true)
+      setGrupoData(null)
+      fetch(`/api/grupos/${grupoSel}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(json => {
+          if (cancelado) return
+          if (json) setGrupoData({ moneda: json.grupo.moneda, miembros: json.miembros, yo: json.yo })
+        })
+        .finally(() => { if (!cancelado) setCargandoGrupo(false) })
+    }, 0)
+    return () => { cancelado = true; window.clearTimeout(timeout) }
   }, [esCompartido, grupoSel])
-  useEffect(() => { setSubcategoriaId('') }, [categoriaId])
   useEffect(() => {
-    const disponibles = wallets.filter(w => w.id !== walletId)
-    if (disponibles.length > 0) {
-      setWalletDestinoId(disponibles[0].id)
-    } else {
-      setWalletDestinoId('')
-    }
+    const timeout = window.setTimeout(() => setSubcategoriaId(''), 0)
+    return () => window.clearTimeout(timeout)
+  }, [categoriaId])
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      const disponibles = wallets.filter(w => w.id !== walletId)
+      setWalletDestinoId(disponibles.length > 0 ? disponibles[0].id : '')
+    }, 0)
+    return () => window.clearTimeout(timeout)
   }, [walletId, wallets])
 
-  const cargarDatos = async () => {
+  async function cargarDatos() {
     const [rc, rw] = await Promise.all([
       fetch('/api/categorias').then(r => (r.ok ? r.json() : null)).catch(() => null),
       fetch('/api/carteras/lista').then(r => (r.ok ? r.json() : null)).catch(() => null),
@@ -126,6 +128,11 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
     }
   }
 
+  useEffect(() => {
+    const timeout = window.setTimeout(cargarDatos, 0)
+    return () => window.clearTimeout(timeout)
+  }, [])
+
   const categoriasPrincipales = categorias.filter(
     c => c.tipo === tipo && !c.parent_id
   )
@@ -156,13 +163,15 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
   useEffect(() => {
     if (!necesitaConversion) return
     let cancelado = false
-    setTcCargando(true)
-    obtenerTipoCambio().then(r => {
-      if (cancelado) return
-      setTc(r)
-      setTcCargando(false)
-    })
-    return () => { cancelado = true }
+    const timeout = window.setTimeout(() => {
+      setTcCargando(true)
+      obtenerTipoCambio().then(r => {
+        if (cancelado) return
+        setTc(r)
+        setTcCargando(false)
+      })
+    }, 0)
+    return () => { cancelado = true; window.clearTimeout(timeout) }
   }, [necesitaConversion])
 
   const refrescarTasa = async () => {

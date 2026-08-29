@@ -18,16 +18,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!reparto) return NextResponse.json({ error: 'Reparto no encontrado' }, { status: 404 })
 
   // La parte propia (es_yo) no se cobra; solo lo demás es recuperable.
-  const recuperable = reparto.participantes.filter(p => !p.es_yo).reduce((s, p) => s + p.monto_asignado, 0)
-  const cobrado = reparto.participantes.filter(p => !p.es_yo && p.pagado).reduce((s, p) => s + p.monto_asignado, 0)
-  const miParte = reparto.participantes.filter(p => p.es_yo).reduce((s, p) => s + p.monto_asignado, 0)
+  const recuperable = reparto.participantes.filter(p => !p.es_yo).reduce((s, p) => s + Number(p.monto_asignado), 0)
+  const cobrado = reparto.participantes.filter(p => !p.es_yo && p.pagado).reduce((s, p) => s + Number(p.monto_asignado), 0)
+  const miParte = reparto.participantes.filter(p => p.es_yo).reduce((s, p) => s + Number(p.monto_asignado), 0)
 
   return NextResponse.json({
     reparto: {
       id: reparto.id,
       descripcion: reparto.descripcion,
       lugar: reparto.lugar,
-      monto_total: reparto.monto_total,
+      monto_total: Number(reparto.monto_total),
       moneda: reparto.moneda,
       metodo: reparto.metodo,
       fecha: reparto.fecha.toISOString().slice(0, 10),
@@ -45,7 +45,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       participantes: reparto.participantes.map(p => ({
         id: p.id,
         nombre: p.nombre,
-        monto_asignado: p.monto_asignado,
+        monto_asignado: Number(p.monto_asignado),
         pagado: p.pagado,
         fecha_pago: p.fecha_pago ? p.fecha_pago.toISOString().slice(0, 10) : null,
         es_yo: p.es_yo,

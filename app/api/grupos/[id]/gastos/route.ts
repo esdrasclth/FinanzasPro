@@ -37,7 +37,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     gastos: gastos.map(g => ({
       id: g.id,
       descripcion: g.descripcion,
-      monto_total: g.monto_total,
+      monto_total: Number(g.monto_total),
       fecha: g.fecha.toISOString().slice(0, 10),
       mes: g.mes,
       anio: g.anio,
@@ -47,14 +47,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       pagos: g.pagos.map(p => ({
         user_id: p.user_id,
         nombre: nombres[p.user_id]?.nombre || 'Usuario',
-        monto: p.monto,
+        monto: Number(p.monto),
         reflejado: !!p.transaction_id,
       })),
       divisiones: g.divisiones.map(d => ({
         user_id: d.user_id,
         nombre: nombres[d.user_id]?.nombre || 'Usuario',
-        monto_asignado: d.monto_asignado,
-        valor: d.valor,
+        monto_asignado: Number(d.monto_asignado),
+        valor: Number(d.valor),
       })),
     })),
   })

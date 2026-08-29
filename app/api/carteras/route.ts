@@ -180,7 +180,13 @@ export async function POST(req: Request) {
     return w
   })
 
-  return NextResponse.json({ cartera })
+  return NextResponse.json({
+    cartera: {
+      ...cartera,
+      saldo_inicial: Number(cartera.saldo_inicial),
+      credito_limite: cartera.credito_limite === null ? null : Number(cartera.credito_limite),
+    },
+  })
 }
 
 export async function PUT(req: Request) {

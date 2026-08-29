@@ -23,6 +23,11 @@ export default function Perfil() {
   const [guardandoPassword, setGuardandoPassword] = useState(false)
   const [mensajePassword, setMensajePassword] = useState('')
   const [statsCuenta, setStatsCuenta] = useState<any>(null)
+  const [eliminandoCuenta, setEliminandoCuenta] = useState(false)
+  const [confirmacionEliminar, setConfirmacionEliminar] = useState('')
+  const [passwordEliminar, setPasswordEliminar] = useState('')
+  const [mensajeEliminar, setMensajeEliminar] = useState('')
+  const [procesandoEliminar, setProcesandoEliminar] = useState(false)
 
   useEffect(() => {
     const init = async () => {
@@ -82,7 +87,10 @@ export default function Perfil() {
     const res = await fetch('/api/auth/update-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: passwordNuevo }),
+      body: JSON.stringify({
+        current_password: passwordActual,
+        password: passwordNuevo,
+      }),
     })
 
     if (!res.ok) {
@@ -98,11 +106,30 @@ export default function Perfil() {
     setGuardandoPassword(false)
   }
 
-  const handleEliminarCuenta = async () => {
-    if (!confirm('¿Estás seguro? Esta acción eliminará TODOS tus datos y no se puede deshacer.')) return
-    if (!confirm('¿Confirmas que quieres eliminar tu cuenta permanentemente?')) return
-    await fetch('/api/auth/logout', { method: 'POST' })
-    router.push('/')
+  const handleEliminarCuenta = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setMensajeEliminar('')
+    setProcesandoEliminar(true)
+    try {
+      const res = await fetch('/api/perfil', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          password: passwordEliminar,
+          confirmacion: confirmacionEliminar,
+        }),
+      })
+      const json = await res.json().catch(() => null)
+      if (!res.ok) {
+        setMensajeEliminar(json?.error?.message || 'No se pudo eliminar la cuenta')
+        return
+      }
+      router.replace('/login')
+    } catch {
+      setMensajeEliminar('No se pudo conectar. Intenta de nuevo.')
+    } finally {
+      setProcesandoEliminar(false)
+    }
   }
 
   const MONEDAS = [
@@ -263,6 +290,20 @@ export default function Perfil() {
             <form onSubmit={handleCambiarPassword} className="space-y-4">
               <div>
                 <label className="block mb-2 text-xs font-medium text-steel">
+                  Contraseña actual
+                </label>
+                <input
+                  type="password"
+                  value={passwordActual}
+                  onChange={(e) => setPasswordActual(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                  className="w-full px-4 py-3 transition-colors border bg-mist border-fog text-ink placeholder-ash rounded-input focus:outline-none focus:border-obsidian"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 text-xs font-medium text-steel">
                   Nueva contraseña
                 </label>
                 <input
@@ -270,6 +311,7 @@ export default function Perfil() {
                   value={passwordNuevo}
                   onChange={(e) => setPasswordNuevo(e.target.value)}
                   placeholder="Mínimo 6 caracteres"
+                  autoComplete="new-password"
                   required
                   className="w-full px-4 py-3 transition-colors border bg-mist border-fog text-ink placeholder-ash rounded-input focus:outline-none focus:border-obsidian"
                 />
@@ -284,6 +326,7 @@ export default function Perfil() {
                   value={passwordConfirm}
                   onChange={(e) => setPasswordConfirm(e.target.value)}
                   placeholder="Repite la contraseña"
+                  autoComplete="new-password"
                   required
                   className="w-full px-4 py-3 transition-colors border bg-mist border-fog text-ink placeholder-ash rounded-input focus:outline-none focus:border-obsidian"
                 />
@@ -322,13 +365,69 @@ export default function Perfil() {
           <p className="mb-4 text-sm text-steel">
             Estas acciones son irreversibles. Procede con cuidado.
           </p>
-          <button
-            onClick={handleEliminarCuenta}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 transition-all border border-red-200 hover:bg-red-50 rounded-full"
-          >
-            <Trash2 size={16} strokeWidth={2} />
-            Cerrar y eliminar cuenta
-          </button>
+          {!eliminandoCuenta ? (
+            <button
+              onClick={() => setEliminandoCuenta(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 transition-all border border-red-200 hover:bg-red-50 rounded-full"
+            >
+              <Trash2 size={16} strokeWidth={2} />
+              Eliminar cuenta
+            </button>
+          ) : (
+            <form onSubmit={handleEliminarCuenta} className="max-w-lg p-4 space-y-4 border border-red-200 bg-red-50/50 rounded-input">
+              <p className="text-sm text-graphite">
+                Se borrarán tus carteras, movimientos, presupuestos y demás datos privados. Los gastos compartidos necesarios para las cuentas de otras personas se conservarán sin tu identidad.
+              </p>
+              <div>
+                <label className="block mb-2 text-xs font-medium text-steel">Contraseña actual</label>
+                <input
+                  type="password"
+                  value={passwordEliminar}
+                  onChange={(e) => setPasswordEliminar(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                  className="w-full px-4 py-3 bg-white border border-red-200 rounded-input focus:outline-none focus:border-red-500"
+                />
+              </div>
+              <div>
+                <label className="block mb-2 text-xs font-medium text-steel">
+                  Escribe <strong>ELIMINAR</strong> para confirmar
+                </label>
+                <input
+                  value={confirmacionEliminar}
+                  onChange={(e) => setConfirmacionEliminar(e.target.value)}
+                  autoComplete="off"
+                  required
+                  className="w-full px-4 py-3 uppercase bg-white border border-red-200 rounded-input focus:outline-none focus:border-red-500"
+                />
+              </div>
+              {mensajeEliminar && (
+                <p role="alert" className="text-sm font-medium text-red-600">{mensajeEliminar}</p>
+              )}
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="submit"
+                  disabled={procesandoEliminar || confirmacionEliminar.trim().toUpperCase() !== 'ELIMINAR'}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-red-600 rounded-full hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Trash2 size={16} strokeWidth={2} />
+                  {procesandoEliminar ? 'Eliminando…' : 'Eliminar permanentemente'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEliminandoCuenta(false)
+                    setPasswordEliminar('')
+                    setConfirmacionEliminar('')
+                    setMensajeEliminar('')
+                  }}
+                  className="px-4 py-2.5 text-sm font-medium rounded-full text-graphite hover:bg-mist"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          )}
         </div>
 
       </div>

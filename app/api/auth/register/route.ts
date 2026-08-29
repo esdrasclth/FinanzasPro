@@ -26,7 +26,12 @@ export async function POST(req: Request) {
     data: { email: email.toLowerCase(), password_hash, nombre: nombre || null },
   })
 
-  const sessionUser = { id: user.id, email: user.email, nombre: user.nombre }
+  const sessionUser = {
+    id: user.id,
+    email: user.email,
+    nombre: user.nombre,
+    session_version: user.session_version,
+  }
   const token = await createSessionToken(sessionUser)
 
   const res = NextResponse.json({ user: publicUser(sessionUser) })

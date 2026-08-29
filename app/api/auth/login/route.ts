@@ -7,7 +7,7 @@ export async function POST(req: Request) {
   const { email, password } = await req.json()
 
   const user = email
-    ? await prisma.users.findUnique({ where: { email: email.toLowerCase() } })
+    ? await prisma.users.findFirst({ where: { email: email.toLowerCase(), deleted_at: null } })
     : null
 
   if (!user || !(await bcrypt.compare(password || '', user.password_hash))) {
@@ -17,7 +17,12 @@ export async function POST(req: Request) {
     )
   }
 
-  const sessionUser = { id: user.id, email: user.email, nombre: user.nombre }
+  const sessionUser = {
+    id: user.id,
+    email: user.email,
+    nombre: user.nombre,
+    session_version: user.session_version,
+  }
   const token = await createSessionToken(sessionUser)
 
   const res = NextResponse.json({ user: publicUser(sessionUser) })

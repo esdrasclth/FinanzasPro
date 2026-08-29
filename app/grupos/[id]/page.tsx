@@ -73,10 +73,15 @@ export default function GrupoDetalle() {
 
   useEffect(() => {
     // El proxy ya valida la sesión antes de renderizar.
-    cargarBase()
-  }, [router, cargarBase])
+    const timeout = window.setTimeout(cargarBase, 0)
+    return () => window.clearTimeout(timeout)
+  }, [cargarBase])
 
-  useEffect(() => { if (grupo) cargarMes() }, [grupo, cargarMes])
+  useEffect(() => {
+    if (!grupo) return
+    const timeout = window.setTimeout(cargarMes, 0)
+    return () => window.clearTimeout(timeout)
+  }, [grupo, cargarMes])
 
   const recargar = () => cargarBase()
 
@@ -87,11 +92,9 @@ export default function GrupoDetalle() {
     const tick = () => { if (!document.hidden) cargarBase() }
     window.addEventListener('focus', tick)
     document.addEventListener('visibilitychange', tick)
-    const iv = setInterval(tick, 10000)
     return () => {
       window.removeEventListener('focus', tick)
       document.removeEventListener('visibilitychange', tick)
-      clearInterval(iv)
     }
   }, [cargarBase])
 

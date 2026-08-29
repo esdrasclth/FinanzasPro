@@ -123,15 +123,17 @@ export async function datosPresupuesto(userId: string, mes: number, anio: number
   const presupuestos = budgets.map((b: any) => {
     const tipo = b.category?.tipo || 'gasto'
     const gastado = (movPorCat[tipo] || {})[b.category_id] || 0
+    const limite = Number(b.monto_limite)
     // `gastado` puede quedar negativo: si los reembolsos de un mes superan al
     // gasto —cobras en septiembre lo que pagaste en agosto— la categoría queda
     // en verde. El importe se deja tal cual porque es cierto y vale verlo, pero
     // la barra se acota a [0, 100]: un ancho negativo no se puede pintar.
-    const porcentaje = b.monto_limite > 0
-      ? Math.min(Math.max((gastado / b.monto_limite) * 100, 0), 100)
+    const porcentaje = limite > 0
+      ? Math.min(Math.max((gastado / limite) * 100, 0), 100)
       : 0
     return {
       ...b,
+      monto_limite: limite,
       created_at: b.created_at.toISOString(),
       // La pantalla espera la relación bajo `categories` y el año como `año`.
       categories: b.category,
@@ -148,6 +150,8 @@ export async function datosPresupuesto(userId: string, mes: number, anio: number
     categorias,
     metas: metas.map(m => ({
       ...m,
+      monto_objetivo: Number(m.monto_objetivo),
+      monto_actual: Number(m.monto_actual),
       fecha_limite: m.fecha_limite ? m.fecha_limite.toISOString().slice(0, 10) : null,
       created_at: m.created_at.toISOString(),
     })),

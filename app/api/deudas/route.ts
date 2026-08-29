@@ -16,6 +16,9 @@ const aISO = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null)
 export function serializarDeuda(d: any) {
   return {
     ...d,
+    monto_total: Number(d.monto_total),
+    monto_pagado: Number(d.monto_pagado),
+    tasa_interes: d.tasa_interes === null ? null : Number(d.tasa_interes),
     fecha_limite: aISO(d.fecha_limite),
     fecha_inicio: aISO(d.fecha_inicio),
     created_at: d.created_at.toISOString(),

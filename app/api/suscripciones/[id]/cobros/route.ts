@@ -42,7 +42,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // El "hoy" del cálculo es el del usuario, no el del reloj del servidor.
   const hoy = await hoyUsuario()
   const calc = calcularSuscripcion({
-    monto: sub.monto,
+    monto: Number(sub.monto),
     frecuencia: sub.frecuencia,
     estado: sub.estado,
     fecha_inicio: sub.fecha_inicio ? aISO(sub.fecha_inicio) : null,

@@ -16,10 +16,15 @@ export interface SessionUser {
   id: string
   email: string
   nombre?: string | null
+  session_version: number
 }
 
 export async function createSessionToken(user: SessionUser) {
-  return new SignJWT({ email: user.email, nombre: user.nombre })
+  return new SignJWT({
+    email: user.email,
+    nombre: user.nombre,
+    session_version: user.session_version,
+  })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(user.id)
     .setIssuedAt()
@@ -35,6 +40,7 @@ export async function verifyToken(token: string): Promise<SessionUser | null> {
       id: payload.sub,
       email: (payload.email as string) || '',
       nombre: (payload.nombre as string) || null,
+      session_version: Number(payload.session_version) || 0,
     }
   } catch {
     return null

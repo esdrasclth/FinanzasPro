@@ -24,10 +24,10 @@ export default async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL(sesion ? '/dashboard' : '/login', req.url))
   }
 
-  // Con sesión abierta no tiene sentido volver a las pantallas de acceso.
-  if (sesion && (pathname === '/login' || pathname === '/registro')) {
-    return NextResponse.redirect(new URL('/dashboard', req.url))
-  }
+  // Las pantallas de acceso permanecen disponibles incluso si el JWT tiene
+  // firma válida. Su versión puede haber sido revocada en la base de datos
+  // (cambio de contraseña o cuenta eliminada), algo que el runtime Edge no
+  // consulta. Redirigirlo aquí provocaría un bucle login ↔ dashboard.
 
   if (!sesion && !PUBLICAS.has(pathname)) {
     const url = new URL('/login', req.url)
