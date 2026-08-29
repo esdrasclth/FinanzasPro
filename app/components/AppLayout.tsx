@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Sidebar from './Sidebar'
 import { MonedaProvider } from '../lib/moneda-context'
+import { RefreshCw, WifiOff } from 'lucide-react'
 
 // `usuario` llega ya resuelto desde las páginas que son Server Components; en
 // ese caso no hay nada que pedir y la pantalla pinta de una vez. Las páginas que
@@ -17,6 +18,7 @@ export default function AppLayout({
 }) {
   const [usuario, setUsuario] = useState<any>(usuarioInicial ?? null)
   const [loading, setLoading] = useState(!usuarioInicial)
+  const [error, setError] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -27,14 +29,18 @@ export default function AppLayout({
       // con la pestaña abierta, o que falte completar el onboarding.
       const res = await fetch('/api/perfil')
       if (res.status === 401) { router.push('/login'); return }
-      if (!res.ok) return
+      if (!res.ok) { setError(true); setLoading(false); return }
       const { perfil } = await res.json()
       if (!perfil || !perfil.onboarding_completado) { router.push('/onboarding'); return }
       setUsuario(perfil)
       setLoading(false)
+      setError(false)
     }
 
-    checkUser()
+    checkUser().catch(() => {
+      setError(true)
+      setLoading(false)
+    })
   }, [router, usuarioInicial])
 
   if (loading) {
@@ -78,6 +84,21 @@ export default function AppLayout({
             </div>
           </div>
         </main>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen p-6 bg-mist">
+        <div className="w-full max-w-md p-8 text-center border shadow-soft bg-snow border-fog rounded-card" role="alert">
+          <WifiOff size={32} className="mx-auto mb-4 text-steel" aria-hidden="true" />
+          <h1 className="mb-2 text-lg font-semibold text-obsidian">No pudimos cargar tu sesión</h1>
+          <p className="mb-5 text-sm text-steel">Revisa tu conexión e inténtalo de nuevo.</p>
+          <button type="button" onClick={() => { setError(false); setLoading(true); window.location.reload() }} className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-full bg-obsidian text-snow hover:bg-graphite">
+            <RefreshCw size={16} aria-hidden="true" /> Reintentar
+          </button>
+        </div>
       </div>
     )
   }

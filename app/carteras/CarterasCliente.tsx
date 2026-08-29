@@ -457,6 +457,9 @@ export default function CarterasCliente({ carterasIniciales, archivadasIniciales
             <p className="text-sm text-ash">
               Crea tu primera cartera con el botón +
             </p>
+            <button type="button" onClick={() => setShowForm(true)} className="inline-flex items-center gap-2 px-4 py-2.5 mt-4 text-sm font-medium rounded-full bg-obsidian text-snow hover:bg-graphite">
+              <Plus size={16} aria-hidden="true" /> Crear cartera
+            </button>
           </div>
         ) : carterasFiltradas.length === 0 ? (
           <div className="p-12 text-center border bg-snow border-fog rounded-card">

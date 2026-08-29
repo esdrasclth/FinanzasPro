@@ -272,6 +272,9 @@ export default function DeudasCliente({ usuario, deudasIniciales }: Props) {
                 <HandCoins size={40} strokeWidth={1.5} className="mx-auto mb-4 text-pebble" />
                 <p className="mb-2 text-steel">No tienes deudas registradas</p>
                 <p className="text-sm text-ash">Agrega tu primera deuda con el botón +</p>
+                <button type="button" onClick={() => setShowForm(true)} className="inline-flex items-center gap-2 px-4 py-2.5 mt-4 text-sm font-medium rounded-full bg-obsidian text-snow hover:bg-graphite">
+                  <Plus size={16} aria-hidden="true" /> Agregar deuda
+                </button>
               </div>
             ) : deudasFiltradas.length === 0 ? (
               <div className="p-12 text-center border bg-snow border-fog rounded-card">

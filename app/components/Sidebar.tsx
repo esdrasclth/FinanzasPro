@@ -50,6 +50,7 @@ export default function Sidebar({ usuario }: { usuario: any }) {
   const pathname = usePathname()
   const router = useRouter()
   const [masAbierto, setMasAbierto] = useState(false)
+  const esActivo = (href: string) => pathname === href || pathname.startsWith(`${href}/`)
 
   // Los destinos son <Link>, o sea <a href> de verdad: se pueden abrir en otra
   // pestaña con clic derecho, rueda o Ctrl/Cmd, el navegador enseña la URL al
@@ -107,7 +108,7 @@ export default function Sidebar({ usuario }: { usuario: any }) {
         {/* Navegación */}
         <nav className="flex-1 p-4 mt-2 space-y-1 overflow-y-auto">
           {NAV_ITEMS.map(({ href, Icon, label }) => {
-            const activo = pathname === href
+            const activo = esActivo(href)
             return (
               <Link
                 key={href}
@@ -155,7 +156,7 @@ export default function Sidebar({ usuario }: { usuario: any }) {
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t lg:hidden bg-snow/90 backdrop-blur border-fog pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center">
           {ITEMS_BARRA.map(({ href, Icon }) => {
-            const activo = pathname === href && !masAbierto
+            const activo = esActivo(href) && !masAbierto
             return (
               <Link
                 key={href}
@@ -178,12 +179,12 @@ export default function Sidebar({ usuario }: { usuario: any }) {
             aria-expanded={masAbierto}
             aria-label={masAbierto ? 'Cerrar menú' : 'Más opciones'}
             className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs transition-all ${
-              masAbierto || ITEMS_MAS.some(i => i.href === pathname) ? 'text-obsidian' : 'text-steel'
+              masAbierto || ITEMS_MAS.some(i => esActivo(i.href)) ? 'text-obsidian' : 'text-steel'
             }`}
           >
             <Plus size={22} strokeWidth={2} className={`transition-transform ${masAbierto ? 'rotate-45' : ''}`} />
             <span className="text-[10px] leading-tight">{masAbierto ? 'Cerrar' : 'Más'}</span>
-            {ITEMS_MAS.some(i => i.href === pathname) && !masAbierto && (
+            {ITEMS_MAS.some(i => esActivo(i.href)) && !masAbierto && (
               <div className="w-1 h-1 rounded-full bg-obsidian" />
             )}
           </button>
@@ -208,7 +209,7 @@ export default function Sidebar({ usuario }: { usuario: any }) {
 
             <div className="max-h-[55vh] overflow-y-auto">
               {ITEMS_MAS.map(({ href, Icon, label }) => {
-                const activo = pathname === href
+                const activo = esActivo(href)
                 return (
                   <Link
                     key={href}

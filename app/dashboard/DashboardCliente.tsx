@@ -408,6 +408,9 @@ export default function DashboardCliente({
             <div className="py-10 text-center">
               <span className="block mb-3 text-4xl">📋</span>
               <p className="text-sm text-steel">Toca + para agregar tu primera transacción</p>
+              <button type="button" onClick={() => abrirForm('gasto')} className="inline-flex items-center gap-2 px-4 py-2.5 mt-4 text-sm font-medium rounded-full bg-obsidian text-snow hover:bg-graphite">
+                <Plus size={16} aria-hidden="true" /> Registrar primer gasto
+              </button>
             </div>
           ) : (
             <div className="space-y-2">
