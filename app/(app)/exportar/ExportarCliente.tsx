@@ -8,7 +8,7 @@ import {
   ArrowRightLeft, Loader2, Receipt,
 } from 'lucide-react'
 import { useMoneda } from '@/app/lib/moneda-context'
-import { esMovimientoReal, esTransferencia, esSaldoInicial, montoNormalizado } from '@/app/lib/finanzas'
+import { esMovimientoReal, montoNormalizado } from '@/app/lib/finanzas'
 import { fechaHoyLocal, finMesDesplazado, inicioMesDesplazado } from '@/app/lib/fecha'
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -173,7 +173,7 @@ export default function ExportarCliente({
     if (filtroCartera !== 'todas') {
       p.push(`Cartera: ${carteras.find(c => c.id === filtroCartera)?.nombre ?? ''}`)
     }
-    if (!incluirTraspasos) p.push('Sin traspasos ni aperturas')
+    if (!incluirTraspasos) p.push('Sin traspasos, aperturas ni ajustes')
     if (busqueda) p.push(`Búsqueda: "${busqueda}"`)
     return p
   }, [filtroTipo, filtroCategoria, filtroCartera, incluirTraspasos, busqueda, categorias, carteras])
@@ -460,7 +460,7 @@ export default function ExportarCliente({
                       </thead>
                       <tbody>
                         {filtradas.slice(0, 6).map(t => {
-                          const traspaso = esTransferencia(t) || esSaldoInicial(t)
+                          const traspaso = !esMovimientoReal(t)
                           return (
                             <tr key={t.id} className="border-t border-fog">
                               <td className="px-5 py-2.5 text-xs whitespace-nowrap text-steel">

@@ -1,5 +1,7 @@
 'use client'
 
+import { esMovimientoReal } from '../lib/finanzas'
+
 interface Props {
     transacciones: any[]
     mes: Date
@@ -27,8 +29,8 @@ export default function CalendarioFinanciero({ transacciones, mes }: Props) {
     // Calcular gastos e ingresos por día
     const datosPorDia: Record<number, { gastos: number; ingresos: number }> = {}
     for (const t of transacciones) {
-        // Las transferencias entre carteras no cuentan como gasto ni ingreso.
-        if (t.wallet_destino_id) continue
+        // Traspasos, aperturas y ajustes de saldo no son gasto ni ingreso.
+        if (!esMovimientoReal(t)) continue
         const fecha = new Date(t.fecha + 'T12:00:00')
         if (fecha.getMonth() !== mesNum || fecha.getFullYear() !== año) continue
         const dia = fecha.getDate()

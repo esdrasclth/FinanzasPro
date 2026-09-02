@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { esSaldoInicial, esTransferencia, montoNormalizado } from './finanzas'
+import { esAjusteSaldo, esMovimientoReal, esSaldoInicial, esTransferencia, montoNormalizado } from './finanzas'
 
 // Reportes descargables de movimientos (PDF y Excel).
 //
@@ -65,15 +65,17 @@ const fmtFechaLarga = (fecha: string) =>
 
 const capitalizar = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
 
-// Un movimiento puede ser un traspaso entre carteras o la apertura de una
-// cartera; en la tabla se marcan como tales en vez de como gasto o ingreso.
+// Un movimiento puede ser un traspaso entre carteras, la apertura de una
+// cartera o un ajuste de saldo; en la tabla se marcan como tales en vez de
+// como gasto o ingreso.
 const etiquetaTipo = (t: TransaccionExport): string => {
   if (esTransferencia(t)) return 'Transferencia'
   if (esSaldoInicial(t)) return 'Saldo inicial'
+  if (esAjusteSaldo(t)) return 'Ajuste de saldo'
   return capitalizar(t.tipo || '')
 }
 
-const esReal = (t: TransaccionExport) => !esTransferencia(t) && !esSaldoInicial(t)
+const esReal = esMovimientoReal
 
 export interface LineaAgrupada {
   nombre: string

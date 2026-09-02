@@ -12,10 +12,17 @@ import { round2 } from './dinero'
 // Es un saldo de partida, no un ingreso ni un gasto del periodo.
 export const CAT_SALDO_INICIAL = 'Saldo inicial'
 
+// Categoría con la que se corrige un saldo para que cuadre con la realidad.
+// Mueve el saldo, igual que la apertura, pero no es dinero ganado ni perdido:
+// es reconocer algo que ya había pasado y no estaba registrado.
+export const CAT_AJUSTE_SALDO = 'Ajuste de saldo'
+
+export const CAT_TRANSFERENCIA = 'Transferencia'
+
 // Categorías que la app usa para su propia mecánica. Se muestran para que los
 // movimientos se entiendan, pero no son categorías de gasto del usuario: no se
 // editan, no se borran y no sirven de categoría padre.
-export const CATEGORIAS_INTERNAS = [CAT_SALDO_INICIAL, 'Ajuste de saldo', 'Transferencia']
+export const CATEGORIAS_INTERNAS = [CAT_SALDO_INICIAL, CAT_AJUSTE_SALDO, CAT_TRANSFERENCIA]
 
 export const esCategoriaInterna = (nombre?: string | null) =>
   CATEGORIAS_INTERNAS.includes(nombre || '')
@@ -38,8 +45,18 @@ export const esTransferencia = (t: MovimientoLike) => !!t.wallet_destino_id
 export const esSaldoInicial = (t: MovimientoLike) =>
   (t.categories?.nombre || '') === CAT_SALDO_INICIAL
 
+// Un ajuste de saldo corrige lo registrado para que cuadre con el banco. El
+// saldo tiene que moverse —para eso está— pero no es un ingreso ni un gasto:
+// contarlo como tal inventa ganancias o pérdidas que nunca ocurrieron. El caso
+// que lo hacía evidente es pasar deuda de una moneda a otra a mano, que dejaba
+// un "ingreso" del tamaño de la deuda saldada.
+//
+// Requiere que la consulta haya traído la relación `categories(nombre)`.
+export const esAjusteSaldo = (t: MovimientoLike) =>
+  (t.categories?.nombre || '') === CAT_AJUSTE_SALDO
+
 export const esMovimientoReal = (t: MovimientoLike) =>
-  !esTransferencia(t) && !esSaldoInicial(t)
+  !esTransferencia(t) && !esSaldoInicial(t) && !esAjusteSaldo(t)
 
 export const soloMovimientosReales = <T extends MovimientoLike>(movs: T[]): T[] =>
   (movs || []).filter(esMovimientoReal)

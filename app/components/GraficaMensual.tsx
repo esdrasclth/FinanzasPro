@@ -6,6 +6,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { ChevronRight, ChevronDown } from 'lucide-react'
 import { useMoneda } from '../lib/moneda-context'
 import { obtenerTipoCambio, aMonedaPrincipal } from '../lib/tipoCambio'
+import { esMovimientoReal } from '../lib/finanzas'
 
 interface Props {
   transacciones: any[]
@@ -58,8 +59,8 @@ export default function GraficaMensual({ transacciones }: Props) {
   const formatMonto = (n: number) =>
     new Intl.NumberFormat('es-HN', { minimumFractionDigits: 0 }).format(n)
 
-  // El "Saldo inicial" (apertura) y las transferencias entre carteras no son movimientos del mes: se excluyen.
-  const esMovimiento = (t: any) => t.categories?.nombre !== 'Saldo inicial' && !t.wallet_destino_id
+  // Aperturas, traspasos y ajustes de saldo no son movimientos del mes.
+  const esMovimiento = esMovimientoReal
   const movimientos = transacciones.filter(esMovimiento)
 
   const ingresosTotal = movimientos

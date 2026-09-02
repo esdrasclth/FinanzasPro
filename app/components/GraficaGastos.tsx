@@ -6,6 +6,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { ChevronRight } from 'lucide-react'
 import { useMoneda } from '../lib/moneda-context'
 import { obtenerTipoCambio, aMonedaPrincipal } from '../lib/tipoCambio'
+import { esMovimientoReal } from '../lib/finanzas'
 
 interface Props {
   transacciones: any[]
@@ -34,7 +35,7 @@ export default function GraficaGastos({ transacciones, vista, onVistaChange }: P
     new Intl.NumberFormat('es-HN', { minimumFractionDigits: 2 }).format(n)
 
   const datos = transacciones
-    .filter(t => t.tipo === vista && !t.wallet_destino_id && t.categories?.nombre !== 'Saldo inicial')
+    .filter(t => t.tipo === vista && esMovimientoReal(t))
     .reduce((acc: any[], t) => {
       const nombre = t.categories?.nombre || 'Sin categoría'
       const existing = acc.find(a => a.key === nombre)
