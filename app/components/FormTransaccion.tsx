@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { fechaHoyLocal } from '../lib/fecha'
 import { abonarDeuda } from '../lib/deudas'
 import { obtenerTipoCambio, fijarTasaManual, convertir, type TipoCambio } from '../lib/tipoCambio'
+import { monedasConversionDeuda, otraMoneda } from '../lib/conversionDeuda'
 import { simboloMoneda } from '../lib/dinero'
 import FormGastoCompartido from './FormGastoCompartido'
 import FormReparto from './FormReparto'
@@ -56,6 +57,9 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
   const [tasaManual, setTasaManual] = useState('')
   // Moneda del gasto/ingreso cuando la cartera maneja dos monedas (TC HNL + $).
   const [monedaGasto, setMonedaGasto] = useState<'HNL' | 'USD'>('HNL')
+  // Pasar deuda de una moneda a la otra dentro de la MISMA tarjeta: guarda la
+  // moneda de la que sale la deuda, o sea la que queda saldada.
+  const [deudaDe, setDeudaDe] = useState<'HNL' | 'USD'>('HNL')
 
   useEffect(() => {
     const prev = document.body.style.overflow
@@ -148,9 +152,26 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
   const walletOrigen = wallets.find(w => w.id === walletId)
   const walletDestino = wallets.find(w => w.id === walletDestinoId)
   const destEsCredito = walletDestino?.tipo === 'credito'
-  const monedaOrigen = walletOrigen?.moneda || 'HNL'
+
+  // Misma tarjeta en origen y destino: no se mueve dinero entre cuentas, se
+  // pasa deuda de una moneda a la otra dentro de la misma.
+  const mismaTarjeta =
+    tipo === 'transferencia' &&
+    !!walletDestinoId &&
+    walletDestinoId === walletId &&
+    walletOrigen?.tipo === 'credito'
+
+  // Qué moneda va en cada pierna al pasar deuda dentro de la misma tarjeta.
+  // La inversión (la deuda que se pasa va como DESTINO) está explicada y
+  // probada en conversionDeuda.ts; aquí solo se consume.
+  const deudaA = otraMoneda(deudaDe)
+  const conversion = monedasConversionDeuda(deudaDe)
+
+  const monedaOrigen = mismaTarjeta ? conversion.monedaOrigen : (walletOrigen?.moneda || 'HNL')
   // Las TC llevan deuda en HNL y USD; el usuario elige cuál paga.
-  const monedaDestino = destEsCredito ? monedaDestinoTC : (walletDestino?.moneda || 'HNL')
+  const monedaDestino = mismaTarjeta
+    ? conversion.monedaDestino
+    : destEsCredito ? monedaDestinoTC : (walletDestino?.moneda || 'HNL')
   const necesitaConversion = tipo === 'transferencia' && !!walletDestinoId && monedaOrigen !== monedaDestino
   const tasaVigente = tc?.tasaVenta || 0
   const montoNum = parseFloat(monto) || 0
@@ -219,6 +240,7 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
           wallet_id: walletId,
           wallet_destino_id: walletDestinoId,
           monto: montoNum,
+          moneda_origen: monedaOrigen,
           moneda_destino: monedaDestino,
           tasa_cambio: tasaVigente || null,
           descripcion,
@@ -438,7 +460,10 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
           <div>
             <label className="block mb-2 text-sm font-medium text-graphite">
               Monto ({tipo === 'transferencia' ? monedaDestino : monedaMovimiento})
-              {tipo === 'transferencia' && destEsCredito && (
+              {tipo === 'transferencia' && mismaTarjeta && (
+                <span className="font-normal text-steel"> · deuda que dejas de tener en esta moneda</span>
+              )}
+              {tipo === 'transferencia' && destEsCredito && !mismaTarjeta && (
                 <span className="font-normal text-steel"> · lo que pagas de la tarjeta</span>
               )}
             </label>
@@ -482,7 +507,8 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
           {tipo === 'transferencia' ? (
             <div className="p-4 space-y-4 border bg-violet-50 border-violet-100 rounded-input">
               <p className="flex items-center gap-2 text-sm font-medium text-violet-600">
-                <ArrowLeftRight size={16} strokeWidth={2} /> Mover dinero entre cuentas
+                <ArrowLeftRight size={16} strokeWidth={2} />
+                {mismaTarjeta ? 'Pasar deuda entre monedas' : 'Mover dinero entre cuentas'}
               </p>
               <div>
                 <label className="block mb-2 text-sm font-medium text-graphite">Desde</label>
@@ -497,12 +523,40 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
                 <select value={walletDestinoId} onChange={(e) => setWalletDestinoId(e.target.value)}
                   className="w-full px-4 py-3 text-ink transition-colors border bg-mist border-transparent rounded-input focus:outline-none focus:border-obsidian focus:bg-snow">
                   <option value="">— Selecciona cuenta —</option>
-                  {wallets.filter(w => w.id !== walletId).map(w => <option key={w.id} value={w.id}>{w.nombre}</option>)}
+                  {/* La misma tarjeta se ofrece a proposito: es como se pasa
+                      deuda de una moneda a la otra sin que cuente como gasto. */}
+                  {wallets
+                    .filter(w => w.id !== walletId || w.tipo === 'credito')
+                    .map(w => (
+                      <option key={w.id} value={w.id}>
+                        {w.id === walletId ? `${w.nombre} — pasar deuda entre monedas` : w.nombre}
+                      </option>
+                    ))}
                 </select>
               </div>
 
               {/* Moneda de la deuda a pagar (las TC llevan HNL y USD) */}
-              {destEsCredito && (
+              {mismaTarjeta && (
+                <div>
+                  <label className="block mb-2 text-sm font-medium text-graphite">
+                    ¿Qué deuda pasas?
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['HNL', 'USD'] as const).map(m => (
+                      <button key={m} type="button" onClick={() => setDeudaDe(m)}
+                        className={`py-3 rounded-input text-sm font-medium transition-all border ${deudaDe === m ? 'border-obsidian bg-obsidian/5 text-ink' : 'border-fog text-steel hover:border-pebble'}`}>
+                        {m === 'HNL' ? 'La de lempiras' : 'La de dólares'}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-steel">
+                    Baja tu deuda en {deudaDe === 'HNL' ? 'lempiras' : 'dólares'} y sube la de{' '}
+                    {deudaA === 'HNL' ? 'lempiras' : 'dólares'} por el equivalente.
+                  </p>
+                </div>
+              )}
+
+              {destEsCredito && !mismaTarjeta && (
                 <div>
                   <label className="block mb-2 text-sm font-medium text-graphite">¿Qué deuda pagas?</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -536,7 +590,9 @@ export default function FormTransaccion({ onClose, onSuccess, tipoInicial = 'gas
                         <p className="text-xs text-amber-600">⚠ No es la tasa de hoy (BCH no disponible). Revisa o fija una manual.</p>
                       )}
                       <p className="text-sm font-semibold text-amber-900">
-                        Saldrán {simboloMoneda(monedaOrigen)}{montoOrigen.toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} de {walletOrigen?.nombre}
+                        {mismaTarjeta
+                          ? `Tu deuda en ${monedaOrigen} sube ${simboloMoneda(monedaOrigen)}${montoOrigen.toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          : `Saldrán ${simboloMoneda(monedaOrigen)}${montoOrigen.toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} de ${walletOrigen?.nombre}`}
                       </p>
                     </>
                   ) : (

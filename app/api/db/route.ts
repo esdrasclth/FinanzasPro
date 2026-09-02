@@ -75,13 +75,18 @@ function coercePayload(payload: Record<string, any>) {
   return out
 }
 
+// Los montos llegan como Decimal de Prisma. Se reconocen por tener toNumber()
+// y NO por el nombre del constructor: al empaquetar, ese nombre no siempre se
+// conserva, y cuando dejó de decir "Decimal" el serializador se metía dentro
+// del objeto y devolvía sus tripas ({"s":1,"e":3,"d":[...]}) en vez del número.
+const esDecimal = (v: any) =>
+  !!v && typeof v === 'object' && typeof (v as { toNumber?: unknown }).toNumber === 'function'
+
 function serializeValue(key: string, v: any): any {
   if (v instanceof Date) {
     return DATE_COLS.has(key) ? v.toISOString().slice(0, 10) : v.toISOString()
   }
-  if (v && typeof v === 'object' && v.constructor?.name === 'Decimal' && typeof v.toNumber === 'function') {
-    return v.toNumber()
-  }
+  if (esDecimal(v)) return v.toNumber()
   return v
 }
 
@@ -92,7 +97,7 @@ function serializeRow(row: any): any {
     const key = k === 'anio' ? 'año' : k
     if (Array.isArray(v)) {
       out[key] = v.map(serializeRow)
-    } else if (v && typeof v === 'object' && !(v instanceof Date) && v.constructor?.name !== 'Decimal') {
+    } else if (v && typeof v === 'object' && !(v instanceof Date) && !esDecimal(v)) {
       out[key] = serializeRow(v)
     } else {
       out[key] = serializeValue(k, v)

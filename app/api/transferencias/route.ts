@@ -9,7 +9,8 @@ import { hoyUsuario } from '../../lib/fecha-server'
 import { categoriaSistema } from '../../lib/categorias-server'
 
 // POST /api/transferencias
-// { wallet_id, wallet_destino_id, monto, moneda_destino?, tasa_cambio?, descripcion?, fecha? }
+// { wallet_id, wallet_destino_id, monto, moneda_origen?, moneda_destino?,
+//   tasa_cambio?, descripcion?, fecha? }
 //
 // El monto se expresa en la moneda de DESTINO (lo que se paga o se recibe);
 // el servidor calcula cuánto sale de la cartera de origen.
@@ -18,6 +19,13 @@ import { categoriaSistema } from '../../lib/categorias-server'
 // Antes esto eran dos inserts encadenados desde el navegador: si el segundo
 // fallaba (o se cerraba la pestaña entre uno y otro) el dinero salía de la
 // cartera de origen y nunca llegaba a la de destino.
+//
+// Caso especial: la MISMA tarjeta de crédito como origen y destino. Sirve para
+// pasar deuda de una moneda a la otra, que es una operación que los bancos
+// ofrecen y que hasta ahora no había forma de registrar sin ensuciar el mes.
+// Se admite solo si es de crédito (las demás carteras llevan una sola moneda)
+// y si las dos monedas difieren. Al llevar `wallet_destino_id`, las dos piernas
+// quedan fuera de ingresos y gastos igual que cualquier traspaso.
 
 const toDate = (s: string) => new Date(`${String(s).slice(0, 10)}T00:00:00.000Z`)
 
@@ -36,7 +44,6 @@ export async function POST(req: Request) {
   const fecha = toDate(body?.fecha || (await hoyUsuario()))
 
   if (!walletId || !destinoId) return error('Selecciona la cartera de origen y la de destino', 400)
-  if (walletId === destinoId) return error('El origen y el destino deben ser carteras distintas', 400)
   if (!(monto > 0)) return error('El monto debe ser mayor a 0', 400)
 
   const [origen, destino] = await Promise.all([
@@ -45,7 +52,15 @@ export async function POST(req: Request) {
   ])
   if (!origen || !destino) return error('Cartera no encontrada', 404)
 
-  const monedaOrigen = origen.moneda || 'HNL'
+  const mismaCartera = walletId === destinoId
+
+  // Solo se acepta `moneda_origen` si la cartera lleva dos monedas. Sin el
+  // campo se cae a la moneda de la cartera, que es como se comportaba antes.
+  const monedaOrigen =
+    origen.tipo === 'credito' && (body?.moneda_origen === 'USD' || body?.moneda_origen === 'HNL')
+      ? body.moneda_origen
+      : origen.moneda || 'HNL'
+
   // Las tarjetas de crédito llevan deuda en HNL y en USD a la vez; el usuario
   // elige cuál de las dos está pagando.
   const monedaDestino =
@@ -56,6 +71,15 @@ export async function POST(req: Request) {
       : destino.moneda || 'HNL'
 
   const requiereConversion = monedaOrigen !== monedaDestino
+
+  if (mismaCartera) {
+    if (origen.tipo !== 'credito') {
+      return error('El origen y el destino deben ser carteras distintas', 400)
+    }
+    if (!requiereConversion) {
+      return error('Para pasar deuda dentro de la misma tarjeta, elige dos monedas distintas', 400)
+    }
+  }
 
   // Tasa: la que envía el cliente (puede ser una manual recién fijada) y, si no,
   // la vigente en el servidor.
@@ -81,6 +105,14 @@ export async function POST(req: Request) {
   // juntas sin tener que adivinar cuál era la pareja.
   const transferId = randomUUID()
 
+  // Dentro de una misma tarjeta no hay "desde" ni "hacia" que nombrar: las dos
+  // piernas son la misma cuenta. Se describe lo que de verdad pasó, que es que
+  // la deuda cambió de moneda. La que se salda es la de destino (entra un
+  // ingreso que la reduce) y la que crece es la de origen (sale un gasto).
+  const glosaMismaTarjeta = `Conversión de deuda ${monedaDestino} → ${monedaOrigen}`
+  const glosaSalida = mismaCartera ? glosaMismaTarjeta : `Transferencia a ${destino.nombre}`
+  const glosaEntrada = mismaCartera ? glosaMismaTarjeta : `Transferencia desde ${origen.nombre}`
+
   // La categoría de sistema "Transferencia" agrupa ambas piernas. Es global, y
   // se resuelve fuera de la transacción para no crearla dentro de ella.
   const categoryId = await categoriaSistema('Transferencia', 'gasto')
@@ -98,7 +130,7 @@ export async function POST(req: Request) {
           tasa_cambio: tasaSello,
           transfer_id: transferId,
           tipo: 'gasto',
-          descripcion: descripcion || `Transferencia a ${destino.nombre}`,
+          descripcion: descripcion || glosaSalida,
           fecha,
           wallet_destino_id: destino.id,
         },
@@ -115,7 +147,7 @@ export async function POST(req: Request) {
           tasa_cambio: tasaSello,
           transfer_id: transferId,
           tipo: 'ingreso',
-          descripcion: descripcion || `Transferencia desde ${origen.nombre}`,
+          descripcion: descripcion || glosaEntrada,
           fecha,
           wallet_destino_id: origen.id,
         },

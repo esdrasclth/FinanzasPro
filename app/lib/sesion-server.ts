@@ -30,7 +30,12 @@ export type SesionConPerfil = {
   perfil: PerfilUsuario
 }
 
-export const sesionConPerfil = cache(async (): Promise<SesionConPerfil | null> => {
+// El perfil puede venir en null: la cuenta existe pero todavía no pasó por el
+// onboarding. Quien decide qué hacer con eso es `exigirPerfil`.
+export const sesionConPerfil = cache(async (): Promise<{
+  session: SessionUser
+  perfil: PerfilUsuario | null
+} | null> => {
   const cookieStore = await cookies()
   const token = cookieStore.get(SESSION_COOKIE)?.value
   if (!token) return null
@@ -58,17 +63,21 @@ export const sesionConPerfil = cache(async (): Promise<SesionConPerfil | null> =
   })
 
   if (!user || user.deleted_at || user.session_version !== session.session_version) return null
-  if (!user.profile) return null
 
   return { session, perfil: user.profile }
 })
 
 // Lo que usan las pantallas de dentro de (app): si no hay sesión válida o falta
-// el onboarding, corta aquí. El destino es el mismo al que ya redirigía cada
-// página por separado.
-export const exigirPerfil = cache(async (): Promise<SesionConPerfil> => {
+// el onboarding, corta aquí. Los destinos son los mismos a los que redirigía
+// antes cada página por separado.
+//
+// Deliberadamente SIN cache(): `redirect()` funciona lanzando una excepción que
+// Next reconoce, y envuelta en cache() se quedaba por el camino — la pantalla
+// se renderizaba igual y respondía 200 en vez de redirigir. Lo caro es la
+// consulta, y esa ya va cacheada arriba.
+export async function exigirPerfil(): Promise<SesionConPerfil> {
   const datos = await sesionConPerfil()
   if (!datos) redirect('/login')
-  if (!datos.perfil.onboarding_completado) redirect('/onboarding')
-  return datos
-})
+  if (!datos.perfil || !datos.perfil.onboarding_completado) redirect('/onboarding')
+  return { session: datos.session, perfil: datos.perfil }
+}
