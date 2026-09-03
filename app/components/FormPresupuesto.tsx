@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import IconoCategoria from './IconoCategoria'
 import { emitirCambio } from '../lib/datos-bus'
 import { esCategoriaInterna } from '../lib/finanzas'
@@ -21,6 +21,7 @@ interface Props {
 export default function FormPresupuesto({ presupuesto, categoriaInicial, tipo = 'gasto', mes, anio, onClose, onSuccess }: Props) {
   const [categorias, setCategorias] = useState<any[]>([])
   const [categoriaId, setCategoriaId] = useState(presupuesto?.category_id || categoriaInicial || '')
+  const [busqueda, setBusqueda] = useState('')
   const [montoLimite, setMontoLimite] = useState(
     presupuesto?.monto_limite?.toString() || ''
   )
@@ -59,8 +60,27 @@ export default function FormPresupuesto({ presupuesto, categoriaInicial, tipo = 
     return () => window.clearTimeout(timeout)
   }, [cargarCategorias])
 
-  const principales = categorias.filter(c => !c.parent_id)
   const subcategorias = (parentId: string) => categorias.filter(c => c.parent_id === parentId)
+
+  // Buscador. Sin él la lista era una caja con scroll y una veintena de
+  // categorías dentro: una que estuviera por debajo del corte —y las de
+  // usuario, que van al final— parecía sencillamente no existir.
+  //
+  // Si el nombre del padre coincide se muestra el grupo entero; si coincide
+  // solo una hija, se muestra su padre con esa hija, para no sacar la
+  // subcategoría de su contexto.
+  const q = busqueda.trim().toLowerCase()
+  const coincide = (nombre?: string) => (nombre || '').toLowerCase().includes(q)
+
+  const principales = categorias
+    .filter(c => !c.parent_id)
+    .filter(c => !q || coincide(c.nombre) || subcategorias(c.id).some(sub => coincide(sub.nombre)))
+
+  const subsVisibles = (parentId: string, nombrePadre?: string) => {
+    const subs = subcategorias(parentId)
+    if (!q || coincide(nombrePadre)) return subs
+    return subs.filter(sub => coincide(sub.nombre))
+  }
 
   // La lista se desplaza: si se abre con una categoría ya elegida —desde el
   // aviso de gasto sin presupuesto— hay que traerla a la vista o parece que no
@@ -138,15 +158,32 @@ export default function FormPresupuesto({ presupuesto, categoriaInicial, tipo = 
               <label className="block mb-2 text-sm font-medium text-graphite">
                 Categoría o subcategoría
               </label>
-              <div className="space-y-1.5 overflow-y-auto max-h-64 pr-1">
+
+              <div className="relative mb-2">
+                <Search size={15} strokeWidth={2} aria-hidden="true"
+                  className="absolute -translate-y-1/2 pointer-events-none left-3 top-1/2 text-ash" />
+                <input
+                  type="text"
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  placeholder="Buscar categoría…"
+                  autoFocus
+                  className="w-full py-2 pl-9 pr-3 text-sm transition-colors border border-transparent bg-mist text-ink placeholder-ash rounded-input focus:outline-none focus:border-obsidian focus:bg-snow"
+                />
+              </div>
+
+              <div className="space-y-1.5 overflow-y-auto max-h-72 pr-1">
                 {principales.length === 0 && (
                   <p className="py-6 text-sm text-center text-ash">
-                    No hay categorías de {esIngreso ? 'ingreso' : 'gasto'} disponibles
+                    {q
+                      ? `Ninguna categoría coincide con “${busqueda}”`
+                      : `No hay categorías de ${esIngreso ? 'ingreso' : 'gasto'} disponibles`}
                   </p>
                 )}
                 {principales.map(cat => {
-                  const subs = subcategorias(cat.id)
-                  const tieneSubs = subs.length > 0
+                  const todasSubs = subcategorias(cat.id)
+                  const subs = subsVisibles(cat.id, cat.nombre)
+                  const tieneSubs = todasSubs.length > 0
                   return (
                     <div key={cat.id}>
                       {/* Una categoría con subcategorías sí se puede presupuestar:
@@ -168,7 +205,7 @@ export default function FormPresupuesto({ presupuesto, categoriaInicial, tipo = 
                         <span className="truncate">{cat.nombre}</span>
                         {tieneSubs && (
                           <span className="ml-auto text-xs text-ash whitespace-nowrap">
-                            incluye sus {subs.length} subcategorías
+                            incluye sus {todasSubs.length} subcategorías
                           </span>
                         )}
                       </button>
