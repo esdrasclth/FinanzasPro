@@ -10,7 +10,7 @@ export default async function PresupuestoPage() {
   const { session } = await exigirPerfil()
 
   const { anio, mes } = await hoyUsuarioPartes()
-  const { presupuestos, gastoPrev, categorias, metas } = await datosPresupuesto(
+  const { presupuestos, sinPresupuesto, gastoPrev, categorias, metas } = await datosPresupuesto(
     session.id,
     mes,
     anio,
@@ -20,6 +20,7 @@ export default async function PresupuestoPage() {
   return (
     <PresupuestoCliente
       presupuestosIniciales={presupuestos}
+      sinPresupuestoInicial={sinPresupuesto}
       gastoPrevInicial={gastoPrev}
       categoriasIniciales={categorias}
       metasIniciales={metas}

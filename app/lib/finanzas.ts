@@ -128,6 +128,61 @@ export function totales(
 const esReembolso = (t: MovimientoLike) =>
   (t.tipo || '') === 'ingreso' && (t.categories?.tipo || '') === 'gasto'
 
+export interface CategoriaArbol {
+  id: string
+  parent_id?: string | null
+}
+
+// Acumula en cada categoría padre lo gastado por sus hijas.
+//
+// Un gasto se etiqueta siempre en la categoría más concreta —el formulario
+// obliga a bajar a la subcategoría cuando existe—, así que un presupuesto en
+// la categoría padre no veía ni un lempira: se comparaba su id contra el de la
+// hija y nunca coincidían. Presupuestar "Comida" y gastar en "Supermercado"
+// dejaba la partida en cero para siempre.
+//
+// Aquí el padre pasa a valer lo suyo más lo de sus hijas, que es lo que
+// cualquiera espera al ponerle un límite a un grupo. Las hijas conservan su
+// cifra propia, así que una que tenga presupuesto aparte sigue midiéndose sola.
+//
+// El árbol es de dos niveles y el formulario de categorías lo impide crecer, así
+// que basta con un pase; si algún día se anidara más, habría que recorrerlo.
+export function conHijasAcumuladas(
+  porCat: Record<string, number>,
+  categorias: CategoriaArbol[]
+): Record<string, number> {
+  const out: Record<string, number> = { ...porCat }
+  for (const c of categorias || []) {
+    if (!c.parent_id) continue
+    const propio = porCat[c.id] || 0
+    if (propio === 0) continue
+    out[c.parent_id] = round2((out[c.parent_id] || 0) + propio)
+  }
+  return out
+}
+
+export interface PartidaLike {
+  category_id: string
+  categories?: { parent_id?: string | null } | null
+}
+
+// Las partidas que se pueden sumar entre sí sin contar dos veces lo mismo.
+//
+// Desde que el presupuesto de una categoría padre incluye lo gastado en sus
+// hijas, una hija con partida propia es un SUB-LÍMITE dentro del padre: su
+// monto y su gasto ya están dentro de los del padre. Sumar las dos daba un
+// total de gasto por encima del gasto real del mes.
+//
+// Se quedan las de categorías sin padre, y las de hijas cuyo padre no tiene
+// partida (esas no están dentro de nada).
+export function partidasSinSolapar<T extends PartidaLike>(partidas: T[]): T[] {
+  const conPartida = new Set((partidas || []).map(p => p.category_id))
+  return (partidas || []).filter(p => {
+    const padre = p.categories?.parent_id
+    return !padre || !conPartida.has(padre)
+  })
+}
+
 // Suma por category_id separando gasto de ingreso, normalizada y sin
 // transferencias. La usan los presupuestos y las alertas de la campana.
 export function porCategoria(

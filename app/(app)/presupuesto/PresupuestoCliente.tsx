@@ -8,6 +8,7 @@ import Notificaciones from '@/app/components/Notificaciones'
 import { useMoneda } from '@/app/lib/moneda-context'
 import { round2 } from '@/app/lib/dinero'
 import IconoCategoria from '@/app/components/IconoCategoria'
+import { partidasSinSolapar } from '@/app/lib/finanzas'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   Plus, ChevronLeft, ChevronRight, ChevronDown, Calendar, SlidersHorizontal,
@@ -26,20 +27,24 @@ const COLORES = [
 
 interface Props {
   presupuestosIniciales: any[]
+  sinPresupuestoInicial: any[]
   gastoPrevInicial: Record<string, number>
   categoriasIniciales: any[]
   metasIniciales: any[]
 }
 
-export default function PresupuestoCliente({ presupuestosIniciales, gastoPrevInicial, categoriasIniciales, metasIniciales,
+export default function PresupuestoCliente({ presupuestosIniciales, sinPresupuestoInicial, gastoPrevInicial, categoriasIniciales, metasIniciales,
 }: Props) {
   const [presupuestos, setPresupuestos] = useState<any[]>(presupuestosIniciales)
+  const [sinPresupuesto, setSinPresupuesto] = useState<any[]>(sinPresupuestoInicial || [])
   const [catMap, setCatMap] = useState<Record<string, any>>(
     Object.fromEntries(categoriasIniciales.map((c: any) => [c.id, c]))
   )
   const [gastoPrev, setGastoPrev] = useState<Record<string, number>>(gastoPrevInicial)
   const [showForm, setShowForm] = useState(false)
   const [presupuestoEditar, setPresupuestoEditar] = useState<any>(null)
+  // Categoría con la que se abre el formulario desde el aviso de gasto suelto.
+  const [categoriaPreseleccion, setCategoriaPreseleccion] = useState<string>('')
   const [metas, setMetas] = useState<any[]>(metasIniciales)
   const [showMetaForm, setShowMetaForm] = useState(false)
   const [metaEditar, setMetaEditar] = useState<any>(null)
@@ -79,6 +84,7 @@ export default function PresupuestoCliente({ presupuestosIniciales, gastoPrevIni
       if (!res.ok) return
       const json = await res.json()
       setPresupuestos(json.presupuestos || [])
+      setSinPresupuesto(json.sinPresupuesto || [])
       setGastoPrev(json.gastoPrev || {})
       setCatMap(Object.fromEntries((json.categorias || []).map((c: any) => [c.id, c])))
       setMetas(json.metas || [])
@@ -142,8 +148,12 @@ export default function PresupuestoCliente({ presupuestosIniciales, gastoPrevIni
     .sort((a, b) => b.porcentaje - a.porcentaje)
 
   // ----- Métricas del resumen -----
-  const totalPresupuestado = presupuestosTipo.reduce((s, p) => s + Number(p.monto_limite), 0)
-  const totalGastado = presupuestosTipo.reduce((s, p) => s + p.gastado, 0)
+  // Sin las hijas que ya están contadas dentro de su padre: ver
+  // partidasSinSolapar(). Sumarlas todas daba un gastado mayor que el real.
+  const presupuestosRaiz = partidasSinSolapar(presupuestosTipo)
+
+  const totalPresupuestado = presupuestosRaiz.reduce((s, p) => s + Number(p.monto_limite), 0)
+  const totalGastado = presupuestosRaiz.reduce((s, p) => s + p.gastado, 0)
   const disponible = totalPresupuestado - totalGastado
   const gastadoPct = totalPresupuestado > 0 ? (totalGastado / totalPresupuestado) * 100 : 0
   const restantePct = Math.max(0, 100 - gastadoPct)
@@ -210,6 +220,9 @@ export default function PresupuestoCliente({ presupuestosIniciales, gastoPrevIni
     return { pid, principal, subs, info, orden, subTotal, subGastado, subPct }
   }).sort((a, b) => b.orden - a.orden)
 
+  // Solo las del tipo que se está viendo (gasto o ingreso).
+  const sinPresupuestoTipo = sinPresupuesto.filter(c => c.tipo === (esIngreso ? 'ingreso' : 'gasto'))
+
   // ----- Búsqueda por categoría -----
   const q = busqueda.trim().toLowerCase()
   const coincide = (nombre?: string) => (nombre || '').toLowerCase().includes(q)
@@ -229,7 +242,7 @@ export default function PresupuestoCliente({ presupuestosIniciales, gastoPrevIni
     .filter((g): g is Grupo => g !== null)
 
   // ----- Distribución del presupuesto -----
-  const distribucion = presupuestosTipo
+  const distribucion = presupuestosRaiz
     .map((p, i) => ({
       nombre: p.categories?.nombre || 'Sin nombre',
       valor: Number(p.monto_limite),
@@ -600,10 +613,57 @@ export default function PresupuestoCliente({ presupuestosIniciales, gastoPrevIni
                   </>
                 )}
 
+                {/* Dónde se está yendo el dinero sin presupuesto */}
+                {sinPresupuestoTipo.length > 0 && (
+                  <div className="border-t border-fog">
+                    <div className="flex items-start gap-2 px-6 pt-4 pb-2">
+                      <Info size={16} strokeWidth={2} className="mt-0.5 shrink-0 text-amber-500" aria-hidden="true" />
+                      <div>
+                        <p className="text-sm font-medium text-ink">
+                          {esIngreso ? 'Ingresos sin meta' : 'Gastos sin presupuesto'}
+                        </p>
+                        <p className="text-xs text-steel">
+                          {esIngreso
+                            ? 'Recibiste dinero aquí y no le pusiste meta este mes.'
+                            : 'Gastaste aquí y no lo tienes presupuestado este mes.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <ul className="pb-2">
+                      {sinPresupuestoTipo.map(c => (
+                        <li key={c.category_id} className="flex items-center gap-3 px-6 py-2.5 hover:bg-mist">
+                          <IconoCategoria nombre={c.icono} size={18} />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm truncate text-ink">{c.nombre}</p>
+                            {c.parent_nombre && (
+                              <p className="text-xs truncate text-ash">en {c.parent_nombre}</p>
+                            )}
+                          </div>
+                          <span className="text-sm font-medium tabular-nums text-ink">
+                            {simbolo} {formatMonto(c.gastado)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPresupuestoEditar(null)
+                              setCategoriaPreseleccion(c.category_id)
+                              setShowForm(true)
+                            }}
+                            className="px-3 py-1.5 text-xs font-medium transition-colors border rounded-full shrink-0 border-pebble text-graphite hover:bg-fog hover:text-ink"
+                          >
+                            {esIngreso ? 'Poner meta' : 'Presupuestar'}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 {/* Agregar categoría */}
                 <div className="p-4 border-t border-fog">
                   <button
-                    onClick={() => { setPresupuestoEditar(null); setShowForm(true) }}
+                    onClick={() => { setPresupuestoEditar(null); setCategoriaPreseleccion(''); setShowForm(true) }}
                     className="inline-flex items-center justify-center w-full gap-2 py-2.5 text-sm font-medium transition-colors border border-dashed rounded-xl border-pebble text-graphite hover:bg-mist hover:text-ink"
                   >
                     <Plus size={16} strokeWidth={2} />
@@ -714,10 +774,11 @@ export default function PresupuestoCliente({ presupuestosIniciales, gastoPrevIni
       {showForm && (
         <FormPresupuesto
           presupuesto={presupuestoEditar}
+          categoriaInicial={categoriaPreseleccion}
           tipo={tipoVista}
           mes={base.getMonth() + 1}
           anio={base.getFullYear()}
-          onClose={() => { setShowForm(false); setPresupuestoEditar(null) }}
+          onClose={() => { setShowForm(false); setPresupuestoEditar(null); setCategoriaPreseleccion('') }}
           onSuccess={pedirRecarga}
         />
       )}

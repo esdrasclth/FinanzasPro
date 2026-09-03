@@ -1,7 +1,8 @@
 import { prisma } from './prisma'
 import { tasaVigente } from './tipoCambio-server'
-import { porCategoria } from './finanzas'
+import { conHijasAcumuladas, porCategoria } from './finanzas'
 import { categoriasVisibles } from './categorias-server'
+import { round2 } from './dinero'
 
 // Datos de Presupuesto resueltos en el servidor: los presupuestos del mes con
 // lo gastado (ya normalizado a la moneda principal), el gasto del mes anterior
@@ -117,12 +118,22 @@ export async function datosPresupuesto(userId: string, mes: number, anio: number
   ])
 
   const conForma = (t: any) => ({ ...t, categories: t.category })
-  const movPorCat = porCategoria(transMes.map(conForma), moneda, tasa)
-  const prevPorCat = porCategoria(transPrev.map(conForma), moneda, tasa).gasto
+  const directoPorCat = porCategoria(transMes.map(conForma), moneda, tasa)
+  const directoPrev = porCategoria(transPrev.map(conForma), moneda, tasa).gasto
+
+  // El gasto se etiqueta en la subcategoría, así que un presupuesto puesto en
+  // la categoría padre tiene que sumar lo de sus hijas o se queda en cero.
+  const movPorCat = {
+    gasto: conHijasAcumuladas(directoPorCat.gasto || {}, categorias),
+    ingreso: conHijasAcumuladas(directoPorCat.ingreso || {}, categorias),
+  }
+  // El mes anterior se acumula igual: si no, la comparación enfrentaría el
+  // gasto del grupo contra el de una sola categoría.
+  const prevPorCat = conHijasAcumuladas(directoPrev, categorias)
 
   const presupuestos = budgets.map((b: any) => {
     const tipo = b.category?.tipo || 'gasto'
-    const gastado = (movPorCat[tipo] || {})[b.category_id] || 0
+    const gastado = (movPorCat[tipo as 'gasto' | 'ingreso'] || {})[b.category_id] || 0
     const limite = Number(b.monto_limite)
     // `gastado` puede quedar negativo: si los reembolsos de un mes superan al
     // gasto —cobras en septiembre lo que pagaste en agosto— la categoría queda
@@ -144,8 +155,47 @@ export async function datosPresupuesto(userId: string, mes: number, anio: number
     }
   })
 
+  // Dónde se está yendo el dinero que nadie presupuestó.
+  //
+  // La pantalla se construía solo con los presupuestos existentes, así que el
+  // gasto en una categoría sin partida no aparecía por ningún lado: ni en la
+  // lista, ni en las alertas, ni en la distribución. No había forma de
+  // preguntarle a la app en qué se fue lo que no tenías controlado.
+  //
+  // Se señala la categoría CONCRETA donde cayó el gasto, no su padre: es la que
+  // hay que presupuestar y la que responde "¿en qué exactamente?". Se omite la
+  // que ya tiene partida propia y la que cuelga de un padre que la tiene,
+  // porque con la acumulación de arriba ese gasto ya está contado.
+  const conPresupuesto = new Set(budgets.map((b: any) => b.category_id))
+  const catPorId = new Map(categorias.map(c => [c.id, c]))
+
+  const sinPresupuesto = (['gasto', 'ingreso'] as const).flatMap(tipo =>
+    Object.entries(directoPorCat[tipo] || {})
+      .filter(([catId, monto]) => {
+        if (!(Number(monto) > 0)) return false
+        if (conPresupuesto.has(catId)) return false
+        const cat = catPorId.get(catId)
+        if (!cat) return false
+        return !(cat.parent_id && conPresupuesto.has(cat.parent_id))
+      })
+      .map(([catId, monto]) => {
+        const cat = catPorId.get(catId)!
+        return {
+          category_id: catId,
+          nombre: cat.nombre,
+          icono: cat.icono,
+          color: cat.color,
+          tipo: cat.tipo,
+          parent_id: cat.parent_id,
+          parent_nombre: cat.parent_id ? catPorId.get(cat.parent_id)?.nombre ?? null : null,
+          gastado: round2(Number(monto)),
+        }
+      })
+  ).sort((a, b) => b.gastado - a.gastado)
+
   return {
     presupuestos,
+    sinPresupuesto,
     gastoPrev: prevPorCat,
     categorias,
     metas: metas.map(m => ({

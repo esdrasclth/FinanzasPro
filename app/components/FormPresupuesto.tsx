@@ -1,12 +1,16 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { X } from 'lucide-react'
 import IconoCategoria from './IconoCategoria'
 import { emitirCambio } from '../lib/datos-bus'
+import { esCategoriaInterna } from '../lib/finanzas'
 
 interface Props {
   presupuesto?: any
+  // Categoría con la que abrir el formulario ya elegida. La usa el aviso de
+  // "estás gastando aquí sin presupuesto": el usuario ya dijo cuál quiere.
+  categoriaInicial?: string
   tipo?: 'gasto' | 'ingreso'
   mes?: number
   anio?: number
@@ -14,9 +18,9 @@ interface Props {
   onSuccess: () => void
 }
 
-export default function FormPresupuesto({ presupuesto, tipo = 'gasto', mes, anio, onClose, onSuccess }: Props) {
+export default function FormPresupuesto({ presupuesto, categoriaInicial, tipo = 'gasto', mes, anio, onClose, onSuccess }: Props) {
   const [categorias, setCategorias] = useState<any[]>([])
-  const [categoriaId, setCategoriaId] = useState(presupuesto?.category_id || '')
+  const [categoriaId, setCategoriaId] = useState(presupuesto?.category_id || categoriaInicial || '')
   const [montoLimite, setMontoLimite] = useState(
     presupuesto?.monto_limite?.toString() || ''
   )
@@ -38,7 +42,12 @@ export default function FormPresupuesto({ presupuesto, tipo = 'gasto', mes, anio
     const res = await fetch('/api/categorias')
     if (!res.ok) return
     const { categorias: todas } = await res.json()
-    const data = (todas || []).filter((c: any) => c.tipo === tipo)
+    // Las internas ("Saldo inicial", "Ajuste de saldo", "Transferencia") no son
+    // categorías de gasto del usuario y ademas quedan fuera de los totales, asi
+    // que un presupuesto sobre ellas marcaria cero para siempre.
+    const data = (todas || []).filter(
+      (c: any) => c.tipo === tipo && !esCategoriaInterna(c.nombre)
+    )
 
     // Las subcategorías de deudas completadas quedan archivadas: no se ofrecen
     // para nuevos presupuestos, pero su historial se conserva.
@@ -52,6 +61,15 @@ export default function FormPresupuesto({ presupuesto, tipo = 'gasto', mes, anio
 
   const principales = categorias.filter(c => !c.parent_id)
   const subcategorias = (parentId: string) => categorias.filter(c => c.parent_id === parentId)
+
+  // La lista se desplaza: si se abre con una categoría ya elegida —desde el
+  // aviso de gasto sin presupuesto— hay que traerla a la vista o parece que no
+  // se seleccionó nada.
+  const elegidaRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!categoriaId || categorias.length === 0) return
+    elegidaRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [categoriaId, categorias.length])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -131,15 +149,17 @@ export default function FormPresupuesto({ presupuesto, tipo = 'gasto', mes, anio
                   const tieneSubs = subs.length > 0
                   return (
                     <div key={cat.id}>
+                      {/* Una categoría con subcategorías sí se puede presupuestar:
+                          su límite cubre al grupo entero, porque lo gastado en las
+                          hijas suma en el padre. Antes estaba deshabilitada, y a la
+                          vez la API lo permitía, así que quien lo hacía desde otro
+                          camino se quedaba con una partida que marcaba cero. */}
                       <button
                         type="button"
-                        disabled={tieneSubs}
+                        ref={categoriaId === cat.id ? elegidaRef : undefined}
                         onClick={() => setCategoriaId(cat.id)}
-                        title={tieneSubs ? 'Asigna el presupuesto en sus subcategorías' : undefined}
                         className={`flex items-center w-full gap-2.5 px-3 py-2 text-sm text-left transition-all border rounded-xl ${
-                          tieneSubs
-                            ? 'border-fog text-ash cursor-not-allowed opacity-70'
-                            : categoriaId === cat.id
+                          categoriaId === cat.id
                             ? 'border-obsidian bg-obsidian/5 text-ink font-medium'
                             : 'border-fog text-steel hover:border-pebble'
                         }`}
@@ -147,13 +167,16 @@ export default function FormPresupuesto({ presupuesto, tipo = 'gasto', mes, anio
                         <IconoCategoria nombre={cat.icono} size={18} />
                         <span className="truncate">{cat.nombre}</span>
                         {tieneSubs && (
-                          <span className="ml-auto text-xs text-ash whitespace-nowrap">Elige una subcategoría</span>
+                          <span className="ml-auto text-xs text-ash whitespace-nowrap">
+                            incluye sus {subs.length} subcategorías
+                          </span>
                         )}
                       </button>
                       {subs.map(sub => (
                         <button
                           key={sub.id}
                           type="button"
+                          ref={categoriaId === sub.id ? elegidaRef : undefined}
                           onClick={() => setCategoriaId(sub.id)}
                           className={`flex items-center w-full gap-2.5 pl-8 pr-3 py-1.5 mt-1 text-sm text-left transition-all border rounded-xl ${
                             categoriaId === sub.id
