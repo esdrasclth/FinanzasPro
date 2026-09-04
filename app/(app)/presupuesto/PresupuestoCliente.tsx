@@ -776,6 +776,9 @@ export default function PresupuestoCliente({ presupuestosIniciales, sinPresupues
           presupuesto={presupuestoEditar}
           categoriaInicial={categoriaPreseleccion}
           tipo={tipoVista}
+          // Para saber si la categoría elegida es un padre cuyo límite sale de
+          // sumar a sus hijas, y entonces no dejar teclearlo.
+          partidasDelMes={presupuestos}
           mes={base.getMonth() + 1}
           anio={base.getFullYear()}
           onClose={() => { setShowForm(false); setPresupuestoEditar(null); setCategoriaPreseleccion('') }}

@@ -131,10 +131,25 @@ export async function datosPresupuesto(userId: string, mes: number, anio: number
   // gasto del grupo contra el de una sola categoría.
   const prevPorCat = conHijasAcumuladas(directoPrev, categorias)
 
+  // El límite de una categoría padre es la suma de las partidas de sus hijas.
+  // Se calcula al leer en vez de guardarse: si se guardara, cada alta, edición
+  // o baja de una hija tendría que reescribir al padre, y basta con que una se
+  // escape para que el grupo muestre una cifra que ya no cuadra.
+  //
+  // El padre conserva su propio monto por si algún día se queda sin hijas con
+  // partida; mientras las tenga, manda la suma.
+  const sumaHijas: Record<string, number> = {}
+  for (const b of budgets as any[]) {
+    const padre = b.category?.parent_id
+    if (!padre) continue
+    sumaHijas[padre] = round2((sumaHijas[padre] || 0) + Number(b.monto_limite))
+  }
+
   const presupuestos = budgets.map((b: any) => {
     const tipo = b.category?.tipo || 'gasto'
     const gastado = (movPorCat[tipo as 'gasto' | 'ingreso'] || {})[b.category_id] || 0
-    const limite = Number(b.monto_limite)
+    const calculado = sumaHijas[b.category_id]
+    const limite = calculado ?? Number(b.monto_limite)
     // `gastado` puede quedar negativo: si los reembolsos de un mes superan al
     // gasto —cobras en septiembre lo que pagaste en agosto— la categoría queda
     // en verde. El importe se deja tal cual porque es cierto y vale verlo, pero
@@ -145,6 +160,8 @@ export async function datosPresupuesto(userId: string, mes: number, anio: number
     return {
       ...b,
       monto_limite: limite,
+      // La pantalla lo usa para explicar la cifra y bloquear su edición.
+      calculado: calculado !== undefined,
       created_at: b.created_at.toISOString(),
       // La pantalla espera la relación bajo `categories` y el año como `año`.
       categories: b.category,

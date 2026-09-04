@@ -58,7 +58,28 @@ export async function DELETE(req: Request) {
   return NextResponse.json({ ok: true })
 }
 
+// Suma de las partidas de las hijas de una categoría en ese mes. Devuelve null
+// si no tiene ninguna, que es cuando el padre manda con su propio monto.
+async function sumaDeHijas(
+  userId: string,
+  categoryId: string,
+  mes: number,
+  anio: number
+): Promise<number | null> {
+  const hijas = await prisma.budgets.findMany({
+    where: { user_id: userId, mes, anio, category: { parent_id: categoryId } },
+    select: { monto_limite: true },
+  })
+  if (hijas.length === 0) return null
+  return hijas.reduce((t, h) => t + Number(h.monto_limite), 0)
+}
+
 // POST /api/presupuesto -> crea | PUT -> { id, monto_limite } edita
+//
+// El monto de una categoría padre no se acepta del cliente: es la suma de las
+// partidas de sus hijas (ver presupuesto-server.ts, que es donde se calcula de
+// verdad). Aquí se guarda esa suma para que la fila no quede con una cifra que
+// contradiga a la pantalla.
 // La unicidad por (usuario, categoría, mes, año) la garantiza la base; aquí se
 // traduce el choque a un mensaje entendible en vez de un error de Prisma.
 export async function POST(req: Request) {
@@ -83,9 +104,11 @@ export async function POST(req: Request) {
   })
   if (!cat) return NextResponse.json({ error: { message: 'Categoría no válida' } }, { status: 400 })
 
+  const suma = await sumaDeHijas(s.id, categoryId, mes, anio)
+
   try {
     const b = await prisma.budgets.create({
-      data: { user_id: s.id, category_id: categoryId, monto_limite: limite, mes, anio },
+      data: { user_id: s.id, category_id: categoryId, monto_limite: suma ?? limite, mes, anio },
     })
     return NextResponse.json({
       presupuesto: {
@@ -112,12 +135,26 @@ export async function PUT(req: Request) {
   if (!id) return NextResponse.json({ error: { message: 'Falta el identificador' } }, { status: 400 })
   if (!(limite > 0)) return NextResponse.json({ error: { message: 'El límite debe ser mayor a 0' } }, { status: 400 })
 
-  const { count } = await prisma.budgets.updateMany({
+  const actual = await prisma.budgets.findFirst({
     where: { id, user_id: s.id },
-    data: { monto_limite: limite },
+    select: { category_id: true, mes: true, anio: true },
   })
-  if (count === 0) {
+  if (!actual) {
     return NextResponse.json({ error: { message: 'Presupuesto no encontrado' } }, { status: 404 })
   }
+
+  const suma = await sumaDeHijas(s.id, actual.category_id, actual.mes, actual.anio)
+  if (suma !== null) {
+    return NextResponse.json(
+      {
+        error: {
+          message: 'El límite de una categoría con subcategorías presupuestadas es la suma de las suyas. Edita las subcategorías.',
+        },
+      },
+      { status: 409 }
+    )
+  }
+
+  await prisma.budgets.update({ where: { id }, data: { monto_limite: limite } })
   return NextResponse.json({ ok: true })
 }

@@ -14,11 +14,13 @@ interface Props {
   tipo?: 'gasto' | 'ingreso'
   mes?: number
   anio?: number
+  // Las partidas ya existentes de ese mes, para calcular el límite de un padre.
+  partidasDelMes?: any[]
   onClose: () => void
   onSuccess: () => void
 }
 
-export default function FormPresupuesto({ presupuesto, categoriaInicial, tipo = 'gasto', mes, anio, onClose, onSuccess }: Props) {
+export default function FormPresupuesto({ presupuesto, categoriaInicial, tipo = 'gasto', mes, anio, partidasDelMes = [], onClose, onSuccess }: Props) {
   const [categorias, setCategorias] = useState<any[]>([])
   const [categoriaId, setCategoriaId] = useState(presupuesto?.category_id || categoriaInicial || '')
   const [busqueda, setBusqueda] = useState('')
@@ -61,6 +63,22 @@ export default function FormPresupuesto({ presupuesto, categoriaInicial, tipo = 
   }, [cargarCategorias])
 
   const subcategorias = (parentId: string) => categorias.filter(c => c.parent_id === parentId)
+
+  // El límite de una categoría padre es la suma de las partidas de sus hijas,
+  // así que no se teclea. Se calcula aquí solo para enseñarlo: quien manda es
+  // el servidor (ver presupuesto-server.ts).
+  const hijasDe = (padreId: string) => new Set(
+    categorias.filter(c => c.parent_id === padreId).map(c => c.id)
+  )
+  const sumaHijas = (padreId: string): number | null => {
+    if (!padreId) return null
+    const hijas = hijasDe(padreId)
+    const suyas = (partidasDelMes || []).filter(p => hijas.has(p.category_id))
+    if (suyas.length === 0) return null
+    return suyas.reduce((t, p) => t + Number(p.monto_limite || 0), 0)
+  }
+
+  const calculado = sumaHijas(categoriaId)
 
   // Buscador. Sin él la lista era una caja con scroll y una veintena de
   // categorías dentro: una que estuviera por debajo del corte —y las de
@@ -110,7 +128,7 @@ export default function FormPresupuesto({ presupuesto, categoriaInicial, tipo = 
       body: JSON.stringify({
         id: presupuesto?.id,
         category_id: categoriaId,
-        monto_limite: parseFloat(montoLimite),
+        monto_limite: calculado ?? parseFloat(montoLimite),
         mes: mesActual,
         anio: añoActual,
       }),
@@ -252,15 +270,25 @@ export default function FormPresupuesto({ presupuesto, categoriaInicial, tipo = 
               <span className="absolute -translate-y-1/2 left-4 top-1/2 text-ash">L</span>
               <input
                 type="number"
-                value={montoLimite}
+                value={calculado !== null ? calculado.toFixed(2) : montoLimite}
                 onChange={(e) => setMontoLimite(e.target.value)}
                 placeholder="0.00"
                 min="1"
                 step="0.01"
                 required
-                className="w-full py-3 pl-8 pr-4 text-ink transition-colors border bg-mist border-transparent placeholder-ash rounded-input focus:outline-none focus:border-obsidian focus:bg-snow"
+                readOnly={calculado !== null}
+                aria-describedby={calculado !== null ? 'limite-calculado' : undefined}
+                className={`w-full py-3 pl-8 pr-4 text-ink transition-colors border bg-mist border-transparent placeholder-ash rounded-input focus:outline-none focus:border-obsidian focus:bg-snow ${
+                  calculado !== null ? 'cursor-not-allowed text-steel' : ''
+                }`}
               />
             </div>
+            {calculado !== null && (
+              <p id="limite-calculado" className="mt-2 text-xs text-steel">
+                Es la suma de las subcategorías presupuestadas. Para cambiarlo,
+                edita sus subcategorías.
+              </p>
+            )}
           </div>
 
           {error && (
