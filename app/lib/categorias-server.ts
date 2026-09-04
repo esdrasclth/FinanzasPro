@@ -15,9 +15,14 @@ import { prisma } from './prisma'
 // Una global desaparece para quien ya tiene su copia personal (ver el editar de
 // /api/categorias): si no, vería dos "Supermercado", la suya con sus datos y la
 // original vacía.
+//
+// Al revés también: una predeterminada que el usuario ha eliminado deja una
+// copia con `oculta`, que sustituye a la global igual que la del editar pero no
+// se muestra en ningún sitio. Se descarta aquí, en el único punto por el que
+// pasan todas las consultas de categorías, para que no asome en los selectores.
 export const categoriasVisibles = (userId: string) => ({
   OR: [
-    { user_id: userId },
+    { user_id: userId, oculta: false },
     { user_id: null, es_sistema: true, copias: { none: { user_id: userId } } },
   ],
 })

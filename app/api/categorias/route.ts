@@ -8,8 +8,9 @@ import { esCategoriaInterna } from '../../lib/finanzas'
 // DELETE /api/categorias?id=... -> elimina una propia
 //
 // El borrado valida en el servidor lo que antes solo se comprobaba en el
-// navegador: que la categoría sea del usuario, que no sea de sistema ni de
-// gestión de deudas, y que no tenga subcategorías ni movimientos.
+// navegador: que la categoría sea visible para el usuario, que no sea interna
+// ni de gestión de deudas, y que no tenga subcategorías ni movimientos suyos.
+// Las predeterminadas no se borran, se ocultan: son globales.
 
 export async function GET() {
   const session = await getSessionUser()
@@ -53,21 +54,17 @@ export async function DELETE(req: Request) {
       { status: 409 }
     )
   }
-  if (cat.es_sistema || !cat.user_id) {
+  if (esCategoriaInterna(cat.nombre)) {
     return NextResponse.json(
-      {
-        error: {
-          message: esCategoriaInterna(cat.nombre)
-            ? `"${cat.nombre}" la usa la app para su propia mecánica y no se puede eliminar`
-            : `"${cat.nombre}" es una categoría predeterminada, compartida por todas las cuentas. Edítala para quedarte con una copia tuya; esa sí puedes borrarla.`,
-        },
-      },
+      { error: { message: `"${cat.nombre}" la usa la app para su propia mecánica y no se puede eliminar` } },
       { status: 409 }
     )
   }
 
+  // Solo cuentan las subcategorías propias: una predeterminada es global y
+  // otras cuentas pueden tener las suyas colgando de ella.
   const [hijos, movimientos] = await Promise.all([
-    prisma.categories.count({ where: { parent_id: id } }),
+    prisma.categories.count({ where: { parent_id: id, user_id: session.id } }),
     prisma.transactions.count({ where: { category_id: id, user_id: session.id } }),
   ])
 
@@ -86,6 +83,36 @@ export async function DELETE(req: Request) {
       },
       { status: 409 }
     )
+  }
+
+  // Una predeterminada es global: borrarla se la quitaría a todas las cuentas.
+  // Se oculta solo para esta, dejando una copia marcada que la sustituye igual
+  // que al editarla (ver PUT); categoriasVisibles hace el resto.
+  //
+  // Lo que apuntaba a ella se trata como en un borrado de verdad, según lo que
+  // haría cada clave foránea: los presupuestos caen (Cascade) y deudas,
+  // suscripciones y repartos se quedan sin categoría (SetNull). Movimientos no
+  // hay, que es lo que se acaba de comprobar.
+  if (!cat.user_id) {
+    await prisma.$transaction(async (tx) => {
+      const mio = { user_id: session.id, category_id: id }
+      await tx.budgets.deleteMany({ where: mio })
+      await tx.debts.updateMany({ where: mio, data: { category_id: null } })
+      await tx.subscriptions.updateMany({ where: mio, data: { category_id: null } })
+      await tx.repartos.updateMany({ where: mio, data: { category_id: null } })
+      await tx.categories.create({
+        data: {
+          user_id: session.id,
+          origen_id: cat.id,
+          nombre: cat.nombre,
+          tipo: cat.tipo,
+          icono: cat.icono,
+          color: cat.color,
+          oculta: true,
+        },
+      })
+    })
+    return NextResponse.json({ ok: true })
   }
 
   await prisma.categories.delete({ where: { id } })

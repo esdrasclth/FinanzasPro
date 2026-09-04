@@ -55,13 +55,17 @@ export default function CategoriasCliente({ categoriasIniciales }: Props) {
       alert('Esta categoría se administra desde la pantalla de Deudas.')
       return
     }
-    // Verificar si tiene subcategorías
+    // Verificar si tiene subcategorías. De una predeterminada solo estorban las
+    // propias: la lista ya viene filtrada a lo que este usuario ve.
     const tieneHijos = categorias.some(c => c.parent_id === id)
     if (tieneHijos) {
       alert('Esta categoría tiene subcategorías. Elimínalas primero.')
       return
     }
-    if (!confirm('¿Eliminar esta categoría?')) return
+    const aviso = cat?.es_sistema
+      ? `"${cat.nombre}" es una categoría predeterminada: no se borra para nadie más, solo deja de aparecerte a ti. ¿Quitarla de tu lista?`
+      : '¿Eliminar esta categoría?'
+    if (!confirm(aviso)) return
     // El servidor revalida dueño, sistema, subcategorías y movimientos.
     const res = await fetch(`/api/categorias?id=${id}`, { method: 'DELETE' })
     if (!res.ok) {
@@ -177,9 +181,9 @@ export default function CategoriasCliente({ categoriasIniciales }: Props) {
                       <span className="text-xs text-ash">La usa la app</span>
                     ) : (
                       <>
-                        {/* Las predeterminadas son de todas las cuentas: se
-                            pueden editar (se crea una copia propia) y admiten
-                            subcategorías, pero no se borran. */}
+                        {/* Las predeterminadas son de todas las cuentas: al
+                            editarlas se crea una copia propia y al eliminarlas
+                            solo dejan de aparecer aquí. */}
                         {cat.es_sistema && (
                           <span className="text-xs text-ash">Predeterminada</span>
                         )}
@@ -205,15 +209,13 @@ export default function CategoriasCliente({ categoriasIniciales }: Props) {
                         >
                           <Pencil size={16} strokeWidth={2} />
                         </button>
-                        {!cat.es_sistema && (
-                          <button
-                            onClick={() => handleEliminar(cat.id)}
-                            className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1 text-ash hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                            title="Eliminar"
-                          >
-                            <Trash2 size={16} strokeWidth={2} />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => handleEliminar(cat.id)}
+                          className="flex items-center justify-center w-11 h-11 sm:w-auto sm:h-auto sm:p-1 text-ash hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                          title={cat.es_sistema ? 'Quitar de mi lista' : 'Eliminar'}
+                        >
+                          <Trash2 size={16} strokeWidth={2} />
+                        </button>
                       </>
                     )}
                   </div>

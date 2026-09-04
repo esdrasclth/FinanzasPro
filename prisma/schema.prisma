@@ -79,6 +79,10 @@ model categories {
   es_sistema Boolean  @default(false)
   protegida  Boolean  @default(false)
   archivada  Boolean  @default(false)
+  // Copia que solo existe para ocultarle a este usuario una predeterminada
+  // global: no se muestra en ninguna parte (la descarta categoriasVisibles),
+  // su único trabajo es que la original deje de aparecerle a él.
+  oculta     Boolean  @default(false)
   // Copia personal de una predeterminada: al editar "Supermercado" el usuario
   // se lleva una propia y esta apunta a la global que sustituye, para que la
   // original deje de aparecerle a él (y solo a él).
