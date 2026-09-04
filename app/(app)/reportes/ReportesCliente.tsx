@@ -1,11 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useState, useRef, useMemo } from 'react'
+import { useCallback, useEffect, useState, useRef, useMemo, type ReactNode } from 'react'
 import { useMoneda } from '@/app/lib/moneda-context'
 import { Encabezado, Hero } from '@/app/components/Encabezado'
 import {
   TrendingUp, TrendingDown, PiggyBank, Scale, ArrowUpRight, ArrowDownRight,
   Minus, CalendarRange, Wallet, Lightbulb, Loader2, Info, Target,
+  type LucideIcon,
 } from 'lucide-react'
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -15,6 +16,30 @@ import { finMesDesplazado, inicioMesDesplazado, fechaHoyLocal } from '@/app/lib/
 import type { DatosReportes, MovimientoReporte } from '@/app/lib/reportes-server'
 import IconoCategoria from '@/app/components/IconoCategoria'
 import { useRecarga } from '@/app/lib/datos-bus'
+
+// Cabecera unica de panel. Los seis paneles la montaban cada uno a su manera
+// —unos con icono y otros sin el, el subtitulo dentro del bloque o suelto
+// debajo, la separacion inferior en mb-1, mb-5 o dentro de un flex— y esa
+// disparidad es la mitad de la sensacion de desorden: nada se alinea con nada.
+function CabeceraPanel({ icon: Icon, titulo, subtitulo, accion }: {
+  icon?: LucideIcon
+  titulo: string
+  subtitulo?: ReactNode
+  accion?: ReactNode
+}) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          {Icon && <Icon size={16} className="flex-shrink-0 text-steel" aria-hidden="true" />}
+          <h2 className="font-semibold text-obsidian">{titulo}</h2>
+        </div>
+        {subtitulo && <p className="mt-1 text-xs text-steel">{subtitulo}</p>}
+      </div>
+      {accion && <div className="flex-shrink-0">{accion}</div>}
+    </div>
+  )
+}
 
 const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
@@ -67,6 +92,7 @@ export default function ReportesCliente({ datosIniciales }: Props) {
   const [hasta, setHasta] = useState(datosIniciales.hasta)
   const [verCategorias, setVerCategorias] = useState<'gasto' | 'ingreso'>('gasto')
   const [todasLasCategorias, setTodasLasCategorias] = useState(false)
+  const [todasLasPartidas, setTodasLasPartidas] = useState(false)
 
   // El primer periodo llega resuelto del Server Component. A partir de ahí cada
   // cambio consulta la API, con una pausa para no disparar una petición por
@@ -271,6 +297,13 @@ export default function ReportesCliente({ datosIniciales }: Props) {
 
   const categoriasVista = verCategorias === 'gasto' ? analisis.porCategoria : analisis.porIngreso
   const visibles = todasLasCategorias ? categoriasVista : categoriasVista.slice(0, 6)
+
+  // Las barras de presupuesto eran la unica lista de la pantalla sin acotar: con
+  // 26 partidas el panel medía mas que todo lo demas junto y descuadraba la
+  // rejilla. Vienen ordenadas por porcentaje usado, asi que las 6 primeras son
+  // las sobrepasadas y las que estan al limite: justo lo que se viene a mirar.
+  const partidas = analisis.presupuesto.lineas
+  const partidasVisibles = todasLasPartidas ? partidas : partidas.slice(0, 6)
   const totalVista = verCategorias === 'gasto' ? analisis.gastos : analisis.ingresos
 
   const etiquetaLinea = analisis.porDia ? 'Acumulado' : 'Ahorro'
@@ -401,20 +434,18 @@ export default function ReportesCliente({ datosIniciales }: Props) {
 
             {/* Evolución */}
             <section className="p-5 border bg-snow border-fog rounded-card sm:p-6">
-              <div className="flex flex-wrap items-baseline justify-between gap-2 mb-5">
-                <div>
-                  <h2 className="font-semibold text-obsidian">
-                    Evolución {analisis.porDia ? 'diaria' : 'mensual'}
-                  </h2>
-                  <p className="text-xs text-steel">
-                    Barras de ingresos y gastos, línea de {etiquetaLinea.toLowerCase()}. La raya marca
-                    el gasto medio ({simbolo}{fmt(analisis.gastoMedioPorCubo)}).
+              <CabeceraPanel
+                titulo={`Evolución ${analisis.porDia ? 'diaria' : 'mensual'}`}
+                subtitulo={<>
+                  Barras de ingresos y gastos, línea de {etiquetaLinea.toLowerCase()}. La raya marca
+                  el gasto medio ({simbolo}{fmt(analisis.gastoMedioPorCubo)}).
+                </>}
+                accion={
+                  <p className="text-xs text-ash">
+                    Gasto medio diario: <span className="font-medium text-graphite">{simbolo}{fmt(analisis.gastoDiario)}</span>
                   </p>
-                </div>
-                <p className="text-xs text-ash">
-                  Gasto medio diario: <span className="font-medium text-graphite">{simbolo}{fmt(analisis.gastoDiario)}</span>
-                </p>
-              </div>
+                }
+              />
               <ResponsiveContainer width="100%" height={280}>
                 <ComposedChart data={analisis.evolucion} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ececee" vertical={false} />
@@ -458,29 +489,25 @@ export default function ReportesCliente({ datosIniciales }: Props) {
 
             {/* Presupuesto contra gasto real */}
             <section className="p-5 border bg-snow border-fog rounded-card sm:p-6">
-              <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Target size={16} className="text-steel" />
-                    <h2 className="font-semibold text-obsidian">Presupuesto y gasto real</h2>
-                  </div>
-                  <p className="mt-1 text-xs text-steel">
-                    {analisis.presupuesto.hay
-                      ? <>
-                          {datos.presupuesto.mesesConPresupuesto} de {datos.presupuesto.mesesEnRango}{' '}
-                          {datos.presupuesto.mesesEnRango === 1 ? 'mes del periodo tiene' : 'meses del periodo tienen'} presupuesto
-                          {datos.presupuesto.prorrateado && ' · el límite va prorrateado por los días del rango'}
-                        </>
-                      : 'Aún no has definido presupuestos para este periodo'}
-                  </p>
-                </div>
-                <a
-                  href="/presupuesto"
-                  className="px-3.5 py-1.5 text-xs font-medium transition-colors border rounded-full text-graphite border-fog hover:border-pebble"
-                >
-                  Ir a presupuestos
-                </a>
-              </div>
+              <CabeceraPanel
+                icon={Target}
+                titulo="Presupuesto y gasto real"
+                subtitulo={analisis.presupuesto.hay
+                  ? <>
+                      {datos.presupuesto.mesesConPresupuesto} de {datos.presupuesto.mesesEnRango}{' '}
+                      {datos.presupuesto.mesesEnRango === 1 ? 'mes del periodo tiene' : 'meses del periodo tienen'} presupuesto
+                      {datos.presupuesto.prorrateado && ' · el límite va prorrateado por los días del rango'}
+                    </>
+                  : 'Aún no has definido presupuestos para este periodo'}
+                accion={
+                  <a
+                    href="/presupuesto"
+                    className="px-3.5 py-1.5 text-xs font-medium transition-colors border rounded-full text-graphite border-fog hover:border-pebble"
+                  >
+                    Ir a presupuestos
+                  </a>
+                }
+              />
 
               {!analisis.presupuesto.hay ? (
                 <p className="py-8 text-sm text-center text-steel">
@@ -502,7 +529,7 @@ export default function ReportesCliente({ datosIniciales }: Props) {
                   </div>
 
                   <div className="space-y-4">
-                    {analisis.presupuesto.lineas.map((c: any) => {
+                    {partidasVisibles.map((c: any) => {
                       // Verde hasta el 80%, ámbar al acercarse y rojo al pasarse.
                       const tono = c.usado > 100 ? 'bg-red-500' : c.usado >= 80 ? 'bg-amber-500' : 'bg-emerald-600'
                       return (
@@ -527,6 +554,17 @@ export default function ReportesCliente({ datosIniciales }: Props) {
                     })}
                   </div>
 
+                  {partidas.length > 6 && (
+                    <button
+                      onClick={() => setTodasLasPartidas(v => !v)}
+                      className="pt-4 text-xs font-medium text-steel hover:text-ink"
+                    >
+                      {todasLasPartidas
+                        ? 'Ver solo las 6 mas ajustadas'
+                        : `Ver las ${partidas.length} partidas`}
+                    </button>
+                  )}
+
                   {analisis.presupuesto.sinGasto > 0 && (
                     <p className="mt-5 text-xs text-ash">
                       {analisis.presupuesto.sinGasto}{' '}
@@ -549,27 +587,25 @@ export default function ReportesCliente({ datosIniciales }: Props) {
 
               {/* Distribución por categoría */}
               <section className="p-5 border lg:col-span-3 bg-snow border-fog rounded-card sm:p-6">
-                <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-                  <div>
-                    <h2 className="font-semibold text-obsidian">Distribución por categoría</h2>
-                    <p className="text-xs text-steel">
-                      {categoriasVista.length} {categoriasVista.length === 1 ? 'categoría' : 'categorías'} en el periodo
-                    </p>
-                  </div>
-                  <div className="flex gap-1 p-1 bg-mist rounded-full">
-                    {(['gasto', 'ingreso'] as const).map(t => (
-                      <button
-                        key={t}
-                        onClick={() => setVerCategorias(t)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                          verCategorias === t ? 'bg-obsidian text-snow' : 'text-steel hover:text-ink'
-                        }`}
-                      >
-                        {t === 'gasto' ? 'Gastos' : 'Ingresos'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <CabeceraPanel
+                  titulo="Distribución por categoría"
+                  subtitulo={`${categoriasVista.length} ${categoriasVista.length === 1 ? 'categoría' : 'categorías'} en el periodo`}
+                  accion={
+                    <div className="flex gap-1 p-1 bg-mist rounded-full">
+                      {(['gasto', 'ingreso'] as const).map(t => (
+                        <button
+                          key={t}
+                          onClick={() => setVerCategorias(t)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                            verCategorias === t ? 'bg-obsidian text-snow' : 'text-steel hover:text-ink'
+                          }`}
+                        >
+                          {t === 'gasto' ? 'Gastos' : 'Ingresos'}
+                        </button>
+                      ))}
+                    </div>
+                  }
+                />
 
                 {categoriasVista.length === 0 ? (
                   <p className="py-10 text-sm text-center text-steel">
@@ -633,10 +669,10 @@ export default function ReportesCliente({ datosIniciales }: Props) {
 
               {/* Qué cambió respecto al periodo anterior */}
               <section className="p-5 border lg:col-span-2 bg-snow border-fog rounded-card sm:p-6">
-                <h2 className="font-semibold text-obsidian">Qué cambió</h2>
-                <p className="mb-5 text-xs text-steel">
-                  Gasto por categoría contra {fechaCorta(datos.anterior.desde)} — {fechaCorta(datos.anterior.hasta)}
-                </p>
+                <CabeceraPanel
+                  titulo="Qué cambió"
+                  subtitulo={`Gasto por categoría contra ${fechaCorta(datos.anterior.desde)} — ${fechaCorta(datos.anterior.hasta)}`}
+                />
                 {analisis.cambios.length === 0 ? (
                   <p className="py-10 text-sm text-center text-steel">Sin gastos que comparar</p>
                 ) : (
@@ -676,11 +712,11 @@ export default function ReportesCliente({ datosIniciales }: Props) {
 
               {/* Gasto por cartera */}
               <section className="p-5 border bg-snow border-fog rounded-card sm:p-6">
-                <div className="flex items-center gap-2 mb-1">
-                  <Wallet size={16} className="text-steel" />
-                  <h2 className="font-semibold text-obsidian">De dónde sale el gasto</h2>
-                </div>
-                <p className="mb-5 text-xs text-steel">Reparto del gasto entre tus carteras</p>
+                <CabeceraPanel
+                  icon={Wallet}
+                  titulo="De dónde sale el gasto"
+                  subtitulo="Reparto del gasto entre tus carteras"
+                />
                 {analisis.porCartera.length === 0 ? (
                   <p className="py-8 text-sm text-center text-steel">Sin gastos en el periodo</p>
                 ) : (
@@ -705,11 +741,11 @@ export default function ReportesCliente({ datosIniciales }: Props) {
 
               {/* Lecturas del periodo */}
               <section className="p-5 border bg-snow border-fog rounded-card sm:p-6">
-                <div className="flex items-center gap-2 mb-1">
-                  <Lightbulb size={16} className="text-steel" />
-                  <h2 className="font-semibold text-obsidian">Lecturas del periodo</h2>
-                </div>
-                <p className="mb-5 text-xs text-steel">Lo que dicen los números, en una línea cada uno</p>
+                <CabeceraPanel
+                  icon={Lightbulb}
+                  titulo="Lecturas del periodo"
+                  subtitulo="Lo que dicen los números, en una línea cada uno"
+                />
                 <ul className="space-y-3">
                   {lecturas({ analisis, datos, simbolo, fmt }).map((l, i) => (
                     <li key={i} className="flex gap-2.5 text-sm text-graphite">
