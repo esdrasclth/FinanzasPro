@@ -53,6 +53,9 @@ export default function PresupuestoCliente({ presupuestosIniciales, sinPresupues
   const [tipoVista, setTipoVista] = useState<'gasto' | 'ingreso'>('gasto')
   const [filtroEstado, setFiltroEstado] = useState('todos')
   const [busqueda, setBusqueda] = useState('')
+  // Grupos plegados, por id de la categoria padre. Se guarda lo plegado y no lo
+  // desplegado para que un grupo nuevo aparezca abierto sin tener que anadirlo.
+  const [contraidos, setContraidos] = useState<Set<string>>(new Set())
   const [mesOffset, setMesOffset] = useState(0)
   const [showMesPicker, setShowMesPicker] = useState(false)
   const [pickerYear, setPickerYear] = useState(new Date().getFullYear())
@@ -223,6 +226,19 @@ export default function PresupuestoCliente({ presupuestosIniciales, sinPresupues
   // Solo las del tipo que se está viendo (gasto o ingreso).
   const sinPresupuestoTipo = sinPresupuesto.filter(c => c.tipo === (esIngreso ? 'ingreso' : 'gasto'))
 
+  // Buscando no se pliega nada: esconder una coincidencia detrás de un grupo
+  // cerrado es justo lo que el buscador viene a evitar.
+  const estaContraido = (pid: string) => !busqueda.trim() && contraidos.has(pid)
+
+  const alternarGrupo = (pid: string) => {
+    setContraidos(prev => {
+      const siguiente = new Set(prev)
+      if (siguiente.has(pid)) siguiente.delete(pid)
+      else siguiente.add(pid)
+      return siguiente
+    })
+  }
+
   // ----- Búsqueda por categoría -----
   const q = busqueda.trim().toLowerCase()
   const coincide = (nombre?: string) => (nombre || '').toLowerCase().includes(q)
@@ -242,14 +258,30 @@ export default function PresupuestoCliente({ presupuestosIniciales, sinPresupues
     .filter((g): g is Grupo => g !== null)
 
   // ----- Distribución del presupuesto -----
-  const distribucion = presupuestosRaiz
-    .map((p, i) => ({
-      nombre: p.categories?.nombre || 'Sin nombre',
-      valor: Number(p.monto_limite),
-      color: p.categories?.color || COLORES[i % COLORES.length],
-    }))
+  // Una porción por categoría padre: las subcategorías no compiten con la suya,
+  // se suman dentro de ella. Se parte de presupuestosRaiz, que ya descarta las
+  // hijas contadas dentro de un padre con partida; las que quedan son de un
+  // padre sin partida propia y se acumulan bajo su nombre igual que en la lista.
+  //
+  // Al agrupar en vez de filtrar, el total del pastel sigue siendo el
+  // presupuestado del mes: quitar esas hijas dejaría fuera dinero que sí está.
+  const acumulado = new Map<string, { nombre: string; valor: number; color?: string }>()
+  presupuestosRaiz.forEach(p => {
+    const pid = p.categories?.parent_id || p.category_id
+    const info = p.categories?.parent_id ? catMap[pid] : p.categories
+    const previo = acumulado.get(pid)
+    const valor = (previo?.valor || 0) + Number(p.monto_limite)
+    acumulado.set(pid, {
+      nombre: info?.nombre || previo?.nombre || 'Sin nombre',
+      valor,
+      color: info?.color || previo?.color,
+    })
+  })
+
+  const distribucion = [...acumulado.values()]
     .filter(d => d.valor > 0)
     .sort((a, b) => b.valor - a.valor)
+    .map((d, i) => ({ ...d, color: d.color || COLORES[i % COLORES.length] }))
 
   // ----- Alertas y recomendaciones -----
   type Alerta = { id: string; icon: LucideIcon; titulo: string; detalle: string; tono: 'alerta' | 'info' | 'ok' }
@@ -592,13 +624,19 @@ export default function PresupuestoCliente({ presupuestosIniciales, sinPresupues
                               <FilaPresupuesto
                                 p={g.principal} est={estadoInfo(g.principal)} esSub={false} esPadre={g.subs.length > 0} esIngreso={esIngreso}
                                 formatMonto={formatMonto}
+                                contraido={estaContraido(g.pid)}
+                                onAlternar={g.subs.length > 0 ? () => alternarGrupo(g.pid) : undefined}
                                 onEdit={() => { setPresupuestoEditar(g.principal); setShowForm(true) }}
                                 onDelete={() => handleEliminar(g.principal.id)}
                               />
                             ) : g.subs.length > 0 && (
-                              <FilaGrupoPadre g={g} esIngreso={esIngreso} formatMonto={formatMonto} />
+                              <FilaGrupoPadre
+                                g={g} esIngreso={esIngreso} formatMonto={formatMonto}
+                                contraido={estaContraido(g.pid)}
+                                onAlternar={() => alternarGrupo(g.pid)}
+                              />
                             )}
-                            {g.subs.map(sub => (
+                            {!estaContraido(g.pid) && g.subs.map(sub => (
                               <FilaPresupuesto
                                 key={sub.id} p={sub} est={estadoInfo(sub)} esSub={true} esIngreso={esIngreso}
                                 formatMonto={formatMonto}
@@ -970,13 +1008,38 @@ function HeroMetrica({ icon: Icon, label, valor, nota, className = '' }: {
   )
 }
 
-function FilaPresupuesto({ p, est, esSub, esPadre = false, esIngreso, formatMonto, onEdit, onDelete }: {
+// Plegar un grupo. Solo aparece en la fila padre y solo si tiene subcategorias.
+function BotonPlegar({ contraido, nombre, onAlternar }: {
+  contraido: boolean
+  nombre: string
+  onAlternar: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onAlternar}
+      aria-expanded={!contraido}
+      aria-label={`${contraido ? 'Desplegar' : 'Plegar'} las subcategorías de ${nombre}`}
+      className="flex items-center justify-center flex-shrink-0 transition-colors rounded-full w-7 h-7 -ml-1 text-steel hover:text-ink hover:bg-mist"
+    >
+      <ChevronDown
+        size={16}
+        strokeWidth={2}
+        className={`transition-transform ${contraido ? '-rotate-90' : ''}`}
+      />
+    </button>
+  )
+}
+
+function FilaPresupuesto({ p, est, esSub, esPadre = false, esIngreso, formatMonto, contraido = false, onAlternar, onEdit, onDelete }: {
   p: any
   est: { label: string; badge: string; barra: string }
   esSub: boolean
   esPadre?: boolean
   esIngreso: boolean
   formatMonto: (n: number) => string
+  contraido?: boolean
+  onAlternar?: () => void
   onEdit: () => void
   onDelete: () => void
 }) {
@@ -986,6 +1049,9 @@ function FilaPresupuesto({ p, est, esSub, esPadre = false, esIngreso, formatMont
     <div className={`grid items-center grid-cols-1 gap-3 px-6 py-4 transition-colors border-b sm:grid-cols-12 border-fog last:border-b-0 ${esPadre ? 'bg-indigo-50/60 hover:bg-indigo-100/50' : 'hover:bg-mist/50'}`}>
       {/* Categoría */}
       <div className={`flex items-center gap-3 sm:col-span-3 ${esSub ? 'sm:pl-6' : ''}`}>
+        {onAlternar && (
+          <BotonPlegar contraido={contraido} nombre={p.categories?.nombre || 'la categoría'} onAlternar={onAlternar} />
+        )}
         {esSub && <span className="flex-shrink-0 w-1 h-1 rounded-full bg-pebble" />}
         <span
           className={`flex items-center justify-center flex-shrink-0 rounded-xl ${esSub ? 'w-8 h-8' : 'w-11 h-11'}`}
@@ -1024,10 +1090,12 @@ function FilaPresupuesto({ p, est, esSub, esPadre = false, esIngreso, formatMont
   )
 }
 
-function FilaGrupoPadre({ g, esIngreso, formatMonto }: {
+function FilaGrupoPadre({ g, esIngreso, formatMonto, contraido = false, onAlternar }: {
   g: { info: any; subs: any[]; subTotal: number; subGastado: number; subPct: number }
   esIngreso: boolean
   formatMonto: (n: number) => string
+  contraido?: boolean
+  onAlternar?: () => void
 }) {
   const { simbolo } = useMoneda()
   const color = g.info.color || '#71717a'
@@ -1038,6 +1106,9 @@ function FilaGrupoPadre({ g, esIngreso, formatMonto }: {
     <div className="grid items-center grid-cols-1 gap-3 px-6 py-4 border-b sm:grid-cols-12 border-fog bg-indigo-50/60">
       {/* Categoría */}
       <div className="flex items-center gap-3 sm:col-span-3">
+        {onAlternar && (
+          <BotonPlegar contraido={contraido} nombre={g.info.nombre || 'la categoría'} onAlternar={onAlternar} />
+        )}
         <span className="flex items-center justify-center flex-shrink-0 rounded-xl w-11 h-11" style={{ backgroundColor: color + '15', color }}>
           <IconoCategoria nombre={g.info.icono} size={20} />
         </span>
